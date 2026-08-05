@@ -1,0 +1,66 @@
+# SVL Receipts
+
+Internal receipt capture → office review → Housecall Job Inputs.
+
+This is a **monorepo**: one Git repo with multiple packages that make up one product.
+
+## Packages
+
+| Path | Name | Purpose |
+| --- | --- | --- |
+| `apps/mobile` | `@svl/mobile` | Expo app for field workers |
+| `apps/web` | `@svl/web` | Next.js manager dashboard + API |
+| `packages/domain` | `@svl/domain` | Shared business types (RA-75 contracts) |
+| `packages/integrations` | `@svl/integrations` | Housecall / vision adapters |
+
+Read [docs/boundaries.md](docs/boundaries.md) before adding cross-package imports.
+Read [docs/tooling.md](docs/tooling.md) for lint/test command choices.
+Read [docs/domain-contracts.md](docs/domain-contracts.md) for shared `@svl/domain` types (RA-75).
+
+## Requirements
+
+- Node.js 20+
+- npm 10+ (workspaces)
+
+## Setup
+
+```bash
+npm install
+```
+
+## How to check your work
+
+After a clean install, these must succeed:
+
+```bash
+npm run typecheck   # TypeScript across all packages
+npm run lint        # Biome lint + format check (errors fail the command)
+npm test            # Vitest (@svl/domain contracts + helpers)
+```
+
+Optional:
+
+```bash
+npm run format      # Apply Biome formatting
+```
+
+## Dev commands
+
+```bash
+npm run dev:web       # Next.js manager app
+npm run dev:mobile    # Expo phone app
+npm run build:web     # Production build for web
+```
+
+## Tooling choices
+
+| Concern | Choice |
+| --- | --- |
+| Lint + format | Biome (strict: errors fail `npm run lint`) |
+| Unit tests | Vitest in `@svl/domain` |
+| Package manager | npm workspaces |
+| Domain contracts | See `docs/domain-contracts.md` |
+
+## Environment
+
+Copy `.env.example` values into local env files as needed. Never commit secrets. Housecall and AI keys stay server-only.
