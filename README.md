@@ -16,6 +16,7 @@ This is a **monorepo**: one Git repo with multiple packages that make up one pro
 Read [docs/boundaries.md](docs/boundaries.md) before adding cross-package imports.
 Read [docs/tooling.md](docs/tooling.md) for lint/test command choices.
 Read [docs/domain-contracts.md](docs/domain-contracts.md) for shared `@svl/domain` types (RA-75).
+Read [docs/environments.md](docs/environments.md) for Vercel/Supabase setup, owners, rotation, and quota checks.
 
 ## Requirements
 
@@ -63,4 +64,6 @@ npm run build:web     # Production build for web
 
 ## Environment
 
-Copy `.env.example` values into local env files as needed. Never commit secrets. Housecall and AI keys stay server-only.
+Copy `.env.example` into `apps/web/.env.local` (gitignored) using **dev** values only. Never commit secrets. Housecall, AI, Supabase service-role, and `CRON_SECRET` stay server-only.
+
+Cloud mapping, owners, rotation, and free-tier quota checks: [docs/environments.md](docs/environments.md).
