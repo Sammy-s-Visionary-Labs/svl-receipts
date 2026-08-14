@@ -17,6 +17,7 @@ Read [docs/boundaries.md](docs/boundaries.md) before adding cross-package import
 Read [docs/tooling.md](docs/tooling.md) for lint/test command choices.
 Read [docs/domain-contracts.md](docs/domain-contracts.md) for shared `@svl/domain` types (RA-75).
 Read [docs/environments.md](docs/environments.md) for Vercel/Supabase setup, owners, rotation, and quota checks.
+Read [docs/auth.md](docs/auth.md) for sign-in, roles, and API guards (RA-15).
 
 ## Requirements
 
@@ -65,5 +66,7 @@ npm run build:web     # Production build for web
 ## Environment
 
 Copy `.env.example` into `apps/web/.env.local` (gitignored) using **dev** values only. Never commit secrets. Housecall, AI, Supabase service-role, and `CRON_SECRET` stay server-only.
+
+For Expo, set `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY` to the same **dev** public values.
 
 Cloud mapping, owners, rotation, and free-tier quota checks: [docs/environments.md](docs/environments.md).

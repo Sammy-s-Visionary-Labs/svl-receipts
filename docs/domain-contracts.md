@@ -8,6 +8,7 @@
 | --- | --- |
 | `index.ts` | Public re-exports |
 | `roles.ts` | `worker` \| `manager` \| `admin` |
+| `authz.ts` | Server-side role/ownership helpers + error codes |
 | `receipt-status.ts` | Receipt lifecycle statuses + terminal helpers |
 | `extraction.ts` | Extraction v1 + `schema_version` |
 | `review.ts` | Review decisions + light command payloads |

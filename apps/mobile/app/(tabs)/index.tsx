@@ -1,16 +1,19 @@
 import { DOMAIN_PACKAGE } from "@svl/domain";
-import { StyleSheet } from "react-native";
+import { Button, StyleSheet } from "react-native";
 
-import EditScreenInfo from "@/components/EditScreenInfo";
 import { Text, View } from "@/components/Themed";
+import { useAuth } from "@/lib/auth/auth-context";
 
 export default function TabOneScreen() {
+  const { role, signOut } = useAuth();
+
   return (
     <View style={styles.container}>
       <Text style={styles.title}>SVL Receipts</Text>
+      <Text>Role: {role ?? "unknown"}</Text>
       <Text>Scaffold check: {DOMAIN_PACKAGE}</Text>
       <View style={styles.separator} lightColor="#eee" darkColor="rgba(255,255,255,0.1)" />
-      <EditScreenInfo path="app/(tabs)/index.tsx" />
+      <Button title="Sign out" onPress={() => void signOut()} />
     </View>
   );
 }

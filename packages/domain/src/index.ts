@@ -7,6 +7,7 @@
 
 export const DOMAIN_PACKAGE = "@svl/domain" as const;
 
+export * from "./authz";
 export * from "./extraction";
 export * from "./housecall";
 export * from "./legacy-status";

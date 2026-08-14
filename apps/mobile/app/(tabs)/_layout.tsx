@@ -1,12 +1,22 @@
-import { Link, Tabs } from "expo-router";
+import { type Href, Link, Redirect, Tabs } from "expo-router";
 import { SymbolView } from "expo-symbols";
 import { Pressable } from "react-native";
 import { useClientOnlyValue } from "@/components/useClientOnlyValue";
 import { useColorScheme } from "@/components/useColorScheme";
 import Colors from "@/constants/Colors";
+import { useAuth } from "@/lib/auth/auth-context";
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
+  const { session, loading } = useAuth();
+  const headerShown = useClientOnlyValue(false, true);
+
+  if (loading) {
+    return null;
+  }
+  if (!session) {
+    return <Redirect href={"/login" as Href} />;
+  }
 
   return (
     <Tabs
@@ -14,7 +24,7 @@ export default function TabLayout() {
         tabBarActiveTintColor: Colors[colorScheme].tint,
         // Disable the static render of the header on web
         // to prevent a hydration error in React Navigation v6.
-        headerShown: useClientOnlyValue(false, true),
+        headerShown,
       }}
     >
       <Tabs.Screen
