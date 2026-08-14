@@ -3,7 +3,9 @@ export const EXTRACTION_SCHEMA_VERSION = 1 as const;
 
 export type ExtractionSchemaVersion = typeof EXTRACTION_SCHEMA_VERSION;
 
-export type ExtractionProvider = "gemini" | "openai" | "unknown";
+export const EXTRACTION_PROVIDERS = ["gemini", "openai", "unknown"] as const;
+
+export type ExtractionProvider = (typeof EXTRACTION_PROVIDERS)[number];
 
 /**
  * Per-field confidence in [0, 1].

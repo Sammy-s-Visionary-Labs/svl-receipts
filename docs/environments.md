@@ -50,7 +50,7 @@ If a dashboard name differs, update this table. Do not invent a second Vercel pr
 3. Open `svl-receipts-dev` or `svl-receipts-prod` (two separate projects).
 4. Keys: **Project Settings → API Keys**.
 5. Auth URLs: **Authentication → URL Configuration**.
-6. Storage: **Storage → `receipts`**. The bucket must stay **private**.
+6. Storage: **Storage → `receipts`**. The bucket must stay **private**. Clients read and write only through short-lived signed URLs from the API.
 
 ## Environment variables
 
@@ -66,7 +66,7 @@ Set them in Vercel → **Settings → Environment Variables**. The same **name**
 | `HOUSECALL_API_KEY` | Server-only | prod Housecall key | sandbox or dummy | Yes |
 | `AI_PROVIDER` | Server-only | provider name (`gemini` / `openai`) | test provider | No |
 | `AI_API_KEY` | Server-only | prod AI key | sandbox or dummy | Yes |
-| `CRON_SECRET` | Server-only (Vercel cron auth later) | unique 16+ char string | a **different** unique string | Yes |
+| `CRON_SECRET` | Server-only (Vercel cron auth for abandoned-upload cleanup) | unique 16+ char string | a **different** unique string | Yes |
 
 Rules:
 
@@ -131,7 +131,7 @@ Check **both** Supabase projects. They do not share one quota.
 1. [https://vercel.com/dashboard](https://vercel.com/dashboard) → company team.
 2. Team **Settings → Billing** / **Usage**.
 3. Look at deployments, bandwidth, and function invocations.
-4. Cron jobs (when added later): Hobby allows **at most one run per day**. A schedule more frequent than daily will fail the deploy. There is no always-on worker.
+4. Cron jobs: Hobby allows **at most one run per day**. `apps/web/vercel.json` schedules `GET /api/cron/abandoned-uploads` once daily. A schedule more frequent than daily will fail the deploy. There is no always-on worker.
 
 ### Supabase free
 

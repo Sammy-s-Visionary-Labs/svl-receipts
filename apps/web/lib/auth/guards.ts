@@ -129,7 +129,7 @@ export async function requireReceiptAccess(
   request: Request,
   route: string,
   receiptId: string,
-): Promise<{ actor: AuthzActor; ownerUserId: string }> {
+): Promise<{ actor: AuthzActor; supabase: SupabaseClient; ownerUserId: string }> {
   const { actor, supabase } = await requireActor(request, route);
   const { data, error } = await supabase
     .from("receipts")
@@ -149,7 +149,7 @@ export async function requireReceiptAccess(
     throw new AuthHttpError(403, AUTH_ERROR_CODES.forbidden, "Receipt access denied");
   }
 
-  return { actor, ownerUserId };
+  return { actor, supabase, ownerUserId };
 }
 
 export function authErrorResponse(error: unknown): Response {
