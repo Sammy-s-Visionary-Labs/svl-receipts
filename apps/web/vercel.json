@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/abandoned-uploads",
+      "schedule": "0 8 * * *"
+    }
+  ]
+}

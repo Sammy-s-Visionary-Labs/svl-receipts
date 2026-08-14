@@ -9,8 +9,9 @@ function isPublicPath(pathname: string): boolean {
 export async function proxy(request: NextRequest) {
   const { supabaseResponse, signedIn } = await updateSession(request);
   const { pathname } = request.nextUrl;
+  const hasBearer = request.headers.get("authorization")?.startsWith("Bearer ");
 
-  if (signedIn || isPublicPath(pathname)) {
+  if (signedIn || isPublicPath(pathname) || (pathname.startsWith("/api/") && hasBearer)) {
     return supabaseResponse;
   }
 
