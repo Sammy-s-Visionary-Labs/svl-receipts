@@ -1,8 +1,7 @@
-import { createClient } from "@supabase/supabase-js";
 import { AUTH_ERROR_CODES } from "@svl/domain";
 import { AuthHttpError, authErrorResponse } from "@/lib/auth/guards";
-import { getSupabasePublicEnv } from "@/lib/supabase/env";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createServiceRoleClient } from "@/lib/supabase/service";
 
 export async function POST(request: Request) {
   try {
@@ -11,13 +10,13 @@ export async function POST(request: Request) {
     const header = request.headers.get("authorization");
 
     if (header?.startsWith("Bearer ")) {
-      const { url, key } = getSupabasePublicEnv();
-      const supabase = createClient(url, key, {
-        global: { headers: { Authorization: header } },
-        auth: { persistSession: false, autoRefreshToken: false },
-      });
-      const { error } = await supabase.auth.signOut({ scope });
-      if (error) {
+      const jwt = header.slice("Bearer ".length).trim();
+      if (!jwt) {
+        throw new AuthHttpError(401, AUTH_ERROR_CODES.unauthenticated, "Sign-out failed");
+      }
+      try {
+        await createServiceRoleClient().auth.admin.signOut(jwt, scope);
+      } catch {
         throw new AuthHttpError(401, AUTH_ERROR_CODES.unauthenticated, "Sign-out failed");
       }
       return Response.json({ ok: true, scope });

@@ -19,7 +19,7 @@
 | `audit.ts` | Append-only audit actions + payload redaction (RA-18) |
 | `work.ts` | Leased work-queue kinds, retries, dead-letter (RA-18) |
 | `outbox.ts` | Housecall outbox / approve intent snapshot (RA-18) |
-| `retention.ts` | 365-day retention policy v1 (RA-19) |
+| `retention.ts` | 365-day retention helpers (RA-19). **Start event is RA-66**, not upload confirmation — see [architecture.md](architecture.md). |
 
 `@svl/integrations` is unchanged in RA-75 (no premature adapter interfaces).
 

@@ -3,6 +3,8 @@ import type { ApproveLineAssignment } from "@svl/domain";
 import { authErrorResponse, requireManager } from "@/lib/auth/guards";
 import { rpcHttpError } from "@/lib/db/errors";
 import { HttpError, httpErrorResponse } from "@/lib/http";
+import { createServiceRoleClient } from "@/lib/supabase/service";
+import { kickWork } from "@/lib/work/runner";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -14,12 +16,14 @@ type ApproveBody = {
 export async function POST(request: Request, context: RouteContext) {
   try {
     const { id } = await context.params;
-    const { supabase } = await requireManager(request, "POST /api/receipts/[id]/approve");
+    const { actor } = await requireManager(request, "POST /api/receipts/[id]/approve");
     const body = (await readJson(request)) as ApproveBody;
     const lines = parseApproveLines(body.lines);
 
-    const { data, error } = await supabase.rpc("approve_receipt_with_outbox", {
+    const service = createServiceRoleClient();
+    const { data, error } = await service.rpc("approve_receipt_with_outbox", {
       p_receipt_id: id,
+      p_actor_id: actor.userId,
       p_lines: lines,
       p_edits: body.edits ?? null,
       p_correlation_id: randomUUID(),
@@ -27,6 +31,13 @@ export async function POST(request: Request, context: RouteContext) {
     if (error) {
       throw rpcHttpError(error);
     }
+
+    try {
+      await kickWork("export");
+    } catch (cause) {
+      console.error("[approve] kick export", cause);
+    }
+
     return Response.json(data);
   } catch (error) {
     if (error instanceof HttpError) {

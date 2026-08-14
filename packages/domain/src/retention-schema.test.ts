@@ -19,7 +19,6 @@ describe("RA-19 retention migration", () => {
     expect(sql).toContain(`interval '${RETENTION_DAYS} days'`);
     expect(sql).toContain("retention_starts_at = submitted_at");
     expect(sql).not.toContain("retention_starts_at = created_at");
-    expect(RETENTION_START_EVENT).toBe("submitted");
   });
 
   it("requires an owner and reason for holds, and purges content without Housecall rows", () => {
@@ -42,5 +41,6 @@ describe("RA-19 retention migration", () => {
     expect(envDocs).toContain("PITR");
     expect(envDocs).toMatch(/backup/i);
     expect(BACKUP_EXPIRATION_NOTE).toMatch(/backup/i);
+    expect(RETENTION_START_EVENT).toBe("housecall_export_succeeded_or_declined");
   });
 });

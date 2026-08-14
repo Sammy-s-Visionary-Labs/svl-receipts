@@ -131,7 +131,7 @@ Check **both** Supabase projects. They do not share one quota.
 1. [https://vercel.com/dashboard](https://vercel.com/dashboard) → company team.
 2. Team **Settings → Billing** / **Usage**.
 3. Look at deployments, bandwidth, and function invocations.
-4. Cron jobs: Hobby allows **two cron jobs**, each **at most once per day**. `apps/web/vercel.json` schedules `GET /api/cron/abandoned-uploads` at 08:00 UTC and `GET /api/cron/work` at 08:30 UTC. A schedule more frequent than daily will fail the deploy. There is no always-on worker.
+4. Cron jobs: Hobby allows **two cron jobs**, each **at most once per day**. Daily cron is **recovery** (missed/stale work, abandoned-upload cleanup, due purges, retries). Primary extract/export kicks happen immediately after upload confirmation and after approval. See [architecture.md](architecture.md). A schedule more frequent than daily will fail the deploy. There is no always-on worker.
 
 ### Supabase free
 
@@ -140,11 +140,15 @@ Check **both** Supabase projects. They do not share one quota.
 3. Look at database size, storage, Auth MAUs, and Edge Function invocations if those are enabled.
 4. Free projects can **pause** after inactivity. Production should not sit unused if the office depends on it; a paused project has to be restored before the app works.
 
-## Receipt retention and backups (RA-19)
+## Receipt retention and backups (RA-19 / RA-66)
 
-Policy v1 starts the 365-day clock at **submission confirmation** (`submitted_at` / `retention_starts_at`), not at upload-session `created_at`. Receipts that were never submitted have no start event and are not deleted by retention. A manager/admin hold (owner + reason) skips deletion. Purge removes the storage object, extractions, reviews, line items, and job candidates. It keeps the receipt row, `audit_events`, and Housecall `intents` / `links` / `export_attempts`.
+Approved policy is in [architecture.md](architecture.md). The 365-day clock starts only when **both** Housecall attachment and Job Input exports succeed, or when the receipt is **declined**. Partial export does not start the clock. `retention_started_at` is set once; `delete_after_at = retention_started_at + 365 days`. Exhausted export retries do not start retention; a manager **export abandoned** action may send the receipt back for correction or decline/close it.
 
-**Backup expiration is a release risk.** Supabase Free has **no PITR**. If the project has automatic backups, deleted receipt content can remain until those backups expire — app-level purge is not the same as backup expiration. Before a production retention go-live, check **Project Settings → Add-ons / Backups** on both `svl-receipts-dev` and `svl-receipts-prod`. If PITR is ever enabled, record its recovery window here.
+Never-submitted receipts have no start event. A manager/admin hold (owner + reason) skips deletion. The database must not record a purge until Storage object removal has succeeded.
+
+**Pilot Storage (1 GB, both projects).** Keep Free-tier Storage for now. Add client-side resize/compression before upload, usage and average-size monitoring, and alerts at 70% / 85% / 95% of quota on **both** `svl-receipts-dev` and `svl-receipts-prod`. Prefer buying more managed storage over self-hosting if usage requires it.
+
+**Backup expiration is a release risk.** Supabase Free has **no PITR**. If the project has automatic backups, deleted receipt content can remain until those backups expire — app-level purge is not the same as backup expiration. Before a production retention go-live, check **Project Settings → Add-ons / Backups** on both projects. If PITR is ever enabled, record its recovery window here.
 
 ## Auth URLs (allowed origins)
 

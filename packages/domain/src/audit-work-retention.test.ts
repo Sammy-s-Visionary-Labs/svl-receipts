@@ -7,12 +7,15 @@ import {
   isEligibleForContentDeletion,
   RETENTION_DAYS,
   RETENTION_START_EVENT,
+  shouldStartRetention,
 } from "./retention";
 import {
+  isHandledWorkKind,
   isWorkClaimable,
   nextAttemptAt,
   retryDelayMinutes,
   scheduleWorkFailure,
+  WORK_HANDLED_KINDS,
   WORK_MAX_ATTEMPTS,
 } from "./work";
 
@@ -99,6 +102,13 @@ describe("work leases and retries", () => {
       scheduleWorkFailure({ attemptCount: 1, retryable: false, reason: "permanent", now }).status,
     ).toBe("dead_letter");
   });
+
+  it("treats only purge as a handled work kind until extract/export providers exist", () => {
+    expect(WORK_HANDLED_KINDS).toEqual(["purge"]);
+    expect(isHandledWorkKind("purge")).toBe(true);
+    expect(isHandledWorkKind("extract")).toBe(false);
+    expect(isHandledWorkKind("export")).toBe(false);
+  });
 });
 
 describe("housecall outbox", () => {
@@ -139,15 +149,55 @@ describe("retention policy v1", () => {
   const start = new Date("2025-01-01T00:00:00.000Z");
   const deleteAfter = computeDeleteAfterAt(start);
 
-  it("starts the clock on submission, not upload, and uses 365 days", () => {
-    expect(RETENTION_START_EVENT).toBe("submitted");
+  it("starts the clock after both Housecall steps or a decline, not on submit, and uses 365 days", () => {
+    expect(RETENTION_START_EVENT).toBe("housecall_export_succeeded_or_declined");
     expect(RETENTION_DAYS).toBe(365);
     expect(deleteAfter.toISOString()).toBe("2026-01-01T00:00:00.000Z");
+    expect(
+      shouldStartRetention({
+        status: "submitted",
+        attachmentSucceeded: false,
+        jobInputSucceeded: false,
+        retentionStartedAt: null,
+      }),
+    ).toBe(false);
+    expect(
+      shouldStartRetention({
+        status: "approved",
+        attachmentSucceeded: true,
+        jobInputSucceeded: false,
+        retentionStartedAt: null,
+      }),
+    ).toBe(false);
+    expect(
+      shouldStartRetention({
+        status: "exported",
+        attachmentSucceeded: true,
+        jobInputSucceeded: true,
+        retentionStartedAt: null,
+      }),
+    ).toBe(true);
+    expect(
+      shouldStartRetention({
+        status: "rejected",
+        attachmentSucceeded: false,
+        jobInputSucceeded: false,
+        retentionStartedAt: null,
+      }),
+    ).toBe(true);
+    expect(
+      shouldStartRetention({
+        status: "exported",
+        attachmentSucceeded: true,
+        jobInputSucceeded: true,
+        retentionStartedAt: start,
+      }),
+    ).toBe(false);
   });
 
   it("is not due at 364 days, and is due at 365 and 366 days", () => {
     const base = {
-      retentionStartsAt: start,
+      retentionStartedAt: start,
       deleteAfterAt: deleteAfter,
       retentionHold: false,
       contentDeletedAt: null,
@@ -167,11 +217,11 @@ describe("retention policy v1", () => {
     ).toBe(true);
   });
 
-  it("keeps held and never-submitted receipts, and skips already-purged rows", () => {
+  it("keeps held and never-started receipts, and skips already-purged rows", () => {
     const now = new Date("2026-02-01T00:00:00.000Z");
     expect(
       isEligibleForContentDeletion({
-        retentionStartsAt: start,
+        retentionStartedAt: start,
         deleteAfterAt: deleteAfter,
         retentionHold: true,
         contentDeletedAt: null,
@@ -180,7 +230,7 @@ describe("retention policy v1", () => {
     ).toBe(false);
     expect(
       isEligibleForContentDeletion({
-        retentionStartsAt: null,
+        retentionStartedAt: null,
         deleteAfterAt: null,
         retentionHold: false,
         contentDeletedAt: null,
@@ -189,7 +239,7 @@ describe("retention policy v1", () => {
     ).toBe(false);
     expect(
       isEligibleForContentDeletion({
-        retentionStartsAt: start,
+        retentionStartedAt: start,
         deleteAfterAt: deleteAfter,
         retentionHold: false,
         contentDeletedAt: now,

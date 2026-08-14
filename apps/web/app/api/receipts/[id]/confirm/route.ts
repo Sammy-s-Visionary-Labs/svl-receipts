@@ -15,6 +15,8 @@ import {
   readReceiptObject,
   sha256Hex,
 } from "@/lib/storage/receipts";
+import { createServiceRoleClient } from "@/lib/supabase/service";
+import { kickWork } from "@/lib/work/runner";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -98,8 +100,10 @@ export async function POST(request: Request, context: RouteContext) {
       throw new HttpError(409, "conflict", "Illegal status transition");
     }
 
-    const { data: submitted, error: submitError } = await supabase.rpc("submit_confirmed_receipt", {
+    const service = createServiceRoleClient();
+    const { data: submitted, error: submitError } = await service.rpc("submit_confirmed_receipt", {
       p_receipt_id: row.id,
+      p_actor_id: actor.userId,
       p_checksum: checksum,
       p_byte_size: object.bytes.byteLength,
       p_correlation_id: randomUUID(),
@@ -108,6 +112,12 @@ export async function POST(request: Request, context: RouteContext) {
     if (submitError) {
       console.error("[upload-confirm]", submitError);
       throw rpcHttpError(submitError);
+    }
+
+    try {
+      await kickWork("extract");
+    } catch (cause) {
+      console.error("[upload-confirm] kick extract", cause);
     }
 
     const result = submitted as { id?: string; status?: string } | null;

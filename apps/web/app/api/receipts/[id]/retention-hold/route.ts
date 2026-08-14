@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { authErrorResponse, requireManager } from "@/lib/auth/guards";
 import { rpcHttpError } from "@/lib/db/errors";
 import { HttpError, httpErrorResponse } from "@/lib/http";
+import { createServiceRoleClient } from "@/lib/supabase/service";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -13,7 +14,7 @@ type HoldBody = {
 export async function POST(request: Request, context: RouteContext) {
   try {
     const { id } = await context.params;
-    const { supabase } = await requireManager(request, "POST /api/receipts/[id]/retention-hold");
+    const { actor } = await requireManager(request, "POST /api/receipts/[id]/retention-hold");
     const body = (await readJson(request)) as HoldBody;
     if (typeof body.hold !== "boolean") {
       throw new HttpError(400, "invalid_request", "hold must be a boolean");
@@ -22,8 +23,10 @@ export async function POST(request: Request, context: RouteContext) {
       throw new HttpError(400, "invalid_request", "hold reason is required");
     }
 
-    const { data, error } = await supabase.rpc("set_retention_hold", {
+    const service = createServiceRoleClient();
+    const { data, error } = await service.rpc("set_retention_hold", {
       p_receipt_id: id,
+      p_actor_id: actor.userId,
       p_hold: body.hold,
       p_reason: typeof body.reason === "string" ? body.reason : null,
       p_correlation_id: randomUUID(),

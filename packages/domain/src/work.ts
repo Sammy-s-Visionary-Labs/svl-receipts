@@ -13,6 +13,13 @@ export const WORK_MAX_ATTEMPTS = 8;
 
 export const WORK_LEASE_SECONDS = 5 * 60;
 
+/** Kinds the current runner may claim and complete. Extract/export stay queued until providers exist. */
+export const WORK_HANDLED_KINDS = ["purge"] as const satisfies readonly WorkKind[];
+
+export function isHandledWorkKind(value: string): value is (typeof WORK_HANDLED_KINDS)[number] {
+  return (WORK_HANDLED_KINDS as readonly string[]).includes(value);
+}
+
 export const WORK_RETRY_CAP_MINUTES = 24 * 60;
 
 export function isWorkKind(value: string): value is WorkKind {

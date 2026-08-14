@@ -7,6 +7,20 @@ import {
 } from "@svl/domain";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 
+export type ReceiptObjectStore = {
+  createUploadTarget(storageKey: string): Promise<{ signedUrl: string; token: string }>;
+  createReadUrl(storageKey: string): Promise<string>;
+  readObject(storageKey: string): Promise<{ bytes: Buffer; contentType: string | null } | null>;
+  removeObject(storageKey: string): Promise<void>;
+};
+
+export const supabaseReceiptObjectStore: ReceiptObjectStore = {
+  createUploadTarget: createReceiptUploadTarget,
+  createReadUrl: createReceiptReadUrl,
+  readObject: readReceiptObject,
+  removeObject: removeReceiptObject,
+};
+
 export async function createReceiptUploadTarget(storageKey: string) {
   const supabase = createServiceRoleClient();
   const { data, error } = await supabase.storage
@@ -76,5 +90,13 @@ export function objectMatchesSession(input: {
 
 export async function removeReceiptObject(storageKey: string): Promise<void> {
   const supabase = createServiceRoleClient();
-  await supabase.storage.from(RECEIPT_BUCKET).remove([storageKey]);
+  const { error } = await supabase.storage.from(RECEIPT_BUCKET).remove([storageKey]);
+  if (error) {
+    throw error;
+  }
+
+  const leftover = await readReceiptObject(storageKey);
+  if (leftover) {
+    throw new Error("storage_object_still_present");
+  }
 }

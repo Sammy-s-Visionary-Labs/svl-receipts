@@ -15,9 +15,10 @@ In each Supabase project (dev, then prod):
 5. **SQL Editor** → paste and run `supabase/migrations/20260814180000_receipts_storage_private.sql` (skip if already applied).
 6. **SQL Editor** → paste and run `supabase/migrations/20260814190000_audit_work_outbox.sql` (skip if already applied).
 7. **SQL Editor** → paste and run `supabase/migrations/20260814200000_retention_lifecycle.sql` (skip if already applied).
-8. **Authentication → Providers**: Email on. Disable public signup if the dashboard offers that toggle.
-9. Create users under **Authentication → Users**. New rows get `profiles.role = worker`.
-10. Promote a user in SQL (service role / dashboard), for example:
+8. **SQL Editor** → paste and run `supabase/migrations/20260814210000_foundation_hardening.sql` (skip if already applied).
+9. **Authentication → Providers**: Email on. Disable public signup if the dashboard offers that toggle.
+10. Create users under **Authentication → Users**. New rows get `profiles.role = worker`.
+11. Promote a user in SQL (service role / dashboard), for example:
 
 ```sql
 update public.profiles
@@ -44,6 +45,16 @@ A disabled profile cannot pass `/api/me` even if a cookie or refresh token still
 
 `proxy.ts` refreshes cookies and sends anonymous browsers to `/login`. **API routes also accept `Authorization: Bearer`** (mobile + cron). **Authorization is enforced in route handlers** (`lib/auth/guards.ts`) except cron routes, which check `CRON_SECRET`.
 
+### Lifecycle mutations (approved 2026-08-14)
+
+Receipt lifecycle changes go only through authenticated Next.js APIs and trusted workers using server-side `service_role`. Web and mobile clients never receive the service-role key.
+
+`anon` and `authenticated` must not have `INSERT` / `UPDATE` / `DELETE` / `TRUNCATE` on lifecycle tables, and must not execute privileged mutation RPCs (`PUBLIC` included in those revokes). Workers may keep RLS-protected **reads** of their own profile and history. RLS stays enabled as defense in depth, including active-profile checks on remaining owner read policies.
+
+Privileged RPCs (`create_upload_pending_receipt`, `submit_confirmed_receipt`, `approve_receipt_with_outbox`, `set_retention_hold`, `claim_work`, `delete_abandoned_upload`, `assert_purge_eligible`, `purge_receipt_content`) take `p_actor_id` / `p_worker_id` from the API or runner and are executable by `service_role` only. GET `/api/receipts/[id]` returns `retentionStartedAt` (column `retention_started_at`).
+
+Integration tests must prove `anon`, workers, and disabled users cannot mutate tables or privileged RPCs directly. See [architecture.md](architecture.md).
+
 Local web: copy `.env.example` to `apps/web/.env.local` with **dev** values. Local mobile: `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY` (same publishable/anon key as web).
 
 ## Routes
@@ -67,4 +78,4 @@ Local web: copy `.env.example` to `apps/web/.env.local` with **dev** values. Loc
 
 Denied API responses look like `{ "error": { "code": "unauthenticated" \| "forbidden" \| "invalid_request" \| "not_found" \| "conflict" \| "internal", "message": "..." } }` and do not include receipt image bytes. Denials are logged as `[authz-denied]` with user id and route only. Image reads are logged as `[receipt-image-access]` with user id and receipt id only.
 
-`receipts` is the core document (status, storage key/metadata, optional GPS, retention dates). Related tables: immutable `extractions`, append-only `reviews`, `receipt_lines` (integer cents), `job_candidates`, `housecall_intents`, `housecall_links`, append-only `export_attempts`, append-only `audit_events`, leased `work_items`, and `housecall_outbox`. Confirming an upload schedules extract work exactly once. Approving a receipt writes the review, intent, and outbox in one transaction. Receipt and Housecall-step transition guards live in `@svl/domain` (`evaluateReceiptTransition`, `evaluateHousecallStepAttempt`); a unique index blocks a second succeeded export attempt for the same step target.
+`receipts` is the core document (status, storage key/metadata, optional GPS, retention dates). Related tables: immutable `extractions`, append-only `reviews`, `receipt_lines` (integer cents), `job_candidates`, `housecall_intents`, `housecall_links`, append-only `export_attempts`, append-only `audit_events`, leased `work_items`, and `housecall_outbox`. Confirming an upload queues extract work once, then kicks an idempotent worker after commit (no-op until the extract provider exists). Approving a receipt writes the review, intent, and outbox in one transaction, then kicks export (same). Daily cron recovers missed **purge** work. Receipt and Housecall-step transition guards live in `@svl/domain` (`evaluateReceiptTransition`, `evaluateHousecallStepAttempt`); a unique index blocks a second succeeded export attempt for the same step target. Bearer `POST /api/auth/sign-out` uses Auth admin logout so refresh tokens are revoked.

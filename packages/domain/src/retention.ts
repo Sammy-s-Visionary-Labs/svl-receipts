@@ -1,14 +1,14 @@
 /**
- * Retention policy v1.
- * Clock starts at the submission confirmation event (`submitted_at`), not upload-session created_at.
+ * Retention policy v1 (RA-66).
+ * Clock starts once, when both Housecall steps succeed or the receipt is declined.
  */
 
 export const RETENTION_POLICY_VERSION = 1 as const;
 
 export const RETENTION_DAYS = 365;
 
-/** Named start event for policy v1. Still-open (never submitted) receipts are not eligible. */
-export const RETENTION_START_EVENT = "submitted" as const;
+/** Canonical start event. Upload confirmation does not start the clock. */
+export const RETENTION_START_EVENT = "housecall_export_succeeded_or_declined" as const;
 
 /**
  * Supabase Free/Hobby does not offer PITR. Daily backups, if enabled, can retain
@@ -23,12 +23,29 @@ export function addUtcDays(start: Date, days: number): Date {
   return next;
 }
 
-export function computeDeleteAfterAt(retentionStartsAt: Date): Date {
-  return addUtcDays(retentionStartsAt, RETENTION_DAYS);
+export function computeDeleteAfterAt(retentionStartedAt: Date): Date {
+  return addUtcDays(retentionStartedAt, RETENTION_DAYS);
+}
+
+export type RetentionStartInput = {
+  status: string;
+  attachmentSucceeded: boolean;
+  jobInputSucceeded: boolean;
+  retentionStartedAt: Date | null;
+};
+
+export function shouldStartRetention(input: RetentionStartInput): boolean {
+  if (input.retentionStartedAt) {
+    return false;
+  }
+  if (input.status === "rejected" || input.status === "rejected_unreadable") {
+    return true;
+  }
+  return input.attachmentSucceeded && input.jobInputSucceeded;
 }
 
 export type RetentionEligibilityInput = {
-  retentionStartsAt: Date | null;
+  retentionStartedAt: Date | null;
   deleteAfterAt: Date | null;
   retentionHold: boolean;
   contentDeletedAt: Date | null;
@@ -42,7 +59,7 @@ export function isEligibleForContentDeletion(input: RetentionEligibilityInput): 
   if (input.retentionHold) {
     return false;
   }
-  if (!input.retentionStartsAt || !input.deleteAfterAt) {
+  if (!input.retentionStartedAt || !input.deleteAfterAt) {
     return false;
   }
   return input.deleteAfterAt.getTime() <= input.now.getTime();

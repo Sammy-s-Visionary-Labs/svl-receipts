@@ -17,6 +17,7 @@ Read [docs/boundaries.md](docs/boundaries.md) before adding cross-package import
 Read [docs/tooling.md](docs/tooling.md) for lint/test command choices.
 Read [docs/domain-contracts.md](docs/domain-contracts.md) for shared `@svl/domain` types (RA-75).
 Read [docs/auth.md](docs/auth.md) for sign-in, roles, and API guards (RA-15).
+Read [docs/architecture.md](docs/architecture.md) for retention, processing, storage, and API-mutation decisions (2026-08-14).
 Read [docs/environments.md](docs/environments.md) for Vercel/Supabase setup, owners, rotation, quota checks, and retention/backup expiration (RA-19).
 
 ## Requirements

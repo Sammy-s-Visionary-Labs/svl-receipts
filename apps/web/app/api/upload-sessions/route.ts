@@ -7,8 +7,10 @@ import {
   UPLOAD_SESSION_TTL_SECONDS,
 } from "@svl/domain";
 import { authErrorResponse, requireActor } from "@/lib/auth/guards";
+import { rpcHttpError } from "@/lib/db/errors";
 import { HttpError, httpErrorResponse } from "@/lib/http";
 import { createReceiptUploadTarget } from "@/lib/storage/receipts";
+import { createServiceRoleClient } from "@/lib/supabase/service";
 
 type SessionBody = {
   contentType?: unknown;
@@ -17,7 +19,7 @@ type SessionBody = {
 
 export async function POST(request: Request) {
   try {
-    const { actor, supabase } = await requireActor(request, "POST /api/upload-sessions");
+    const { actor } = await requireActor(request, "POST /api/upload-sessions");
     const body = (await readJson(request)) as SessionBody;
     const contentType = typeof body.contentType === "string" ? body.contentType : "image/jpeg";
     if (!isReceiptContentType(contentType)) {
@@ -37,17 +39,18 @@ export async function POST(request: Request) {
       contentType,
     });
 
-    const { error: insertError } = await supabase.from("receipts").insert({
-      id: receiptId,
-      owner_user_id: actor.userId,
-      status: "upload_pending",
-      storage_key: storageKey,
-      content_type: contentType,
-      original_filename: originalFilename,
+    const service = createServiceRoleClient();
+    const { error: insertError } = await service.rpc("create_upload_pending_receipt", {
+      p_actor_id: actor.userId,
+      p_receipt_id: receiptId,
+      p_storage_key: storageKey,
+      p_content_type: contentType,
+      p_original_filename: originalFilename,
+      p_correlation_id: randomUUID(),
     });
     if (insertError) {
       console.error("[upload-session]", insertError);
-      throw new HttpError(500, "internal", "Request failed");
+      throw rpcHttpError(insertError);
     }
 
     const upload = await createReceiptUploadTarget(storageKey);
