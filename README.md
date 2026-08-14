@@ -16,8 +16,8 @@ This is a **monorepo**: one Git repo with multiple packages that make up one pro
 Read [docs/boundaries.md](docs/boundaries.md) before adding cross-package imports.
 Read [docs/tooling.md](docs/tooling.md) for lint/test command choices.
 Read [docs/domain-contracts.md](docs/domain-contracts.md) for shared `@svl/domain` types (RA-75).
-Read [docs/environments.md](docs/environments.md) for Vercel/Supabase setup, owners, rotation, and quota checks.
 Read [docs/auth.md](docs/auth.md) for sign-in, roles, and API guards (RA-15).
+Read [docs/environments.md](docs/environments.md) for Vercel/Supabase setup, owners, rotation, quota checks, and retention/backup expiration (RA-19).
 
 ## Requirements
 

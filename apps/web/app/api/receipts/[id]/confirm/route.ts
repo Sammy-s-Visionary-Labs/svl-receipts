@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import {
   actorMayReadReceipt,
   evaluateReceiptTransition,
@@ -6,6 +7,7 @@ import {
   normalizeChecksum,
 } from "@svl/domain";
 import { AuthHttpError, authErrorResponse, requireActor } from "@/lib/auth/guards";
+import { rpcHttpError } from "@/lib/db/errors";
 import { HttpError, httpErrorResponse } from "@/lib/http";
 import {
   checksumsMatch,
@@ -96,30 +98,23 @@ export async function POST(request: Request, context: RouteContext) {
       throw new HttpError(409, "conflict", "Illegal status transition");
     }
 
-    const submittedAt = new Date().toISOString();
-    const { data: updated, error: updateError } = await supabase
-      .from("receipts")
-      .update({
-        status: "submitted",
-        checksum,
-        byte_size: object.bytes.byteLength,
-        submitted_at: submittedAt,
-      })
-      .eq("id", row.id)
-      .eq("status", "upload_pending")
-      .select("id, status")
-      .maybeSingle();
+    const { data: submitted, error: submitError } = await supabase.rpc("submit_confirmed_receipt", {
+      p_receipt_id: row.id,
+      p_checksum: checksum,
+      p_byte_size: object.bytes.byteLength,
+      p_correlation_id: randomUUID(),
+    });
 
-    if (updateError) {
-      console.error("[upload-confirm]", updateError);
-      throw new HttpError(500, "internal", "Request failed");
+    if (submitError) {
+      console.error("[upload-confirm]", submitError);
+      throw rpcHttpError(submitError);
     }
 
-    if (!updated) {
-      return Response.json({ id: row.id, status: "submitted" });
-    }
-
-    return Response.json({ id: updated.id, status: updated.status });
+    const result = submitted as { id?: string; status?: string } | null;
+    return Response.json({
+      id: result?.id ?? row.id,
+      status: result?.status ?? "submitted",
+    });
   } catch (error) {
     if (error instanceof HttpError) {
       return httpErrorResponse(error);
