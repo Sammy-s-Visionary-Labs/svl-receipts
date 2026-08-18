@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
 import {
+  isDeferablePurgeReason,
   isHandledWorkKind,
+  persistableWorkReason,
   WORK_HANDLED_KINDS,
   WORK_LEASE_SECONDS,
   type WorkKind,
@@ -19,9 +21,12 @@ function newWorkerId(): string {
 }
 
 class PurgeNotEligibleError extends Error {
-  constructor(message: string) {
-    super(message);
+  readonly code: "retention_hold" | "purge_not_eligible";
+
+  constructor(code: "retention_hold" | "purge_not_eligible") {
+    super(code);
     this.name = "PurgeNotEligibleError";
+    this.code = code;
   }
 }
 
@@ -72,7 +77,7 @@ export async function runWorkBatch(input?: { limit?: number; kinds?: WorkKind[] 
   for (const row of rows) {
     try {
       if (!isHandledWorkKind(row.kind)) {
-        throw new Error(`unhandled_work_kind:${row.kind}`);
+        throw new Error("unhandled_work_kind");
       }
 
       const { error: startError } = await supabase.rpc("start_queued_work", {
@@ -100,18 +105,18 @@ export async function runWorkBatch(input?: { limit?: number; kinds?: WorkKind[] 
         const { error: deferError } = await supabase.rpc("defer_work", {
           p_work_id: row.id,
           p_worker_id: workerId,
-          p_reason: cause.message.slice(0, 500),
+          p_reason: cause.code,
         });
         if (!deferError) {
           failed += 1;
           continue;
         }
       }
-      const reason = cause instanceof Error ? cause.message.slice(0, 500) : "worker_failure";
+      console.error("[work-runner] job failed", row.id, cause);
       const { error: failError } = await supabase.rpc("fail_work", {
         p_work_id: row.id,
         p_worker_id: workerId,
-        p_reason: reason,
+        p_reason: persistableWorkReason(cause),
         p_retryable: true,
       });
       if (failError) {
@@ -143,7 +148,13 @@ async function runPurge(
     p_worker_id: workerId,
   });
   if (eligibleError) {
-    throw new PurgeNotEligibleError(eligibleError.message?.slice(0, 500) || "purge_not_eligible");
+    if (isDeferablePurgeReason(eligibleError)) {
+      const code = persistableWorkReason(eligibleError);
+      throw new PurgeNotEligibleError(
+        code === "retention_hold" ? "retention_hold" : "purge_not_eligible",
+      );
+    }
+    throw eligibleError;
   }
 
   const snapshot = eligible as {

@@ -18,7 +18,7 @@
 | `upload.ts` | Upload constraints and storage-key rules (RA-17) |
 | `storage-errors.ts` | Which Storage error codes mean the receipt object is gone |
 | `audit.ts` | Append-only audit actions + payload redaction (RA-18) |
-| `work.ts` | Leased work-queue kinds, retries, dead-letter (RA-18) |
+| `work.ts` | Leased work-queue kinds, retries, dead-letter, persistable error codes (RA-18) |
 | `outbox.ts` | Housecall outbox / approve intent snapshot (RA-18) |
 | `retention.ts` | 365-day retention helpers (RA-19). **Start event is RA-66**, not upload confirmation — see [architecture.md](architecture.md). |
 

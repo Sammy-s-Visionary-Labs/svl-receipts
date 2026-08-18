@@ -24,7 +24,7 @@ Vercel Hobby. No Railway worker.
 | Vercel environment checkboxes | Preview + Development | Production |
 | Vercel URL | the Preview URL for that branch (`*.vercel.app`) | the **stable Production domain** in the Vercel project header (not a per-deploy hash URL) |
 | Next.js app / Root Directory | `apps/web` | `apps/web` |
-| Node | 20.x | 20.x |
+| Node | 22.x | 22.x |
 | Supabase project name | `svl-receipts-dev` | `svl-receipts-prod` |
 | Storage bucket | `receipts` (private; public access off) | `receipts` (private; public access off) |
 | Vault entry | `svl-receipts-dev` | `svl-receipts-prod` |
@@ -39,9 +39,10 @@ If a dashboard name differs, update this table. Do not invent a second Vercel pr
 2. Switch to the company team (not a personal account, unless that *is* the company account).
 3. Open the project connected to `Sammy-s-Visionary-Labs/svl-receipts`.
 4. Confirm **Settings → General → Root Directory** is `apps/web`.
-5. Confirm **Settings → Git → Production Branch** is `master`.
-6. Production URL: project overview, domain marked **Production**.
-7. Env vars: **Settings → Environment Variables**.
+5. Confirm **Settings → General → Node.js Version** is **22.x**.
+6. Confirm **Settings → Git → Production Branch** is `master`.
+7. Production URL: project overview, domain marked **Production**.
+8. Env vars: **Settings → Environment Variables**.
 
 **Supabase**
 
@@ -165,5 +166,6 @@ Configuration drift is visible when these disagree:
 - Vercel Preview `NEXT_PUBLIC_SUPABASE_URL` vs the `svl-receipts-dev` project URL
 - This file’s project names vs the live dashboards
 - `.env.example` names vs Vercel variable names
+- Git migration versions vs live `schema_migrations` (see [migration-history.md](../supabase/migration-history.md))
 
 If they disagree, update Vercel or this file — do not leave a silent mismatch.

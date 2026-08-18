@@ -22,7 +22,7 @@ Read [docs/environments.md](docs/environments.md) for Vercel/Supabase setup, own
 
 ## Requirements
 
-- Node.js 20+
+- Node.js 22+
 - npm 10+ (workspaces)
 
 ## Setup
@@ -36,9 +36,10 @@ npm install
 After a clean install, these must succeed:
 
 ```bash
-npm run typecheck   # TypeScript across all packages
+npm run typecheck   # TypeScript across all packages (does not require a Next build)
 npm run lint        # Biome lint + format check (errors fail the command)
-npm test            # Vitest (@svl/domain contracts + helpers)
+npm test            # Vitest (@svl/domain contracts + helpers, mobile session store)
+npm run test:applied  # Executes supabase/tests/ra2_applied.sql (needs SVL_APPLIED_DATABASE_URL)
 ```
 
 Optional:

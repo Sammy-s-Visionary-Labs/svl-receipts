@@ -11,9 +11,11 @@ import {
   shouldStartRetention,
 } from "./retention";
 import {
+  isDeferablePurgeReason,
   isHandledWorkKind,
   isWorkClaimable,
   nextAttemptAt,
+  persistableWorkReason,
   retryDelayMinutes,
   scheduleWorkFailure,
   WORK_HANDLED_KINDS,
@@ -109,6 +111,17 @@ describe("work leases and retries", () => {
     expect(isHandledWorkKind("purge")).toBe(true);
     expect(isHandledWorkKind("extract")).toBe(false);
     expect(isHandledWorkKind("export")).toBe(false);
+  });
+
+  it("persists allowlisted work codes and drops secret-bearing provider messages", () => {
+    expect(persistableWorkReason("retention_hold")).toBe("retention_hold");
+    expect(persistableWorkReason("purge_not_eligible")).toBe("purge_not_eligible");
+    expect(persistableWorkReason("Authorization: Bearer TOPSECRET")).toBe("worker_failure");
+    expect(persistableWorkReason(new Error("permission denied for function"))).toBe(
+      "worker_failure",
+    );
+    expect(isDeferablePurgeReason({ message: "retention_hold" })).toBe(true);
+    expect(isDeferablePurgeReason({ message: "conflict" })).toBe(false);
   });
 });
 

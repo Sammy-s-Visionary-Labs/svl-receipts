@@ -12,12 +12,13 @@
     "typecheck": "npm run typecheck --workspaces --if-present",
     "lint": "biome check .",
     "format": "biome format --write .",
-    "test": "npm run test --workspaces --if-present"
+    "test": "npm run test --workspaces --if-present",
+    "test:applied": "node scripts/run-applied-sql.mjs"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.2.0"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   }
 }

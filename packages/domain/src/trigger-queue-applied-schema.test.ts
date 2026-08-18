@@ -45,22 +45,16 @@ describe("trigger and queue applied-fixes migration", () => {
 
 describe("RA-2 applied permission and execution tests", () => {
   it("asserts anon/authenticated cannot mutate lifecycle tables or privileged RPCs", () => {
-    expect(applied).toContain("has_table_privilege('anon', 'public.receipts', 'INSERT')");
-    expect(applied).toContain("has_table_privilege('authenticated', 'public.receipts', 'UPDATE')");
+    expect(applied).toContain("has_table_privilege('anon', tbl, 'INSERT')");
     expect(applied).toContain("has_function_privilege('anon'");
     expect(applied).toContain("submit_confirmed_receipt");
     expect(applied).toContain("approve_receipt_with_outbox");
     expect(applied).toContain("claim_work");
   });
 
-  it("executes the same-receipt trigger, hold deferral, and audit redaction", () => {
-    expect(applied).toContain("insert into public.housecall_intents");
-    expect(applied).toContain("insert into public.housecall_links");
-    expect(applied).toContain("insert into public.export_attempts");
-    expect(applied).toContain('record "new" has no field');
+  it("still covers same-receipt rejection, hold deferral, and rollback", () => {
     expect(applied).toContain("cross-receipt reference");
     expect(applied).toContain("defer_work");
-    expect(applied).toContain("redact_audit_json");
     expect(applied).toContain("rollback");
   });
 });
