@@ -1,6 +1,7 @@
-import { spawnSync } from "node:child_process";
+import { readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import postgres from "postgres";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const sqlFile = join(root, "supabase", "tests", "ra2_applied.sql");
@@ -11,15 +12,18 @@ if (!url) {
   process.exit(1);
 }
 
-const supabaseCommand = process.platform === "win32" ? "supabase.cmd" : "supabase";
-const result = spawnSync(supabaseCommand, ["db", "query", "--db-url", url, "--file", sqlFile], {
-  encoding: "utf8",
-  stdio: "inherit",
+const sql = postgres(url, {
+  max: 1,
+  prepare: false,
 });
 
-if (result.error) {
-  console.error(result.error.message);
-  process.exit(1);
+try {
+  // The suite intentionally contains BEGIN, multiple DO blocks, and ROLLBACK.
+  // Simple-query mode executes the file as one rollback-only database session.
+  await sql.unsafe(await readFile(sqlFile, "utf8")).simple();
+} catch (error) {
+  console.error(error instanceof Error ? error.message : "applied_sql_failed");
+  process.exitCode = 1;
+} finally {
+  await sql.end({ timeout: 5 });
 }
-
-process.exit(result.status ?? 1);
