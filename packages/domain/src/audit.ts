@@ -6,6 +6,7 @@ export const AUDIT_ACTIONS = [
   "review_recorded",
   "receipt_approved",
   "outbox_enqueued",
+  "work_started",
   "work_completed",
   "work_retried",
   "work_dead_lettered",

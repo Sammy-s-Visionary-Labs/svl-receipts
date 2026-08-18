@@ -169,3 +169,16 @@ Configuration drift is visible when these disagree:
 - Git migration versions vs live `schema_migrations` (see [migration-history.md](../supabase/migration-history.md))
 
 If they disagree, update Vercel or this file — do not leave a silent mismatch.
+
+## Migration deployment and reconciliation (RA-208)
+
+The repository pins the Supabase CLI and commits `supabase/config.toml` with PostgreSQL 17, matching both hosted projects. Docker is required for the clean local replay gate.
+
+For ordinary forward changes:
+
+1. Create and review a migration file; never make an untracked production schema change in the Dashboard or through MCP.
+2. Run the CI-equivalent local database gate: `npm run db:start`, `npm run db:reset`, `SVL_APPLIED_DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:54322/postgres npm run test:applied`, and `npm run db:stop`.
+3. Run `db push --dry-run` against dev, apply only the reviewed pending file, then repeat the migration list, schema diff, and applied test.
+4. Repeat against production only after dev passes, with a confirmed backup/recovery plan and no concurrent deployment.
+
+The two existing live histories still contain project-specific split versions and require a one-time metadata repair before the next normal push. The exact verified version lists, non-destructive `migration repair` commands, ordering for `20260818191408_ra2_audit_and_replay_fixes.sql`, and production cautions are in [supabase/migration-history.md](../supabase/migration-history.md). Never use `db reset --linked`, `db push --include-all`, or seed flags on production.

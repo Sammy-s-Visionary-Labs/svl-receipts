@@ -13,10 +13,14 @@
     "lint": "biome check .",
     "format": "biome format --write .",
     "test": "npm run test --workspaces --if-present",
-    "test:applied": "node scripts/run-applied-sql.mjs"
+    "test:applied": "node scripts/run-applied-sql.mjs",
+    "db:start": "supabase start --exclude gotrue,realtime,storage-api,imgproxy,kong,mailpit,postgrest,postgres-meta,studio,edge-runtime,logflare,vector,supavisor",
+    "db:reset": "supabase db reset --local --no-seed",
+    "db:stop": "supabase stop --no-backup"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.2.0"
+    "@biomejs/biome": "^2.2.0",
+    "supabase": "2.115.0"
   },
   "engines": {
     "node": ">=22"

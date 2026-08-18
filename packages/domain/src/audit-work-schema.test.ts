@@ -14,21 +14,29 @@ const sql = readFileSync(
   "utf8",
 );
 
-function namedCheck(name: string): string {
+const auditReplaySql = readFileSync(
+  join(
+    dirname(fileURLToPath(import.meta.url)),
+    "../../../supabase/migrations/20260818191408_ra2_audit_and_replay_fixes.sql",
+  ),
+  "utf8",
+);
+
+function namedCheck(name: string, source = sql): string {
   const marker = `constraint ${name}`;
-  const start = sql.indexOf(marker);
+  const start = source.lastIndexOf(marker);
   expect(start, `missing ${name}`).toBeGreaterThan(-1);
-  const open = sql.indexOf("check (", start);
+  const open = source.indexOf("check (", start);
   expect(open, `missing check body for ${name}`).toBeGreaterThan(-1);
   let depth = 0;
-  for (let i = open + "check ".length; i < sql.length; i += 1) {
-    const ch = sql[i];
+  for (let i = open + "check ".length; i < source.length; i += 1) {
+    const ch = source[i];
     if (ch === "(") {
       depth += 1;
     } else if (ch === ")") {
       depth -= 1;
       if (depth === 0) {
-        return sql.slice(open, i + 1);
+        return source.slice(open, i + 1);
       }
     }
   }
@@ -43,7 +51,7 @@ describe("RA-18 audit, work, and outbox migration", () => {
     expect(sql).toContain("before_ref jsonb");
     expect(sql).toContain("after_ref jsonb");
     expect(sql).toContain("create trigger audit_events_append_only");
-    const actionCheck = namedCheck("audit_events_action_check");
+    const actionCheck = namedCheck("audit_events_action_check", `${sql}\n${auditReplaySql}`);
     for (const action of AUDIT_ACTIONS) {
       expect(actionCheck).toContain(`'${action}'`);
     }

@@ -2,7 +2,7 @@
 
 **Status:** Approved 2026-08-14. These decisions supersede the RA-19 implementation that started retention at upload confirmation (`submitted_at`).
 
-Remediation lives in `supabase/migrations/20260814210000_foundation_hardening.sql`, `supabase/migrations/20260818161945_blocker_remediation.sql`, `supabase/migrations/20260818173115_trigger_queue_applied_fixes.sql`, and `supabase/migrations/20260818183938_persistable_work_and_hold_recovery.sql` plus the matching Next.js wiring. Live history used split MCP names (`foundation_hardening` / `p1`–`p7`, `blocker_remediation_p1`–`p6`, `trigger_queue_applied_fixes_p1`–`p3`, `persistable_work_and_hold_recovery_p1`–`p2`; Git keeps one file each). Git versions are also marked applied on live after the repair in [migration-history.md](../supabase/migration-history.md), so `supabase db push` only applies newer Git files. Do not rewrite already-applied files. Do not merge to `master` until this branch is reviewed.
+Remediation lives in the forward-only files under `supabase/migrations` plus the matching Next.js wiring. Live history still contains 27 project-specific split MCP versions in addition to the canonical Git versions. Marking the canonical versions applied did **not** finish RA-208 or make an ordinary `db push` safe. Follow the clean-replay, equivalence, metadata-repair, dev-first push, and production checks in [migration-history.md](../supabase/migration-history.md). Do not rewrite already-applied files or mark new unapplied SQL as applied. Do not merge to `master` until this branch is reviewed.
 
 Related Jira: [RA-2](https://visionary-labs.atlassian.net/browse/RA-2), [RA-11](https://visionary-labs.atlassian.net/browse/RA-11), [RA-15](https://visionary-labs.atlassian.net/browse/RA-15), [RA-18](https://visionary-labs.atlassian.net/browse/RA-18), [RA-19](https://visionary-labs.atlassian.net/browse/RA-19), [RA-66](https://visionary-labs.atlassian.net/browse/RA-66), [RA-206](https://visionary-labs.atlassian.net/browse/RA-206).
 
@@ -79,14 +79,15 @@ Decline/close starts retention under §1. Sending it back for correction does no
 
 ## Current implementation
 
-As of `20260818183938_persistable_work_and_hold_recovery.sql` and the matching Next.js routes:
+As of `20260818191408_ra2_audit_and_replay_fixes.sql` and the matching Next.js routes:
 
 - Retention uses `retention_started_at`, set once when the current Housecall intent is fully exported or the receipt is declined (including `duplicate`). Confirm does not start the clock. The column is write-once after it is set.
-- Lifecycle mutations go through service-role RPCs from Next.js. `anon` and `authenticated` have SELECT only. Owner reads also require an active profile. Default privileges for future public tables/functions also revoke DML/execute from `anon` / `authenticated` / `PUBLIC`.
+- Lifecycle mutations go through service-role RPCs from Next.js. `anon` and `authenticated` have no DML on the current application tables; authenticated reads are RLS-scoped and owner reads require an active profile. The migration role's default privileges are hardened as defense in depth; every future migration must still grant access explicitly and verify the resulting live grants.
 - The work runner claims only `purge`, uses a unique lease id per batch, and marks work succeeded only after the handler ran. Extract/export rows stay queued until those providers exist. Confirm and approve kick those kinds after commit; unimplemented kicks no-op and leave the queue as source of truth.
 - `claim_work` does not lease purge rows that are held, not yet due, or already purged. Only `retention_hold` and `purge_not_eligible` are deferred (`defer_work`, with a `work_retried` audit). Unexpected SQL errors use `fail_work`.
 - `fail_work` / `defer_work` persist allowlisted codes only (`persistable_work_reason`). Provider `Error.message` stays in runtime logs.
-- Clearing a hold requeues that receipt's **hold-caused** purge dead letters (`retention_hold`, plus legacy `conflict`) and resets `attempt_count`. Other dead letters stay dead. Repeat hold set/clear does not write a false before-state audit.
+- Clearing a hold requeues only that receipt's **hold-caused** purge dead letters (`retention_hold`), resets `attempt_count`, and audits the queue recovery. Other dead letters, including legacy generic `conflict` failures, stay dead. Repeat hold set/clear is a no-op, while owner/reason changes are audited with truthful before/after state.
+- Work claim/reclaim writes a `work_started` event. Deferral audits the actual leased attempt before restoring it to the queue; heartbeat-only lease renewal remains operational telemetry rather than receipt audit history.
 - Purge fences the receipt (`purge_claimed_at`) before Storage delete, then `purge_receipt_content`. A hold during that window is `retention_hold`. If Storage delete fails and the object is still present, the runner releases the fence. If existence is unknown, the fence stays and the job retries. Absence is `NoSuchKey` (or legacy object-not-found), not a bare 404 or `NoSuchBucket`.
 - Confirm requires the object's declared Content-Type to match the session. Missing Content-Type is a mismatch.
 - Abandoned-upload cleanup claims the row first (`cleanup_claimed_at`), then removes storage, then `delete_abandoned_upload`. Confirm refuses claimed sessions.

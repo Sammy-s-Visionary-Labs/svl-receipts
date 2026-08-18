@@ -11,7 +11,8 @@ if (!url) {
   process.exit(1);
 }
 
-const result = spawnSync("psql", [url, "-v", "ON_ERROR_STOP=1", "-f", sqlFile], {
+const supabaseCommand = process.platform === "win32" ? "supabase.cmd" : "supabase";
+const result = spawnSync(supabaseCommand, ["db", "query", "--db-url", url, "--file", sqlFile], {
   encoding: "utf8",
   stdio: "inherit",
 });

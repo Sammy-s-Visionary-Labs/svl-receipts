@@ -8,6 +8,7 @@ do $$
 declare
   tbl text;
   fn_ident text;
+  fn_sql text;
 begin
   foreach tbl in array array[
     'public.profiles',
@@ -33,6 +34,12 @@ begin
       or has_table_privilege('authenticated', tbl, 'UPDATE')
       or has_table_privilege('authenticated', tbl, 'DELETE') then
       raise exception 'authenticated must not mutate %', tbl;
+    end if;
+    if has_table_privilege('anon', tbl, 'TRUNCATE') then
+      raise exception 'anon must not truncate %', tbl;
+    end if;
+    if has_table_privilege('authenticated', tbl, 'TRUNCATE') then
+      raise exception 'authenticated must not truncate %', tbl;
     end if;
   end loop;
 
@@ -65,6 +72,54 @@ begin
   if public.persistable_work_reason('Authorization: Bearer TOPSECRET') is distinct from 'worker_failure' then
     raise exception 'persistable_work_reason must not keep provider secret text';
   end if;
+
+  if not exists (
+    select 1
+    from storage.buckets b
+    where b.id = 'receipts'
+      and b.name = 'receipts'
+      and b.public = false
+      and b.file_size_limit = 10485760
+      and b.allowed_mime_types = array['image/jpeg', 'image/png', 'image/webp']::text[]
+  ) then
+    raise exception 'receipts bucket must be created with private RA-17 limits';
+  end if;
+
+  select pg_get_functiondef('public.assert_purge_eligible(uuid,text)'::regprocedure)
+  into fn_sql;
+  if position('select * into work_row' in lower(fn_sql)) = 0
+    or position('for update' in lower(fn_sql)) = 0
+    or position('select * into rec' in lower(fn_sql)) = 0
+    or position('select * into work_row' in lower(fn_sql))
+      > position('for update' in lower(fn_sql))
+    or position('for update' in lower(fn_sql))
+      > position('select * into rec' in lower(fn_sql)) then
+    raise exception 'assert_purge_eligible must lock work before receipt';
+  end if;
+
+  select pg_get_functiondef('public.purge_receipt_content(uuid,text)'::regprocedure)
+  into fn_sql;
+  if position('select * into work_row' in lower(fn_sql)) = 0
+    or position('for update' in lower(fn_sql)) = 0
+    or position('select * into rec' in lower(fn_sql)) = 0
+    or position('select * into work_row' in lower(fn_sql))
+      > position('for update' in lower(fn_sql))
+    or position('for update' in lower(fn_sql))
+      > position('select * into rec' in lower(fn_sql)) then
+    raise exception 'purge_receipt_content must lock work before receipt';
+  end if;
+
+  select pg_get_functiondef('public.set_retention_hold(uuid,uuid,boolean,text,uuid)'::regprocedure)
+  into fn_sql;
+  if position('perform 1' in lower(fn_sql)) = 0
+    or position('for update' in lower(fn_sql)) = 0
+    or position('select * into rec' in lower(fn_sql)) = 0
+    or position('perform 1' in lower(fn_sql))
+      > position('for update' in lower(fn_sql))
+    or position('for update' in lower(fn_sql))
+      > position('select * into rec' in lower(fn_sql)) then
+    raise exception 'set_retention_hold must lock purge work before receipt';
+  end if;
 end;
 $$;
 
@@ -73,14 +128,21 @@ declare
   owner uuid;
   rcp_a uuid;
   rcp_b uuid;
+  rcp_c uuid;
+  rcp_d uuid;
   extraction_id uuid;
   line_id uuid;
   intent_id uuid;
   work_id uuid;
   storage_work uuid;
+  conflict_work uuid;
+  queued_work uuid;
   claimed_id uuid;
   audit_count integer;
   audit_after integer;
+  audit_before_ref jsonb;
+  audit_after_ref jsonb;
+  audit_payload jsonb;
   started_at timestamptz;
   delete_at timestamptz;
 begin
@@ -259,6 +321,35 @@ begin
     raise exception 'repeat hold must not write a false before-state audit';
   end if;
 
+  perform public.set_retention_hold(rcp_a, owner, true, 'updated applied test hold');
+  select count(*) into audit_after
+  from public.audit_events
+  where receipt_id = rcp_a and action = 'retention_hold_set';
+  if audit_after <> audit_count + 1 then
+    raise exception 'changing active hold metadata must append one audit event';
+  end if;
+
+  select before_ref, after_ref, payload
+  into audit_before_ref, audit_after_ref, audit_payload
+  from public.audit_events
+  where receipt_id = rcp_a
+    and action = 'retention_hold_set'
+    and payload->>'change' = 'hold_metadata_updated';
+  if audit_before_ref->>'reason' is distinct from 'applied test hold'
+    or audit_after_ref->>'reason' is distinct from 'updated applied test hold'
+    or audit_payload->>'change' is distinct from 'hold_metadata_updated' then
+    raise exception 'hold metadata audit must contain truthful before/after values';
+  end if;
+
+  audit_count := audit_after;
+  perform public.set_retention_hold(rcp_a, owner, true, 'updated applied test hold');
+  select count(*) into audit_after
+  from public.audit_events
+  where receipt_id = rcp_a and action = 'retention_hold_set';
+  if audit_after <> audit_count then
+    raise exception 'repeat updated hold must remain an audit no-op';
+  end if;
+
   select id into claimed_id
   from public.claim_work('test-worker', 10, 300, array['purge']::text[])
   where id = work_id;
@@ -283,11 +374,22 @@ begin
     raise exception 'defer_work must requeue without counting a failure';
   end if;
 
-  if not exists (
-    select 1 from public.audit_events
-    where receipt_id = rcp_a and action = 'work_retried'
-  ) then
-    raise exception 'defer_work must append a work_retried audit event';
+  select before_ref, after_ref, payload
+  into audit_before_ref, audit_after_ref, audit_payload
+  from public.audit_events
+  where receipt_id = rcp_a
+    and action = 'work_retried'
+    and payload->>'worker_id' = 'test-worker'
+    and payload->>'reason' = 'retention_hold';
+  if audit_before_ref->>'status' is distinct from 'leased'
+    or (audit_before_ref->>'attempt_count')::integer <> 3
+    or audit_before_ref->>'lease_owner' is distinct from 'test-worker'
+    or audit_after_ref->>'status' is distinct from 'queued'
+    or (audit_after_ref->>'attempt_count')::integer <> 2
+    or audit_after_ref->>'lease_owner' is not null
+    or audit_after_ref->>'last_error' is distinct from 'retention_hold'
+    or audit_payload->>'reason' is distinct from 'retention_hold' then
+    raise exception 'defer_work audit must contain truthful before/after state';
   end if;
 
   update public.work_items
@@ -318,6 +420,10 @@ begin
     attempt_count = 8
   where id = work_id;
 
+  select count(*) into audit_count
+  from public.audit_events
+  where receipt_id = rcp_a and action = 'work_retried';
+
   perform public.set_retention_hold(rcp_a, owner, false, null);
 
   if exists (
@@ -325,6 +431,30 @@ begin
     where id = work_id and (status is distinct from 'queued' or attempt_count <> 0)
   ) then
     raise exception 'clearing a hold must revive hold-caused dead letters with a fresh retry budget';
+  end if;
+
+  select count(*) into audit_after
+  from public.audit_events
+  where receipt_id = rcp_a and action = 'work_retried';
+  if audit_after <> audit_count + 1 then
+    raise exception 'hold-clear dead-letter recovery must append one work retry audit';
+  end if;
+
+  select before_ref, after_ref, payload
+  into audit_before_ref, audit_after_ref, audit_payload
+  from public.audit_events
+  where receipt_id = rcp_a
+    and action = 'work_retried'
+    and before_ref->>'work_id' = work_id::text
+    and payload->>'reason' = 'retention_hold_cleared';
+  if audit_before_ref->>'status' is distinct from 'dead_letter'
+    or (audit_before_ref->>'attempt_count')::integer <> 8
+    or audit_before_ref->>'terminal_reason' is distinct from 'retention_hold'
+    or audit_after_ref->>'status' is distinct from 'queued'
+    or (audit_after_ref->>'attempt_count')::integer <> 0
+    or audit_after_ref->>'terminal_reason' is not null
+    or audit_payload->>'reason' is distinct from 'retention_hold_cleared' then
+    raise exception 'hold-clear work audit must contain truthful recovery state';
   end if;
 
   select count(*) into audit_count
@@ -360,15 +490,109 @@ begin
     raise exception 'hold clear must not revive non-hold dead letters';
   end if;
 
-  update public.work_items
-  set
-    status = 'leased',
-    lease_owner = 'purge-worker',
-    lease_expires_at = now() + interval '5 minutes',
-    attempt_count = 1,
-    last_error = null,
-    terminal_reason = null
+  insert into public.receipts (
+    owner_user_id, status, storage_key, content_type, retention_started_at, delete_after_at
+  ) values (
+    owner, 'exported', 'c/key.jpg', 'image/jpeg', now() - interval '400 days', now() - interval '1 day'
+  )
+  returning id into rcp_c;
+
+  insert into public.work_items (
+    receipt_id, kind, status, next_attempt_at, attempt_count, last_error, terminal_reason
+  ) values (
+    rcp_c, 'purge', 'dead_letter', now(), 8, 'conflict', 'conflict'
+  )
+  returning id into conflict_work;
+
+  select count(*) into audit_count
+  from public.audit_events
+  where receipt_id = rcp_c and action = 'work_retried';
+  perform public.set_retention_hold(rcp_c, owner, true, 'temporary conflict test hold');
+  perform public.set_retention_hold(rcp_c, owner, false, null);
+  select count(*) into audit_after
+  from public.audit_events
+  where receipt_id = rcp_c and action = 'work_retried';
+
+  if exists (
+    select 1
+    from public.work_items
+    where id = conflict_work
+      and (
+        status is distinct from 'dead_letter'
+        or attempt_count <> 8
+        or terminal_reason is distinct from 'conflict'
+      )
+  ) or audit_after <> audit_count then
+    raise exception 'hold clear must never revive or audit an unrelated conflict dead letter';
+  end if;
+
+  insert into public.receipts (
+    owner_user_id, status, storage_key, content_type, retention_started_at, delete_after_at
+  ) values (
+    owner, 'exported', 'd/key.jpg', 'image/jpeg', now(), now() + interval '1 day'
+  )
+  returning id into rcp_d;
+
+  insert into public.work_items (
+    receipt_id, kind, status, next_attempt_at, attempt_count, last_error
+  ) values (
+    rcp_d, 'purge', 'queued', now(), 5, 'retention_hold'
+  )
+  returning id into queued_work;
+
+  perform public.set_retention_hold(rcp_d, owner, true, 'queued recovery audit');
+  select count(*) into audit_count
+  from public.audit_events
+  where receipt_id = rcp_d and action = 'work_retried';
+  perform public.set_retention_hold(rcp_d, owner, false, null);
+  select count(*) into audit_after
+  from public.audit_events
+  where receipt_id = rcp_d and action = 'work_retried';
+
+  if audit_after <> audit_count + 1 then
+    raise exception 'hold-clear queued recovery must append one work retry audit';
+  end if;
+
+  select before_ref, after_ref, payload
+  into audit_before_ref, audit_after_ref, audit_payload
+  from public.audit_events
+  where receipt_id = rcp_d
+    and action = 'work_retried'
+    and before_ref->>'work_id' = queued_work::text
+    and payload->>'reason' = 'retention_hold_cleared';
+  if audit_before_ref->>'work_id' is distinct from queued_work::text
+    or audit_before_ref->>'status' is distinct from 'queued'
+    or (audit_before_ref->>'attempt_count')::integer <> 5
+    or audit_before_ref->>'last_error' is distinct from 'retention_hold'
+    or audit_after_ref->>'status' is distinct from 'queued'
+    or (audit_after_ref->>'attempt_count')::integer <> 5
+    or audit_after_ref->>'last_error' is not null
+    or audit_payload->>'reason' is distinct from 'retention_hold_cleared' then
+    raise exception 'hold-clear queued audit must preserve attempt and truthfully clear the hold reason';
+  end if;
+
+  select id into claimed_id
+  from public.claim_work('purge-worker', 10, 300, array['purge']::text[])
   where id = work_id;
+  if claimed_id is distinct from work_id then
+    raise exception 'claim_work must lease due recovered purge work';
+  end if;
+
+  select before_ref, after_ref, payload
+  into audit_before_ref, audit_after_ref, audit_payload
+  from public.audit_events
+  where receipt_id = rcp_a
+    and action = 'work_started'
+    and payload->>'worker_id' = 'purge-worker';
+  if audit_before_ref->>'status' is distinct from 'queued'
+    or (audit_before_ref->>'attempt_count')::integer <> 0
+    or audit_after_ref->>'status' is distinct from 'leased'
+    or (audit_after_ref->>'attempt_count')::integer <> 1
+    or audit_after_ref->>'lease_owner' is distinct from 'purge-worker'
+    or audit_payload->>'worker_id' is distinct from 'purge-worker'
+    or (audit_payload->>'stale_lease_recovered')::boolean is distinct from false then
+    raise exception 'claim_work must audit truthful attempt and lease state';
+  end if;
 
   perform public.assert_purge_eligible(rcp_a, 'purge-worker');
   perform public.purge_receipt_content(rcp_a, 'purge-worker');

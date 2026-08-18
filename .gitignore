@@ -38,3 +38,7 @@ web-build/
 
 # TypeScript
 *.tsbuildinfo
+
+# Supabase CLI state (config.toml and migrations stay committed)
+supabase/.branches/
+supabase/.temp/

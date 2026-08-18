@@ -6,22 +6,24 @@ Roles live in `public.profiles` (`worker` | `manager` | `admin`, plus `disabled`
 
 ## Apply the database
 
-In each Supabase project (dev, then prod):
+Do not paste migration files into the SQL Editor. That bypasses normal CLI tracking and caused the
+split migration history described in [the RA-208 runbook](../supabase/migration-history.md).
 
-1. **SQL Editor** → paste and run `supabase/migrations/20260813180000_profiles_and_authz.sql` (skip if already applied).
-2. **SQL Editor** → paste and run `supabase/migrations/20260814120000_receipt_core_schema.sql` (skip if already applied).
-3. **SQL Editor** → paste and run `supabase/migrations/20260814140000_housecall_export_schema.sql` (skip if already applied).
-4. **SQL Editor** → paste and run `supabase/migrations/20260814160000_transition_guards.sql` (skip if already applied).
-5. **SQL Editor** → paste and run `supabase/migrations/20260814180000_receipts_storage_private.sql` (skip if already applied).
-6. **SQL Editor** → paste and run `supabase/migrations/20260814190000_audit_work_outbox.sql` (skip if already applied).
-7. **SQL Editor** → paste and run `supabase/migrations/20260814200000_retention_lifecycle.sql` (skip if already applied).
-8. **SQL Editor** → paste and run `supabase/migrations/20260814210000_foundation_hardening.sql` (skip if already applied).
-9. **SQL Editor** → paste and run `supabase/migrations/20260818161945_blocker_remediation.sql` (skip if already applied).
-10. **SQL Editor** → paste and run `supabase/migrations/20260818173115_trigger_queue_applied_fixes.sql` (skip if already applied).
-11. **SQL Editor** → paste and run `supabase/migrations/20260818183938_persistable_work_and_hold_recovery.sql` (skip if already applied).
-12. **Authentication → Providers**: Email on. Disable public signup if the dashboard offers that toggle.
-13. Create users under **Authentication → Users**. New rows get `profiles.role = worker`.
-14. Promote a user in SQL (service role / dashboard), for example:
+- For a clean local database, run `npm run db:start`, `npm run db:reset`, and
+  `SVL_APPLIED_DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:54322/postgres npm run test:applied`
+  before `npm run db:stop`.
+- For the existing dev and production projects, follow the runbook's exact dev-first history repair,
+  dry-run, push, schema comparison, and rollback-only applied test. The next pending migration is
+  `20260818191408_ra2_audit_and_replay_fixes.sql`; apply it normally with `db push`, never by marking
+  unapplied SQL as applied.
+- After the history is reconciled, create every database change with a new forward migration and
+  deploy it through the same reviewed `db push` workflow.
+
+Then configure users:
+
+1. **Authentication → Providers**: Email on. Disable public signup if the dashboard offers that toggle.
+2. Create users under **Authentication → Users**. New rows get `profiles.role = worker`.
+3. Promote a user in SQL (service role / dashboard), for example:
 
 ```sql
 update public.profiles
@@ -56,7 +58,7 @@ Receipt lifecycle changes go only through authenticated Next.js APIs and trusted
 
 Privileged RPCs (`create_upload_pending_receipt`, `submit_confirmed_receipt`, `approve_receipt_with_outbox`, `set_retention_hold`, `claim_work`, `defer_work`, `fail_work`, `claim_abandoned_upload`, `delete_abandoned_upload`, `assert_purge_eligible`, `release_purge_claim`, `purge_receipt_content`) take `p_actor_id` / `p_worker_id` from the API or runner and are executable by `service_role` only. GET `/api/receipts/[id]` returns `retentionStartedAt` (column `retention_started_at`).
 
-Integration tests must prove `anon`, workers, and disabled users cannot mutate tables or privileged RPCs directly. `npm test` checks that `supabase/tests/ra2_applied.sql` covers those RPCs. Execute it with `npm run test:applied` (`SVL_APPLIED_DATABASE_URL`) or by pasting it into the SQL editor in one transaction (it rolls back). See [architecture.md](architecture.md).
+Integration tests must prove `anon`, workers, and disabled users cannot mutate tables or privileged RPCs directly. `npm test` checks that `supabase/tests/ra2_applied.sql` covers those RPCs. Execute the rollback-only test through `npm run test:applied` with `SVL_APPLIED_DATABASE_URL` set to the reviewed target; do not paste it into the SQL editor. See [architecture.md](architecture.md).
 
 Local web: copy `.env.example` to `apps/web/.env.local` with **dev** values. Local mobile: `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY` (same publishable/anon key as web).
 

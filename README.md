@@ -19,11 +19,13 @@ Read [docs/domain-contracts.md](docs/domain-contracts.md) for shared `@svl/domai
 Read [docs/auth.md](docs/auth.md) for sign-in, roles, and API guards (RA-15).
 Read [docs/architecture.md](docs/architecture.md) for retention, processing, storage, and API-mutation decisions (2026-08-14).
 Read [docs/environments.md](docs/environments.md) for Vercel/Supabase setup, owners, rotation, quota checks, and retention/backup expiration (RA-19).
+Read [supabase/migration-history.md](supabase/migration-history.md) before linking the CLI or changing either hosted database (RA-208).
 
 ## Requirements
 
 - Node.js 22+
 - npm 10+ (workspaces)
+- Docker-compatible runtime for local Supabase migration checks
 
 ## Setup
 
@@ -39,6 +41,7 @@ After a clean install, these must succeed:
 npm run typecheck   # TypeScript across all packages (does not require a Next build)
 npm run lint        # Biome lint + format check (errors fail the command)
 npm test            # Vitest (@svl/domain contracts + helpers, mobile session store)
+npm run build:web   # Next.js production build
 npm run test:applied  # Executes supabase/tests/ra2_applied.sql (needs SVL_APPLIED_DATABASE_URL)
 ```
 
@@ -54,6 +57,9 @@ npm run format      # Apply Biome formatting
 npm run dev:web       # Next.js manager app
 npm run dev:mobile    # Expo phone app
 npm run build:web     # Production build for web
+npm run db:start      # Start the minimal local Supabase/PostgreSQL 17 stack
+npm run db:reset      # Recreate the local DB from every Git migration
+npm run db:stop       # Stop and discard the local stack
 ```
 
 ## Tooling choices
