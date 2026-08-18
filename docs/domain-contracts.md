@@ -16,6 +16,7 @@
 | `money.ts` | Deterministic cents helpers |
 | `legacy-status.ts` | Map legacy status names → current |
 | `upload.ts` | Upload constraints and storage-key rules (RA-17) |
+| `storage-errors.ts` | Which Storage error codes mean the receipt object is gone |
 | `audit.ts` | Append-only audit actions + payload redaction (RA-18) |
 | `work.ts` | Leased work-queue kinds, retries, dead-letter (RA-18) |
 | `outbox.ts` | Housecall outbox / approve intent snapshot (RA-18) |

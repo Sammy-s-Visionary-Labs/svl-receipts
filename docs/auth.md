@@ -16,9 +16,11 @@ In each Supabase project (dev, then prod):
 6. **SQL Editor** → paste and run `supabase/migrations/20260814190000_audit_work_outbox.sql` (skip if already applied).
 7. **SQL Editor** → paste and run `supabase/migrations/20260814200000_retention_lifecycle.sql` (skip if already applied).
 8. **SQL Editor** → paste and run `supabase/migrations/20260814210000_foundation_hardening.sql` (skip if already applied).
-9. **Authentication → Providers**: Email on. Disable public signup if the dashboard offers that toggle.
-10. Create users under **Authentication → Users**. New rows get `profiles.role = worker`.
-11. Promote a user in SQL (service role / dashboard), for example:
+9. **SQL Editor** → paste and run `supabase/migrations/20260818161945_blocker_remediation.sql` (skip if already applied).
+10. **SQL Editor** → paste and run `supabase/migrations/20260818173115_trigger_queue_applied_fixes.sql` (skip if already applied).
+11. **Authentication → Providers**: Email on. Disable public signup if the dashboard offers that toggle.
+12. Create users under **Authentication → Users**. New rows get `profiles.role = worker`.
+13. Promote a user in SQL (service role / dashboard), for example:
 
 ```sql
 update public.profiles
@@ -51,9 +53,9 @@ Receipt lifecycle changes go only through authenticated Next.js APIs and trusted
 
 `anon` and `authenticated` must not have `INSERT` / `UPDATE` / `DELETE` / `TRUNCATE` on lifecycle tables, and must not execute privileged mutation RPCs (`PUBLIC` included in those revokes). Workers may keep RLS-protected **reads** of their own profile and history. RLS stays enabled as defense in depth, including active-profile checks on remaining owner read policies.
 
-Privileged RPCs (`create_upload_pending_receipt`, `submit_confirmed_receipt`, `approve_receipt_with_outbox`, `set_retention_hold`, `claim_work`, `claim_abandoned_upload`, `delete_abandoned_upload`, `assert_purge_eligible`, `release_purge_claim`, `purge_receipt_content`) take `p_actor_id` / `p_worker_id` from the API or runner and are executable by `service_role` only. GET `/api/receipts/[id]` returns `retentionStartedAt` (column `retention_started_at`).
+Privileged RPCs (`create_upload_pending_receipt`, `submit_confirmed_receipt`, `approve_receipt_with_outbox`, `set_retention_hold`, `claim_work`, `defer_work`, `claim_abandoned_upload`, `delete_abandoned_upload`, `assert_purge_eligible`, `release_purge_claim`, `purge_receipt_content`) take `p_actor_id` / `p_worker_id` from the API or runner and are executable by `service_role` only. GET `/api/receipts/[id]` returns `retentionStartedAt` (column `retention_started_at`).
 
-Integration tests must prove `anon`, workers, and disabled users cannot mutate tables or privileged RPCs directly. See [architecture.md](architecture.md).
+Integration tests must prove `anon`, workers, and disabled users cannot mutate tables or privileged RPCs directly. Run `supabase/tests/ra2_applied.sql` against a database in one transaction (it rolls back). See [architecture.md](architecture.md).
 
 Local web: copy `.env.example` to `apps/web/.env.local` with **dev** values. Local mobile: `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY` (same publishable/anon key as web).
 

@@ -18,6 +18,13 @@ function newWorkerId(): string {
   return `work:${randomUUID()}`;
 }
 
+class PurgeNotEligibleError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "PurgeNotEligibleError";
+  }
+}
+
 export async function kickWork(kind: WorkKind): Promise<{
   claimed: number;
   completed: number;
@@ -89,6 +96,17 @@ export async function runWorkBatch(input?: { limit?: number; kinds?: WorkKind[] 
       }
       completed += 1;
     } catch (cause) {
+      if (cause instanceof PurgeNotEligibleError) {
+        const { error: deferError } = await supabase.rpc("defer_work", {
+          p_work_id: row.id,
+          p_worker_id: workerId,
+          p_reason: cause.message.slice(0, 500),
+        });
+        if (!deferError) {
+          failed += 1;
+          continue;
+        }
+      }
       const reason = cause instanceof Error ? cause.message.slice(0, 500) : "worker_failure";
       const { error: failError } = await supabase.rpc("fail_work", {
         p_work_id: row.id,
@@ -125,7 +143,7 @@ async function runPurge(
     p_worker_id: workerId,
   });
   if (eligibleError) {
-    throw eligibleError;
+    throw new PurgeNotEligibleError(eligibleError.message?.slice(0, 500) || "purge_not_eligible");
   }
 
   const snapshot = eligible as {
@@ -142,7 +160,7 @@ async function runPurge(
       await removeReceiptObject(storageKey);
     } catch (cause) {
       const existence = await receiptObjectExists(storageKey);
-      if (existence !== "absent") {
+      if (existence === "present") {
         const { error: releaseError } = await supabase.rpc("release_purge_claim", {
           p_receipt_id: row.receipt_id,
           p_worker_id: workerId,
@@ -150,6 +168,9 @@ async function runPurge(
         if (releaseError) {
           console.error("[work-runner] release_purge_claim", releaseError);
         }
+        throw cause;
+      }
+      if (existence === "unknown") {
         throw cause;
       }
     }

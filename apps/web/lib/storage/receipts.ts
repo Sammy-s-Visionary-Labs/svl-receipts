@@ -1,5 +1,7 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import {
+  declaredContentTypeMatches,
+  isReceiptStorageObjectAbsent,
   MAX_RECEIPT_BYTES,
   RECEIPT_BUCKET,
   type ReceiptContentType,
@@ -49,31 +51,13 @@ export async function createReceiptReadUrl(storageKey: string) {
 
 export type ReceiptObjectExistence = "present" | "absent" | "unknown";
 
-function isStorageObjectNotFound(error: unknown): boolean {
-  if (!error || typeof error !== "object") {
-    return false;
-  }
-  const candidate = error as {
-    statusCode?: string | number;
-    status?: number;
-    message?: string;
-    error?: string;
-  };
-  const status = String(candidate.statusCode ?? candidate.status ?? "");
-  const errorCode = (candidate.error ?? "").toLowerCase();
-  if (status === "404" || errorCode === "not_found" || errorCode === "objectnotfound") {
-    return true;
-  }
-  return /object not found/i.test(candidate.message ?? "");
-}
-
 export async function receiptObjectExists(storageKey: string): Promise<ReceiptObjectExistence> {
   const supabase = createServiceRoleClient();
   const { data, error } = await supabase.storage.from(RECEIPT_BUCKET).download(storageKey);
   if (data) {
     return "present";
   }
-  if (isStorageObjectNotFound(error)) {
+  if (isReceiptStorageObjectAbsent(error)) {
     return "absent";
   }
   return "unknown";
@@ -114,16 +98,13 @@ export function objectMatchesSession(input: {
   if (input.bytes.byteLength === 0 || input.bytes.byteLength > MAX_RECEIPT_BYTES) {
     return false;
   }
-  if (!input.contentType) {
-    return true;
-  }
-  return input.contentType === input.expectedContentType;
+  return declaredContentTypeMatches(input.contentType, input.expectedContentType);
 }
 
 export async function removeReceiptObject(storageKey: string): Promise<void> {
   const supabase = createServiceRoleClient();
   const { error } = await supabase.storage.from(RECEIPT_BUCKET).remove([storageKey]);
-  if (error && !isStorageObjectNotFound(error)) {
+  if (error && !isReceiptStorageObjectAbsent(error)) {
     throw error;
   }
 

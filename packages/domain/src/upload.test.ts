@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   ALLOWED_RECEIPT_CONTENT_TYPES,
   buildReceiptStorageKey,
+  declaredContentTypeMatches,
   isReceiptContentType,
   isSha256Checksum,
   MAX_RECEIPT_BYTES,
@@ -35,5 +36,11 @@ describe("receipt upload constraints", () => {
     expect(isSha256Checksum(hex.toUpperCase())).toBe(true);
     expect(normalizeChecksum(` ${hex.toUpperCase()} `)).toBe(hex);
     expect(isSha256Checksum("not-a-checksum")).toBe(false);
+  });
+
+  it("requires declared Content-Type metadata to match the session", () => {
+    expect(declaredContentTypeMatches("image/jpeg", "image/jpeg")).toBe(true);
+    expect(declaredContentTypeMatches(null, "image/jpeg")).toBe(false);
+    expect(declaredContentTypeMatches("image/png", "image/jpeg")).toBe(false);
   });
 });
