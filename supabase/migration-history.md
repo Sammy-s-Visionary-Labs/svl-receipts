@@ -2,9 +2,9 @@
 
 Git is the schema source of truth. This runbook reconciles the two hosted projects without replaying old SQL or changing application data.
 
-**Current state (verified 2026-08-18): reconciliation is not complete.** The live baseline has 11 canonical migrations through `20260818183938`; Git also contains the pending forward migration `20260818191408`. Each live project has the 11 baseline versions **plus 27 project-specific split versions** created while the same changes were applied through MCP. Merely adding the canonical rows did not make those extra rows safe: Supabase CLI compares migration timestamps, so the remote-only rows must be removed from migration metadata before `db push` becomes the normal deployment path.
+**Current state (verified 2026-08-18): reconciliation is complete.** Dev and production each record the same 12 canonical Git migrations through `20260818191408_ra2_audit_and_replay_fixes.sql`. The 27 project-specific split versions were removed from migration metadata in each project, dev first and then production. The final migration was applied normally with `db push`; it was not marked applied through repair. Ordinary forward `db push` is the supported deployment path again.
 
-`supabase migration repair --status reverted` changes only `supabase_migrations.schema_migrations`; it does not undo DDL or delete application data. It is safe here only after the clean-replay, schema-equivalence, grants, and applied tests below succeed.
+The commands below are retained as the completed operator record. **Do not rerun the historical repair commands.** `supabase migration repair --status reverted` changed only `supabase_migrations.schema_migrations`; it did not undo DDL or delete application data.
 
 ## Canonical Git baseline
 
@@ -21,16 +21,19 @@ Git is the schema source of truth. This runbook reconciles the two hosted projec
 | 20260818161945 | `blocker_remediation` |
 | 20260818173115 | `trigger_queue_applied_fixes` |
 | 20260818183938 | `persistable_work_and_hold_recovery` |
+| 20260818191408 | `ra2_audit_and_replay_fixes` |
 
-Both live projects already record every version in this table. Do not mark any of them applied again and never rewrite their SQL files.
+Both live projects record every version in this table. Do not mark any of them applied again and never rewrite their SQL files.
 
-`20260818191408_ra2_audit_and_replay_fixes.sql` is the next ordinary forward migration. It is **not** part of the split-history repair. After the old history is reconciled, apply it normally to dev with `db push`, validate dev, and then repeat on production. Never mark an unapplied migration `applied` merely to silence a history mismatch.
+`20260818191408_ra2_audit_and_replay_fixes.sql` was applied normally to dev and then production after the split-history repair. Never mark a future unapplied migration `applied` merely to silence a history mismatch.
 
-## Required evidence before repairing either remote
+## Completed reconciliation evidence
 
-Use the pinned CLI from this repository (`npm ci`; then `npx supabase ...`). Docker must be running.
+Operator session: 2026-08-18. Branch head used for the database repair was `946d316`; Supabase CLI was `2.115.0`; Node was `v22.14.0`.
 
-1. Prove a clean PostgreSQL 17 database can be rebuilt entirely from Git and passes the applied test:
+The following evidence passed before and after the dev-first repair:
+
+1. A clean PostgreSQL 17 database was rebuilt entirely from Git and passed the applied test:
 
    ```bash
    npm run db:start
@@ -39,31 +42,25 @@ Use the pinned CLI from this repository (`npm ci`; then `npx supabase ...`). Doc
    npm run db:stop
    ```
 
-   CI performs the same clean reset and test. A failed or skipped database job blocks reconciliation.
+   CI run `32179289333` performed the same clean reset and test successfully.
 
-2. Take a current backup or confirm the platform backup/recovery plan for the target project. Although repair is metadata-only, a mistaken history repair can make a later push run the wrong SQL.
+2. The repair was metadata-only and performed by one operator. Both hosted projects remained `ACTIVE_HEALTHY`. Supabase Free has no PITR; that recovery limitation remains documented in `docs/environments.md`.
 
-3. Compare the clean Git migration result with the target remote:
+3. The clean Git result was compared with each target. After the normal forward push, the applied SQL suite exited successfully, the private bucket/RLS/grants were rechecked, and exact leftover receipt/work/audit/object counts were zero. Post-push `db diff` reported only known function-body formatting noise, not extra tables or columns.
 
-   ```bash
-   npx supabase db diff --project-ref PROJECT_REF --schema public
-   ```
+4. No `db reset --linked`, `db push --include-all`, `db push --include-seed`, SQL Editor paste, or repair-marking of `20260818191408` as applied was used.
 
-   Because the clean replay includes the still-pending `20260818191408` migration, the only expected difference is its reviewed audit/recovery and bucket-replay delta. Any other DDL is unexplained and blocks repair. `db diff` has known blind spots for publications, Storage bucket configuration, and some view attributes, so also compare the current-baseline private bucket, RLS, table grants, function grants, triggers, and constraints directly. Do **not** run the expanded applied test against the target yet: it requires `20260818191408` and therefore runs only after the history repair and normal forward push.
-
-4. Freeze schema changes and deployments until the target's repair, forward push, and post-checks are finished. Never use `db reset --linked`, `db push --include-all`, or `db push --include-seed` on either hosted project.
-
-## Dev repair — `svl-receipts-dev`
+## Completed dev repair — `svl-receipts-dev`
 
 Project ref: `vrtcbrowjnipbldoioyr`.
 
-First capture the pre-repair list and confirm that all 11 canonical versions above are present:
+The pre-repair list contained the 11 canonical baseline versions plus the 27 obsolete dev split rows below, with `20260818191408` still local-only. The following historical commands were run once and must not be rerun:
 
 ```bash
 npx supabase migration list --project-ref vrtcbrowjnipbldoioyr
 ```
 
-After all prerequisite evidence is green, remove only the 27 obsolete dev split rows from migration metadata:
+The 27 obsolete dev split rows were removed from migration metadata with:
 
 ```bash
 npx supabase migration repair \
@@ -98,32 +95,32 @@ npx supabase migration repair \
   --project-ref vrtcbrowjnipbldoioyr
 ```
 
-Then verify history and preview the one intentional forward migration:
+The post-repair list showed only the canonical baseline, and the dry run showed only the intentional forward migration:
 
 ```bash
 npx supabase migration list --project-ref vrtcbrowjnipbldoioyr
 npx supabase db push --dry-run --project-ref vrtcbrowjnipbldoioyr
 ```
 
-The list must show the canonical baseline aligned. The dry run must show only `20260818191408_ra2_audit_and_replay_fixes.sql` (or intentional migrations added after it). Review that SQL, then apply it normally:
+The reviewed migration was then applied normally:
 
 ```bash
 npx supabase db push --project-ref vrtcbrowjnipbldoioyr
 ```
 
-Repeat `migration list`, `db diff`, and the applied test against dev. Do not continue to production unless dev is clean.
+The final dev list contained all 12 canonical versions and no split versions. `db diff`, the applied test, bucket/RLS/grant checks, and zero-leftover checks completed before production work began.
 
-## Production repair — `svl-receipts-prod`
+## Completed production repair — `svl-receipts-prod`
 
 Project ref: `ouyhvzvtjntbtxpmeeyj`.
 
-Use a maintenance window, re-check the backup/recovery plan, and confirm no deploy or schema work is running. Capture the pre-repair list and confirm all 11 canonical versions are present:
+After dev passed, the production pre-repair list contained the 11 canonical baseline versions plus the 27 obsolete production split rows below, with `20260818191408` still local-only. The following historical commands were run once and must not be rerun:
 
 ```bash
 npx supabase migration list --project-ref ouyhvzvtjntbtxpmeeyj
 ```
 
-After dev has passed every post-check, remove only the 27 obsolete production split rows from migration metadata:
+The 27 obsolete production split rows were removed from migration metadata with:
 
 ```bash
 npx supabase migration repair \
@@ -158,20 +155,20 @@ npx supabase migration repair \
   --project-ref ouyhvzvtjntbtxpmeeyj
 ```
 
-Verify and dry-run before applying anything:
+The post-repair history and dry run were checked before applying anything:
 
 ```bash
 npx supabase migration list --project-ref ouyhvzvtjntbtxpmeeyj
 npx supabase db push --dry-run --project-ref ouyhvzvtjntbtxpmeeyj
 ```
 
-The dry run must contain only the same forward migration already validated on dev. Apply it normally, never with `migration repair --status applied`:
+The dry run contained only the same forward migration already validated on dev. It was applied normally, never with `migration repair --status applied`:
 
 ```bash
 npx supabase db push --project-ref ouyhvzvtjntbtxpmeeyj
 ```
 
-Repeat `migration list`, `db diff`, and the rollback-only applied test against production. Archive the before/after lists, dry-run output, diff result, applied-test output, operator, and timestamp as RA-208 evidence.
+MCP confirmed the final production history contains all 12 canonical versions and no split versions. The applied test exited successfully, bucket/RLS/grants remained correct, and exact leftover counts were zero. A CLI `migration list` attempt hung during login-role initialization and was killed; that produced authentication log noise but did not roll back or alter the successfully applied schema. The Jira RA-208 operator log preserves the before/after evidence.
 
 ## Rule for future history drift
 
