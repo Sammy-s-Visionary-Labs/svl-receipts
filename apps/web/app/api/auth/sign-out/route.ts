@@ -15,8 +15,14 @@ export async function POST(request: Request) {
         throw new AuthHttpError(401, AUTH_ERROR_CODES.unauthenticated, "Sign-out failed");
       }
       try {
-        await createServiceRoleClient().auth.admin.signOut(jwt, scope);
-      } catch {
+        const { error } = await createServiceRoleClient().auth.admin.signOut(jwt, scope);
+        if (error) {
+          throw new AuthHttpError(401, AUTH_ERROR_CODES.unauthenticated, "Sign-out failed");
+        }
+      } catch (cause) {
+        if (cause instanceof AuthHttpError) {
+          throw cause;
+        }
         throw new AuthHttpError(401, AUTH_ERROR_CODES.unauthenticated, "Sign-out failed");
       }
       return Response.json({ ok: true, scope });

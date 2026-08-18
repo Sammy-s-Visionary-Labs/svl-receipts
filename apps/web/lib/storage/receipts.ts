@@ -47,6 +47,38 @@ export async function createReceiptReadUrl(storageKey: string) {
   return data.signedUrl;
 }
 
+export type ReceiptObjectExistence = "present" | "absent" | "unknown";
+
+function isStorageObjectNotFound(error: unknown): boolean {
+  if (!error || typeof error !== "object") {
+    return false;
+  }
+  const candidate = error as {
+    statusCode?: string | number;
+    status?: number;
+    message?: string;
+    error?: string;
+  };
+  const status = String(candidate.statusCode ?? candidate.status ?? "");
+  const errorCode = (candidate.error ?? "").toLowerCase();
+  if (status === "404" || errorCode === "not_found" || errorCode === "objectnotfound") {
+    return true;
+  }
+  return /object not found/i.test(candidate.message ?? "");
+}
+
+export async function receiptObjectExists(storageKey: string): Promise<ReceiptObjectExistence> {
+  const supabase = createServiceRoleClient();
+  const { data, error } = await supabase.storage.from(RECEIPT_BUCKET).download(storageKey);
+  if (data) {
+    return "present";
+  }
+  if (isStorageObjectNotFound(error)) {
+    return "absent";
+  }
+  return "unknown";
+}
+
 export async function readReceiptObject(storageKey: string): Promise<{
   bytes: Buffer;
   contentType: string | null;
@@ -91,12 +123,15 @@ export function objectMatchesSession(input: {
 export async function removeReceiptObject(storageKey: string): Promise<void> {
   const supabase = createServiceRoleClient();
   const { error } = await supabase.storage.from(RECEIPT_BUCKET).remove([storageKey]);
-  if (error) {
+  if (error && !isStorageObjectNotFound(error)) {
     throw error;
   }
 
-  const leftover = await readReceiptObject(storageKey);
-  if (leftover) {
+  const existence = await receiptObjectExists(storageKey);
+  if (existence === "present") {
     throw new Error("storage_object_still_present");
+  }
+  if (existence === "unknown") {
+    throw new Error("storage_object_existence_unknown");
   }
 }

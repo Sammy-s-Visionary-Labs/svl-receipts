@@ -51,7 +51,7 @@ Receipt lifecycle changes go only through authenticated Next.js APIs and trusted
 
 `anon` and `authenticated` must not have `INSERT` / `UPDATE` / `DELETE` / `TRUNCATE` on lifecycle tables, and must not execute privileged mutation RPCs (`PUBLIC` included in those revokes). Workers may keep RLS-protected **reads** of their own profile and history. RLS stays enabled as defense in depth, including active-profile checks on remaining owner read policies.
 
-Privileged RPCs (`create_upload_pending_receipt`, `submit_confirmed_receipt`, `approve_receipt_with_outbox`, `set_retention_hold`, `claim_work`, `delete_abandoned_upload`, `assert_purge_eligible`, `purge_receipt_content`) take `p_actor_id` / `p_worker_id` from the API or runner and are executable by `service_role` only. GET `/api/receipts/[id]` returns `retentionStartedAt` (column `retention_started_at`).
+Privileged RPCs (`create_upload_pending_receipt`, `submit_confirmed_receipt`, `approve_receipt_with_outbox`, `set_retention_hold`, `claim_work`, `claim_abandoned_upload`, `delete_abandoned_upload`, `assert_purge_eligible`, `release_purge_claim`, `purge_receipt_content`) take `p_actor_id` / `p_worker_id` from the API or runner and are executable by `service_role` only. GET `/api/receipts/[id]` returns `retentionStartedAt` (column `retention_started_at`).
 
 Integration tests must prove `anon`, workers, and disabled users cannot mutate tables or privileged RPCs directly. See [architecture.md](architecture.md).
 

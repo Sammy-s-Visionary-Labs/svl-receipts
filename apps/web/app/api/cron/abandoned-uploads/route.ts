@@ -35,8 +35,16 @@ async function cleanupAbandonedUploads(request: Request) {
     let failed = 0;
     for (const row of rows) {
       try {
-        if (row.storage_key) {
-          await removeReceiptObject(row.storage_key);
+        const { data: claimed, error: claimError } = await supabase.rpc("claim_abandoned_upload", {
+          p_receipt_id: row.id,
+        });
+        if (claimError) {
+          throw claimError;
+        }
+        const snapshot = claimed as { storageKey?: string | null } | null;
+        const storageKey = snapshot?.storageKey ?? row.storage_key;
+        if (storageKey) {
+          await removeReceiptObject(storageKey);
         }
         const { error: deleteError } = await supabase.rpc("delete_abandoned_upload", {
           p_receipt_id: row.id,

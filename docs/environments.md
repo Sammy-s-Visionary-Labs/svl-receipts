@@ -142,7 +142,7 @@ Check **both** Supabase projects. They do not share one quota.
 
 ## Receipt retention and backups (RA-19 / RA-66)
 
-Approved policy is in [architecture.md](architecture.md). The 365-day clock starts only when **both** Housecall attachment and Job Input exports succeed, or when the receipt is **declined**. Partial export does not start the clock. `retention_started_at` is set once; `delete_after_at = retention_started_at + 365 days`. Exhausted export retries do not start retention; a manager **export abandoned** action may send the receipt back for correction or decline/close it.
+Approved policy is in [architecture.md](architecture.md). The 365-day clock starts only when **every** Housecall attachment and Job Input target on the **current** intent succeeds, or when the receipt is **declined** (`rejected`, `rejected_unreadable`, or `duplicate`). Partial export does not start the clock. `failed` does not start the clock. `retention_started_at` is set once; `delete_after_at = retention_started_at + 365 days`. Exhausted export retries do not start retention; a manager **export abandoned** action may send the receipt back for correction or decline/close it.
 
 Never-submitted receipts have no start event. A manager/admin hold (owner + reason) skips deletion. The database must not record a purge until Storage object removal has succeeded.
 

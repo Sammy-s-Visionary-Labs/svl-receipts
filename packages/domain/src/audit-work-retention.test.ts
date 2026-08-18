@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { redactAuditPayload } from "./audit";
+import { isCurrentIntentExportComplete } from "./housecall";
 import { buildHousecallIntentFromApprove, canEnqueueHousecallOutbox } from "./outbox";
 import {
   BACKUP_EXPIRATION_NOTE,
@@ -149,47 +150,56 @@ describe("retention policy v1", () => {
   const start = new Date("2025-01-01T00:00:00.000Z");
   const deleteAfter = computeDeleteAfterAt(start);
 
-  it("starts the clock after both Housecall steps or a decline, not on submit, and uses 365 days", () => {
+  it("starts the clock after a complete current-intent export or a decline, not on submit, and uses 365 days", () => {
     expect(RETENTION_START_EVENT).toBe("housecall_export_succeeded_or_declined");
     expect(RETENTION_DAYS).toBe(365);
     expect(deleteAfter.toISOString()).toBe("2026-01-01T00:00:00.000Z");
     expect(
       shouldStartRetention({
         status: "submitted",
-        attachmentSucceeded: false,
-        jobInputSucceeded: false,
+        exportComplete: false,
         retentionStartedAt: null,
       }),
     ).toBe(false);
     expect(
       shouldStartRetention({
         status: "approved",
-        attachmentSucceeded: true,
-        jobInputSucceeded: false,
+        exportComplete: false,
         retentionStartedAt: null,
       }),
     ).toBe(false);
     expect(
       shouldStartRetention({
         status: "exported",
-        attachmentSucceeded: true,
-        jobInputSucceeded: true,
+        exportComplete: true,
         retentionStartedAt: null,
       }),
     ).toBe(true);
     expect(
       shouldStartRetention({
         status: "rejected",
-        attachmentSucceeded: false,
-        jobInputSucceeded: false,
+        exportComplete: false,
         retentionStartedAt: null,
       }),
     ).toBe(true);
     expect(
       shouldStartRetention({
+        status: "duplicate",
+        exportComplete: false,
+        retentionStartedAt: null,
+      }),
+    ).toBe(true);
+    expect(
+      shouldStartRetention({
+        status: "failed",
+        exportComplete: false,
+        retentionStartedAt: null,
+      }),
+    ).toBe(false);
+    expect(
+      shouldStartRetention({
         status: "exported",
-        attachmentSucceeded: true,
-        jobInputSucceeded: true,
+        exportComplete: true,
         retentionStartedAt: start,
       }),
     ).toBe(false);
@@ -251,5 +261,68 @@ describe("retention policy v1", () => {
   it("documents backup expiration as a release risk", () => {
     expect(BACKUP_EXPIRATION_NOTE).toMatch(/PITR/i);
     expect(BACKUP_EXPIRATION_NOTE).toMatch(/backup/i);
+  });
+});
+
+describe("current-intent export completeness", () => {
+  const attempts = [
+    {
+      intentId: "intent_2",
+      step: "attachment",
+      housecallJobId: "job_a",
+      receiptLineId: null,
+    },
+    {
+      intentId: "intent_2",
+      step: "job_cost",
+      housecallJobId: "job_a",
+      receiptLineId: "line_1",
+    },
+  ];
+
+  it("requires every attachment job and every job-cost line on the current intent", () => {
+    expect(
+      isCurrentIntentExportComplete({
+        intentId: "intent_2",
+        attachmentJobIds: ["job_a", "job_b"],
+        jobCostLines: [
+          { job_id: "job_a", receipt_line_id: "line_1" },
+          { job_id: "job_b", receipt_line_id: "line_2" },
+        ],
+        succeededAttempts: attempts,
+      }),
+    ).toBe(false);
+    expect(
+      isCurrentIntentExportComplete({
+        intentId: "intent_2",
+        attachmentJobIds: ["job_a"],
+        jobCostLines: [{ job_id: "job_a", receipt_line_id: "line_1" }],
+        succeededAttempts: attempts,
+      }),
+    ).toBe(true);
+  });
+
+  it("ignores succeeded attempts from a previous intent", () => {
+    expect(
+      isCurrentIntentExportComplete({
+        intentId: "intent_2",
+        attachmentJobIds: ["job_a"],
+        jobCostLines: [{ job_id: "job_a", receipt_line_id: "line_1" }],
+        succeededAttempts: [
+          {
+            intentId: "intent_1",
+            step: "attachment",
+            housecallJobId: "job_a",
+            receiptLineId: null,
+          },
+          {
+            intentId: "intent_1",
+            step: "job_cost",
+            housecallJobId: "job_a",
+            receiptLineId: "line_1",
+          },
+        ],
+      }),
+    ).toBe(false);
   });
 });

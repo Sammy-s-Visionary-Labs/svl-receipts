@@ -5,7 +5,7 @@ import {
   WORK_LEASE_SECONDS,
   type WorkKind,
 } from "@svl/domain";
-import { removeReceiptObject } from "@/lib/storage/receipts";
+import { receiptObjectExists, removeReceiptObject } from "@/lib/storage/receipts";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 
 export type WorkRow = {
@@ -138,7 +138,21 @@ async function runPurge(
 
   const storageKey = snapshot?.storageKey;
   if (storageKey) {
-    await removeReceiptObject(storageKey);
+    try {
+      await removeReceiptObject(storageKey);
+    } catch (cause) {
+      const existence = await receiptObjectExists(storageKey);
+      if (existence !== "absent") {
+        const { error: releaseError } = await supabase.rpc("release_purge_claim", {
+          p_receipt_id: row.receipt_id,
+          p_worker_id: workerId,
+        });
+        if (releaseError) {
+          console.error("[work-runner] release_purge_claim", releaseError);
+        }
+        throw cause;
+      }
+    }
   }
 
   const { error: purgeError } = await supabase.rpc("purge_receipt_content", {

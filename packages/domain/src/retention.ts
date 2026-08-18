@@ -1,6 +1,7 @@
 /**
  * Retention policy v1 (RA-66).
- * Clock starts once, when both Housecall steps succeed or the receipt is declined.
+ * Clock starts once, when the current Housecall intent is fully exported,
+ * or the receipt is declined (`rejected`, `rejected_unreadable`, `duplicate`).
  */
 
 export const RETENTION_POLICY_VERSION = 1 as const;
@@ -29,8 +30,8 @@ export function computeDeleteAfterAt(retentionStartedAt: Date): Date {
 
 export type RetentionStartInput = {
   status: string;
-  attachmentSucceeded: boolean;
-  jobInputSucceeded: boolean;
+  /** True only when every target on the current Housecall intent has succeeded. */
+  exportComplete: boolean;
   retentionStartedAt: Date | null;
 };
 
@@ -38,10 +39,14 @@ export function shouldStartRetention(input: RetentionStartInput): boolean {
   if (input.retentionStartedAt) {
     return false;
   }
-  if (input.status === "rejected" || input.status === "rejected_unreadable") {
+  if (
+    input.status === "rejected" ||
+    input.status === "rejected_unreadable" ||
+    input.status === "duplicate"
+  ) {
     return true;
   }
-  return input.attachmentSucceeded && input.jobInputSucceeded;
+  return input.exportComplete;
 }
 
 export type RetentionEligibilityInput = {

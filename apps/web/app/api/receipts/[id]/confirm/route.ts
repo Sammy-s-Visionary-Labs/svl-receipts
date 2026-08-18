@@ -31,6 +31,7 @@ type ReceiptRow = {
   storage_key: string | null;
   content_type: string | null;
   checksum: string | null;
+  cleanup_claimed_at: string | null;
 };
 
 export async function POST(request: Request, context: RouteContext) {
@@ -45,7 +46,7 @@ export async function POST(request: Request, context: RouteContext) {
 
     const { data, error } = await supabase
       .from("receipts")
-      .select("id, owner_user_id, status, storage_key, content_type, checksum")
+      .select("id, owner_user_id, status, storage_key, content_type, checksum, cleanup_claimed_at")
       .eq("id", id)
       .maybeSingle();
 
@@ -63,6 +64,10 @@ export async function POST(request: Request, context: RouteContext) {
         return Response.json({ id: row.id, status: row.status });
       }
       throw new HttpError(409, "conflict", "Receipt is not awaiting upload confirmation");
+    }
+
+    if (row.cleanup_claimed_at) {
+      throw new HttpError(409, "conflict", "Upload session is no longer available");
     }
 
     const contentType = row.content_type;

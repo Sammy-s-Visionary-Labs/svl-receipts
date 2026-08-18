@@ -2,7 +2,7 @@
 
 **Status:** Approved 2026-08-14. These decisions supersede the RA-19 implementation that started retention at upload confirmation (`submitted_at`).
 
-Remediation lives in `supabase/migrations/20260814210000_foundation_hardening.sql` and the matching Next.js wiring. That SQL is applied on both `svl-receipts-dev` and `svl-receipts-prod` (live history used split names `foundation_hardening` / `foundation_hardening_p1`–`p7`; Git keeps one file). Do not merge to `master` until this branch is reviewed.
+Remediation lives in `supabase/migrations/20260814210000_foundation_hardening.sql` plus `supabase/migrations/20260818161945_blocker_remediation.sql` and the matching Next.js wiring. The 2026-08-14 SQL is applied on both `svl-receipts-dev` and `svl-receipts-prod` (live history used split names `foundation_hardening` / `foundation_hardening_p1`–`p7`; Git keeps one file). The 2026-08-18 SQL is also applied on both projects as `blocker_remediation_p1`–`p6` (Git keeps one file). Do not rewrite either already-applied file. Do not merge to `master` until this branch is reviewed. `supabase db push` can replay the non-idempotent `retention_starts_at` rename against a database that already has `retention_started_at` — apply only new forward migrations.
 
 Related Jira: [RA-2](https://visionary-labs.atlassian.net/browse/RA-2), [RA-11](https://visionary-labs.atlassian.net/browse/RA-11), [RA-15](https://visionary-labs.atlassian.net/browse/RA-15), [RA-18](https://visionary-labs.atlassian.net/browse/RA-18), [RA-19](https://visionary-labs.atlassian.net/browse/RA-19), [RA-66](https://visionary-labs.atlassian.net/browse/RA-66), [RA-206](https://visionary-labs.atlassian.net/browse/RA-206).
 
@@ -14,12 +14,12 @@ Keep the 365-day policy. The clock does **not** start at upload begin, upload co
 
 Set a canonical `retention_started_at` **once**, and only when:
 
-- both Housecall **attachment** and **Job Input** exports have succeeded, or
-- the receipt is **declined**.
+- every Housecall **attachment** and **Job Input** target on the **current** intent has succeeded (not merely any one attachment plus any one job-cost), or
+- the receipt is **declined** (`rejected`, `rejected_unreadable`, or `duplicate`). `failed` does not start the clock.
 
 Then `delete_after_at = retention_started_at + 365 days`. Never overwrite `retention_started_at` after it is set.
 
-Partial export (only one of attachment / Job Input succeeded) must not start the clock. Never-submitted receipts have no start event.
+Partial export (only one of attachment / Job Input succeeded, or only a subset of jobs on a multi-job receipt) must not start the clock. Never-submitted receipts have no start event.
 
 If an approved receipt permanently fails one Housecall step, retention still does not start. A manager-only **export abandoned** action may send the receipt back for correction or formally decline/close it, which then starts retention. Exhausted retries must not start the clock automatically. See §5.
 
@@ -79,12 +79,15 @@ Decline/close starts retention under §1. Sending it back for correction does no
 
 ## Current implementation
 
-As of `20260814210000_foundation_hardening.sql` and the matching Next.js routes:
+As of `20260818161945_blocker_remediation.sql` and the matching Next.js routes:
 
-- Retention uses `retention_started_at`, set once when both Housecall steps succeed or the receipt is declined. Confirm does not start the clock.
-- Lifecycle mutations go through service-role RPCs from Next.js. `anon` and `authenticated` have SELECT only. Owner reads also require an active profile.
+- Retention uses `retention_started_at`, set once when the current Housecall intent is fully exported or the receipt is declined (including `duplicate`). Confirm does not start the clock. The column is write-once after it is set.
+- Lifecycle mutations go through service-role RPCs from Next.js. `anon` and `authenticated` have SELECT only. Owner reads also require an active profile. Default privileges for future public tables/functions also revoke DML/execute from `anon` / `authenticated` / `PUBLIC`.
 - The work runner claims only `purge`, uses a unique lease id per batch, and marks work succeeded only after the handler ran. Extract/export rows stay queued until those providers exist. Confirm and approve kick those kinds after commit; unimplemented kicks no-op and leave the queue as source of truth.
-- Purge calls `assert_purge_eligible`, removes the Storage object (errors fail the job), then `purge_receipt_content`. Abandoned-upload cleanup removes storage first, then `delete_abandoned_upload`.
-- Bearer sign-out uses Auth admin logout so refresh tokens are revoked. Cookie sign-out still uses the session client.
+- Purge fences the receipt (`purge_claimed_at`) before Storage delete, then `purge_receipt_content`. A hold during that window is `conflict`. If Storage delete fails and the object is still present, the runner releases the fence. Existence checks treat only not-found as gone.
+- Abandoned-upload cleanup claims the row first (`cleanup_claimed_at`), then removes storage, then `delete_abandoned_upload`. Confirm refuses claimed sessions.
+- Approve upserts lines by `sort_index` so `job_candidates` keep their line ids. Job-cost inserts still require `receipt_line_id`.
+- Dead-lettered purge work is not auto-revived by `enqueue_due_purges`.
+- Bearer sign-out uses Auth admin logout and fails the request when that call returns an error. Cookie sign-out still uses the session client.
 
 Vision/Housecall HTTP remains a later epic. Export-abandoned UI is [RA-206](https://visionary-labs.atlassian.net/browse/RA-206) (policy recorded; not in this pass).
