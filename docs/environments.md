@@ -24,7 +24,7 @@ Vercel Hobby. No Railway worker.
 | Vercel environment checkboxes | Preview + Development | Production |
 | Vercel URL | the Preview URL for that branch (`*.vercel.app`) | the **stable Production domain** in the Vercel project header (not a per-deploy hash URL) |
 | Next.js app / Root Directory | `apps/web` | `apps/web` |
-| Node | 22.x | 22.x |
+| Node | 24.x | 24.x |
 | Supabase project name | `svl-receipts-dev` | `svl-receipts-prod` |
 | Storage bucket | `receipts` (private; public access off) | `receipts` (private; public access off) |
 | Vault entry | `svl-receipts-dev` | `svl-receipts-prod` |
@@ -39,7 +39,7 @@ If a dashboard name differs, update this table. Do not invent a second Vercel pr
 2. Switch to the company team (not a personal account, unless that *is* the company account).
 3. Open the project connected to `Sammy-s-Visionary-Labs/svl-receipts`.
 4. Confirm **Settings → General → Root Directory** is `apps/web`.
-5. Confirm **Settings → General → Node.js Version** is **22.x**.
+5. Confirm **Settings → General → Node.js Version** is **24.x**.
 6. Confirm **Settings → Git → Production Branch** is `master`.
 7. Production URL: project overview, domain marked **Production**.
 8. Env vars: **Settings → Environment Variables**.
