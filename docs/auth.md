@@ -6,16 +6,24 @@ Roles live in `public.profiles` (`worker` | `manager` | `admin`, plus `disabled`
 
 ## Apply the database
 
-In each Supabase project (dev, then prod):
+Do not paste migration files into the SQL Editor. That bypasses normal CLI tracking and caused the
+split migration history described in [the RA-208 runbook](../supabase/migration-history.md).
 
-1. **SQL Editor** → paste and run `supabase/migrations/20260813180000_profiles_and_authz.sql` (skip if already applied).
-2. **SQL Editor** → paste and run `supabase/migrations/20260814120000_receipt_core_schema.sql` (skip if already applied).
-3. **SQL Editor** → paste and run `supabase/migrations/20260814140000_housecall_export_schema.sql` (skip if already applied).
-4. **SQL Editor** → paste and run `supabase/migrations/20260814160000_transition_guards.sql` (skip if already applied).
-5. **SQL Editor** → paste and run `supabase/migrations/20260814180000_receipts_storage_private.sql` (skip if already applied).
-6. **Authentication → Providers**: Email on. Disable public signup if the dashboard offers that toggle.
-7. Create users under **Authentication → Users**. New rows get `profiles.role = worker`.
-8. Promote a user in SQL (service role / dashboard), for example:
+- For a clean local database, run `npm run db:start`, `npm run db:reset`, and
+  `SVL_APPLIED_DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:54322/postgres npm run test:applied`
+  before `npm run db:stop`.
+- For the existing dev and production projects, follow the runbook's exact dev-first history repair,
+  dry-run, push, schema comparison, and rollback-only applied test. The next pending migration is
+  `20260818191408_ra2_audit_and_replay_fixes.sql`; apply it normally with `db push`, never by marking
+  unapplied SQL as applied.
+- After the history is reconciled, create every database change with a new forward migration and
+  deploy it through the same reviewed `db push` workflow.
+
+Then configure users:
+
+1. **Authentication → Providers**: Email on. Disable public signup if the dashboard offers that toggle.
+2. Create users under **Authentication → Users**. New rows get `profiles.role = worker`.
+3. Promote a user in SQL (service role / dashboard), for example:
 
 ```sql
 update public.profiles
@@ -40,7 +48,17 @@ A disabled profile cannot pass `/api/me` even if a cookie or refresh token still
 | Next.js (`apps/web`) | HttpOnly cookies via `@supabase/ssr` | Same-origin cookies |
 | Expo (`apps/mobile`) | `expo-secure-store` (chunked; web falls back to localStorage) | `Authorization: Bearer <access_token>` |
 
-`proxy.ts` refreshes cookies and sends anonymous browsers to `/login`. **API routes also accept `Authorization: Bearer`** (mobile + cron). **Authorization is enforced in route handlers** (`lib/auth/guards.ts`) except the cron route, which checks `CRON_SECRET`.
+`proxy.ts` refreshes cookies and sends anonymous browsers to `/login`. **API routes also accept `Authorization: Bearer`** (mobile + cron). **Authorization is enforced in route handlers** (`lib/auth/guards.ts`) except cron routes, which check `CRON_SECRET`.
+
+### Lifecycle mutations (approved 2026-08-14)
+
+Receipt lifecycle changes go only through authenticated Next.js APIs and trusted workers using server-side `service_role`. Web and mobile clients never receive the service-role key.
+
+`anon` and `authenticated` must not have `INSERT` / `UPDATE` / `DELETE` / `TRUNCATE` on lifecycle tables, and must not execute privileged mutation RPCs (`PUBLIC` included in those revokes). Workers may keep RLS-protected **reads** of their own profile and history. RLS stays enabled as defense in depth, including active-profile checks on remaining owner read policies.
+
+Privileged RPCs (`create_upload_pending_receipt`, `submit_confirmed_receipt`, `approve_receipt_with_outbox`, `set_retention_hold`, `claim_work`, `defer_work`, `fail_work`, `claim_abandoned_upload`, `delete_abandoned_upload`, `assert_purge_eligible`, `release_purge_claim`, `purge_receipt_content`) take `p_actor_id` / `p_worker_id` from the API or runner and are executable by `service_role` only. GET `/api/receipts/[id]` returns `retentionStartedAt` (column `retention_started_at`).
+
+Integration tests must prove `anon`, workers, and disabled users cannot mutate tables or privileged RPCs directly. `npm test` checks that `supabase/tests/ra2_applied.sql` covers those RPCs. Execute the rollback-only test through `npm run test:applied` with `SVL_APPLIED_DATABASE_URL` set to the reviewed target; do not paste it into the SQL editor. See [architecture.md](architecture.md).
 
 Local web: copy `.env.example` to `apps/web/.env.local` with **dev** values. Local mobile: `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY` (same publishable/anon key as web).
 
@@ -51,13 +69,18 @@ Local web: copy `.env.example` to `apps/web/.env.local` with **dev** values. Loc
 | GET | `/api/me` | any active user |
 | POST | `/api/auth/sign-out` | signed-in user (add `?all=1` to revoke every device) |
 | GET | `/api/manager/queue` | manager, admin |
+| GET | `/api/manager/dead-letters` | manager, admin |
 | GET | `/api/admin/users` | admin |
 | GET | `/api/receipts/[id]` | owner, or manager/admin |
+| GET | `/api/receipts/[id]/events` | owner, or manager/admin |
 | POST | `/api/upload-sessions` | any active user (creates `upload_pending` receipt + signed upload) |
-| POST | `/api/receipts/[id]/confirm` | owner (idempotent; verifies object, type, size, checksum) |
+| POST | `/api/receipts/[id]/confirm` | owner (idempotent; verifies object, type, size, checksum; enqueues extract work once) |
+| POST | `/api/receipts/[id]/approve` | manager, admin (review + intent + outbox in one transaction) |
+| POST | `/api/receipts/[id]/retention-hold` | manager, admin (hold requires owner + reason) |
 | GET | `/api/receipts/[id]/image` | owner, or manager/admin (short-lived signed URL) |
 | GET/POST | `/api/cron/abandoned-uploads` | Vercel cron (`Authorization: Bearer CRON_SECRET`) |
+| GET/POST | `/api/cron/work` | Vercel cron (`Authorization: Bearer CRON_SECRET`) |
 
 Denied API responses look like `{ "error": { "code": "unauthenticated" \| "forbidden" \| "invalid_request" \| "not_found" \| "conflict" \| "internal", "message": "..." } }` and do not include receipt image bytes. Denials are logged as `[authz-denied]` with user id and route only. Image reads are logged as `[receipt-image-access]` with user id and receipt id only.
 
-`receipts` is the core document (status, storage key/metadata, optional GPS). Related tables: immutable `extractions`, append-only `reviews`, `receipt_lines` (integer cents), `job_candidates`, `housecall_intents`, `housecall_links`, and append-only `export_attempts`. Receipt and Housecall-step transition guards live in `@svl/domain` (`evaluateReceiptTransition`, `evaluateHousecallStepAttempt`); a unique index blocks a second succeeded export attempt for the same step target.
+`receipts` is the core document (status, storage key/metadata, optional GPS, retention dates). Related tables: immutable `extractions`, append-only `reviews`, `receipt_lines` (integer cents), `job_candidates`, `housecall_intents`, `housecall_links`, append-only `export_attempts`, append-only `audit_events`, leased `work_items`, and `housecall_outbox`. Confirming an upload queues extract work once, then kicks an idempotent worker after commit (no-op until the extract provider exists). Approving a receipt writes the review, intent, and outbox in one transaction, then kicks export (same). Daily cron recovers missed **purge** work. Receipt and Housecall-step transition guards live in `@svl/domain` (`evaluateReceiptTransition`, `evaluateHousecallStepAttempt`); a unique index blocks a second succeeded export attempt for the same step target. Bearer `POST /api/auth/sign-out` uses Auth admin logout so refresh tokens are revoked.

@@ -27,6 +27,13 @@ export function isReceiptContentType(value: string): value is ReceiptContentType
   return (ALLOWED_RECEIPT_CONTENT_TYPES as readonly string[]).includes(value);
 }
 
+export function declaredContentTypeMatches(
+  contentType: string | null,
+  expected: ReceiptContentType,
+): boolean {
+  return contentType === expected;
+}
+
 export function extensionForReceiptContentType(contentType: ReceiptContentType): string {
   if (contentType === "image/jpeg") {
     return "jpg";

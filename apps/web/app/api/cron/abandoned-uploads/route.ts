@@ -32,26 +32,35 @@ async function cleanupAbandonedUploads(request: Request) {
 
     const rows = (data ?? []) as AbandonedRow[];
     let deleted = 0;
+    let failed = 0;
     for (const row of rows) {
-      const { data: removed, error: deleteError } = await supabase
-        .from("receipts")
-        .delete()
-        .eq("id", row.id)
-        .eq("status", "upload_pending")
-        .select("id");
-
-      if (deleteError || !removed?.length) {
-        continue;
+      try {
+        const { data: claimed, error: claimError } = await supabase.rpc("claim_abandoned_upload", {
+          p_receipt_id: row.id,
+        });
+        if (claimError) {
+          throw claimError;
+        }
+        const snapshot = claimed as { storageKey?: string | null } | null;
+        const storageKey = snapshot?.storageKey ?? row.storage_key;
+        if (storageKey) {
+          await removeReceiptObject(storageKey);
+        }
+        const { error: deleteError } = await supabase.rpc("delete_abandoned_upload", {
+          p_receipt_id: row.id,
+        });
+        if (deleteError) {
+          throw deleteError;
+        }
+        deleted += 1;
+      } catch (cause) {
+        console.error("[abandoned-upload-cleanup]", { receiptId: row.id, cause });
+        failed += 1;
       }
-
-      if (row.storage_key) {
-        await removeReceiptObject(row.storage_key);
-      }
-      deleted += 1;
     }
 
-    console.info("[abandoned-upload-cleanup]", { deleted });
-    return Response.json({ deleted });
+    console.info("[abandoned-upload-cleanup]", { deleted, failed });
+    return Response.json({ deleted, failed });
   } catch (error) {
     if (error instanceof HttpError) {
       return httpErrorResponse(error);

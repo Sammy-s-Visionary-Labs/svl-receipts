@@ -24,7 +24,7 @@ Vercel Hobby. No Railway worker.
 | Vercel environment checkboxes | Preview + Development | Production |
 | Vercel URL | the Preview URL for that branch (`*.vercel.app`) | the **stable Production domain** in the Vercel project header (not a per-deploy hash URL) |
 | Next.js app / Root Directory | `apps/web` | `apps/web` |
-| Node | 20.x | 20.x |
+| Node | 24.x | 24.x |
 | Supabase project name | `svl-receipts-dev` | `svl-receipts-prod` |
 | Storage bucket | `receipts` (private; public access off) | `receipts` (private; public access off) |
 | Vault entry | `svl-receipts-dev` | `svl-receipts-prod` |
@@ -39,9 +39,10 @@ If a dashboard name differs, update this table. Do not invent a second Vercel pr
 2. Switch to the company team (not a personal account, unless that *is* the company account).
 3. Open the project connected to `Sammy-s-Visionary-Labs/svl-receipts`.
 4. Confirm **Settings → General → Root Directory** is `apps/web`.
-5. Confirm **Settings → Git → Production Branch** is `master`.
-6. Production URL: project overview, domain marked **Production**.
-7. Env vars: **Settings → Environment Variables**.
+5. Confirm **Settings → General → Node.js Version** is **24.x**.
+6. Confirm **Settings → Git → Production Branch** is `master`.
+7. Production URL: project overview, domain marked **Production**.
+8. Env vars: **Settings → Environment Variables**.
 
 **Supabase**
 
@@ -66,7 +67,7 @@ Set them in Vercel → **Settings → Environment Variables**. The same **name**
 | `HOUSECALL_API_KEY` | Server-only | prod Housecall key | sandbox or dummy | Yes |
 | `AI_PROVIDER` | Server-only | provider name (`gemini` / `openai`) | test provider | No |
 | `AI_API_KEY` | Server-only | prod AI key | sandbox or dummy | Yes |
-| `CRON_SECRET` | Server-only (Vercel cron auth for abandoned-upload cleanup) | unique 16+ char string | a **different** unique string | Yes |
+| `CRON_SECRET` | Server-only (Vercel cron auth for abandoned-upload cleanup and the work runner) | unique 16+ char string | a **different** unique string | Yes |
 
 Rules:
 
@@ -131,7 +132,7 @@ Check **both** Supabase projects. They do not share one quota.
 1. [https://vercel.com/dashboard](https://vercel.com/dashboard) → company team.
 2. Team **Settings → Billing** / **Usage**.
 3. Look at deployments, bandwidth, and function invocations.
-4. Cron jobs: Hobby allows **at most one run per day**. `apps/web/vercel.json` schedules `GET /api/cron/abandoned-uploads` once daily. A schedule more frequent than daily will fail the deploy. There is no always-on worker.
+4. Cron jobs: Hobby allows **two cron jobs**, each **at most once per day**. Daily cron is **recovery** (missed/stale work, abandoned-upload cleanup, due purges, retries). Primary extract/export kicks happen immediately after upload confirmation and after approval. See [architecture.md](architecture.md). A schedule more frequent than daily will fail the deploy. There is no always-on worker.
 
 ### Supabase free
 
@@ -139,6 +140,16 @@ Check **both** Supabase projects. They do not share one quota.
 2. **Project Settings → Usage** (or **Billing / Reports** if the UI uses that name).
 3. Look at database size, storage, Auth MAUs, and Edge Function invocations if those are enabled.
 4. Free projects can **pause** after inactivity. Production should not sit unused if the office depends on it; a paused project has to be restored before the app works.
+
+## Receipt retention and backups (RA-19 / RA-66)
+
+Approved policy is in [architecture.md](architecture.md). The 365-day clock starts only when **every** Housecall attachment and Job Input target on the **current** intent succeeds, or when the receipt is **declined** (`rejected`, `rejected_unreadable`, or `duplicate`). Partial export does not start the clock. `failed` does not start the clock. `retention_started_at` is set once; `delete_after_at = retention_started_at + 365 days`. Exhausted export retries do not start retention; a manager **export abandoned** action may send the receipt back for correction or decline/close it.
+
+Never-submitted receipts have no start event. A manager/admin hold (owner + reason) skips deletion. The database must not record a purge until Storage object removal has succeeded.
+
+**Pilot Storage (1 GB, both projects).** Keep Free-tier Storage for now. Add client-side resize/compression before upload, usage and average-size monitoring, and alerts at 70% / 85% / 95% of quota on **both** `svl-receipts-dev` and `svl-receipts-prod`. Prefer buying more managed storage over self-hosting if usage requires it.
+
+**Backup expiration is a release risk.** Supabase Free has **no PITR**. If the project has automatic backups, deleted receipt content can remain until those backups expire — app-level purge is not the same as backup expiration. Before a production retention go-live, check **Project Settings → Add-ons / Backups** on both projects. If PITR is ever enabled, record its recovery window here.
 
 ## Auth URLs (allowed origins)
 
@@ -155,5 +166,19 @@ Configuration drift is visible when these disagree:
 - Vercel Preview `NEXT_PUBLIC_SUPABASE_URL` vs the `svl-receipts-dev` project URL
 - This file’s project names vs the live dashboards
 - `.env.example` names vs Vercel variable names
+- Git migration versions vs live `schema_migrations` (see [migration-history.md](../supabase/migration-history.md))
 
 If they disagree, update Vercel or this file — do not leave a silent mismatch.
+
+## Migration deployment and reconciliation (RA-208)
+
+The repository pins the Supabase CLI and commits `supabase/config.toml` with PostgreSQL 17, matching both hosted projects. Docker is required for the clean local replay gate.
+
+For ordinary forward changes:
+
+1. Create and review a migration file; never make an untracked production schema change in the Dashboard or through MCP.
+2. Run the CI-equivalent local database gate: `npm run db:start`, `npm run db:reset`, `SVL_APPLIED_DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:54322/postgres npm run test:applied`, and `npm run db:stop`.
+3. Run `db push --dry-run` against dev, apply only the reviewed pending file, then repeat the migration list, schema diff, and applied test.
+4. Repeat against production only after dev passes, with a confirmed backup/recovery plan and no concurrent deployment.
+
+The one-time live-history reconciliation was completed on 2026-08-18. Dev and production now each record the same 12 canonical Git migrations through `20260818191408_ra2_audit_and_replay_fixes.sql`, with no project-specific split versions remaining. The completed operator record, exact historical repair lists, and future drift rules are in [supabase/migration-history.md](../supabase/migration-history.md). For future migrations, use the ordinary dev-first dry-run/push/post-check workflow above. Never use `db reset --linked`, `db push --include-all`, or seed flags on production.

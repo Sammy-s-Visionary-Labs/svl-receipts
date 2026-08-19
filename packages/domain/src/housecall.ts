@@ -34,6 +34,7 @@ export type HousecallIntentV1 = {
     description: string;
     qty: number;
     unit_cost_cents: number;
+    receipt_line_id?: string;
   }>;
 };
 
@@ -67,4 +68,55 @@ export function isHousecallIntentV1(value: unknown): value is HousecallIntentV1 
 
 export function parseHousecallIntentV1(value: unknown): HousecallIntentV1 | null {
   return isHousecallIntentV1(value) ? value : null;
+}
+
+export type IntentExportAttempt = {
+  intentId: string | null;
+  step: string;
+  housecallJobId: string;
+  receiptLineId: string | null;
+};
+
+/** True when every attachment job and every job-cost line on this intent has a succeeded attempt. */
+export function isCurrentIntentExportComplete(input: {
+  intentId: string;
+  attachmentJobIds: string[];
+  jobCostLines: Array<{ job_id: string; receipt_line_id?: string | null }>;
+  succeededAttempts: IntentExportAttempt[];
+}): boolean {
+  if (input.attachmentJobIds.length < 1 || input.jobCostLines.length < 1) {
+    return false;
+  }
+
+  for (const jobId of input.attachmentJobIds) {
+    if (
+      !input.succeededAttempts.some(
+        (attempt) =>
+          attempt.intentId === input.intentId &&
+          attempt.step === "attachment" &&
+          attempt.housecallJobId === jobId,
+      )
+    ) {
+      return false;
+    }
+  }
+
+  for (const line of input.jobCostLines) {
+    if (!line.receipt_line_id) {
+      return false;
+    }
+    if (
+      !input.succeededAttempts.some(
+        (attempt) =>
+          attempt.intentId === input.intentId &&
+          attempt.step === "job_cost" &&
+          attempt.housecallJobId === line.job_id &&
+          attempt.receiptLineId === line.receipt_line_id,
+      )
+    ) {
+      return false;
+    }
+  }
+
+  return true;
 }

@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build:web
+
+  database:
+    needs: check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Start the local PostgreSQL 17 stack
+        run: npm run db:start
+      - name: Replay every Git migration from a clean database
+        run: npm run db:reset
+      - name: Run applied RA-2 permission and lifecycle checks
+        run: npm run test:applied
+        env:
+          SVL_APPLIED_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+      - name: Stop the local stack
+        if: always()
+        run: npm run db:stop

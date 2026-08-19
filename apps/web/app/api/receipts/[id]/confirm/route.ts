@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import {
   actorMayReadReceipt,
   evaluateReceiptTransition,
@@ -6,6 +7,7 @@ import {
   normalizeChecksum,
 } from "@svl/domain";
 import { AuthHttpError, authErrorResponse, requireActor } from "@/lib/auth/guards";
+import { rpcHttpError } from "@/lib/db/errors";
 import { HttpError, httpErrorResponse } from "@/lib/http";
 import {
   checksumsMatch,
@@ -13,6 +15,8 @@ import {
   readReceiptObject,
   sha256Hex,
 } from "@/lib/storage/receipts";
+import { createServiceRoleClient } from "@/lib/supabase/service";
+import { kickWork } from "@/lib/work/runner";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -27,6 +31,7 @@ type ReceiptRow = {
   storage_key: string | null;
   content_type: string | null;
   checksum: string | null;
+  cleanup_claimed_at: string | null;
 };
 
 export async function POST(request: Request, context: RouteContext) {
@@ -41,7 +46,7 @@ export async function POST(request: Request, context: RouteContext) {
 
     const { data, error } = await supabase
       .from("receipts")
-      .select("id, owner_user_id, status, storage_key, content_type, checksum")
+      .select("id, owner_user_id, status, storage_key, content_type, checksum, cleanup_claimed_at")
       .eq("id", id)
       .maybeSingle();
 
@@ -59,6 +64,10 @@ export async function POST(request: Request, context: RouteContext) {
         return Response.json({ id: row.id, status: row.status });
       }
       throw new HttpError(409, "conflict", "Receipt is not awaiting upload confirmation");
+    }
+
+    if (row.cleanup_claimed_at) {
+      throw new HttpError(409, "conflict", "Upload session is no longer available");
     }
 
     const contentType = row.content_type;
@@ -96,30 +105,31 @@ export async function POST(request: Request, context: RouteContext) {
       throw new HttpError(409, "conflict", "Illegal status transition");
     }
 
-    const submittedAt = new Date().toISOString();
-    const { data: updated, error: updateError } = await supabase
-      .from("receipts")
-      .update({
-        status: "submitted",
-        checksum,
-        byte_size: object.bytes.byteLength,
-        submitted_at: submittedAt,
-      })
-      .eq("id", row.id)
-      .eq("status", "upload_pending")
-      .select("id, status")
-      .maybeSingle();
+    const service = createServiceRoleClient();
+    const { data: submitted, error: submitError } = await service.rpc("submit_confirmed_receipt", {
+      p_receipt_id: row.id,
+      p_actor_id: actor.userId,
+      p_checksum: checksum,
+      p_byte_size: object.bytes.byteLength,
+      p_correlation_id: randomUUID(),
+    });
 
-    if (updateError) {
-      console.error("[upload-confirm]", updateError);
-      throw new HttpError(500, "internal", "Request failed");
+    if (submitError) {
+      console.error("[upload-confirm]", submitError);
+      throw rpcHttpError(submitError);
     }
 
-    if (!updated) {
-      return Response.json({ id: row.id, status: "submitted" });
+    try {
+      await kickWork("extract");
+    } catch (cause) {
+      console.error("[upload-confirm] kick extract", cause);
     }
 
-    return Response.json({ id: updated.id, status: updated.status });
+    const result = submitted as { id?: string; status?: string } | null;
+    return Response.json({
+      id: result?.id ?? row.id,
+      status: result?.status ?? "submitted",
+    });
   } catch (error) {
     if (error instanceof HttpError) {
       return httpErrorResponse(error);
