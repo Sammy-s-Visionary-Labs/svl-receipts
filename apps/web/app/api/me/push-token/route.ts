@@ -1,10 +1,8 @@
-import { AUTH_ERROR_CODES } from "@svl/domain";
+import { AUTH_ERROR_CODES, isExpoPushToken } from "@svl/domain";
 import { AuthHttpError, authErrorResponse, requireActor } from "@/lib/auth/guards";
 import { rpcHttpError } from "@/lib/db/errors";
 import { HttpError, httpErrorResponse } from "@/lib/http";
 import { createServiceRoleClient } from "@/lib/supabase/service";
-
-const EXPO_PUSH_TOKEN = /^ExponentPushToken\[.+\]$/;
 
 export async function POST(request: Request) {
   try {
@@ -14,7 +12,7 @@ export async function POST(request: Request) {
     }
 
     const body = (await readJson(request)) as { token?: unknown; platform?: unknown };
-    if (typeof body.token !== "string" || !EXPO_PUSH_TOKEN.test(body.token.trim())) {
+    if (typeof body.token !== "string" || !isExpoPushToken(body.token)) {
       throw new HttpError(400, "invalid_request", "token is required");
     }
     const platform = parsePlatform(body.platform);

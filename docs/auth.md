@@ -40,6 +40,9 @@ where id = '<auth user uuid>';
 ```
 
 A disabled profile cannot pass `/api/me` even if a cookie or refresh token still exists.
+`/api/me` returns `account_inactive` for a missing or disabled profile and `unauthenticated`
+for an invalid or revoked session. The mobile shell keeps those states distinct: inactive users
+contact their manager, while revoked sessions are sent through the sign-in-again recovery screen.
 
 ## Clients
 
@@ -67,7 +70,7 @@ Local web: copy `.env.example` to `apps/web/.env.local` with **dev** values. Loc
 | Method | Path | Who |
 | --- | --- | --- |
 | GET | `/api/me` | any active user |
-| POST | `/api/me/push-token` | worker (stores Expo token for RA-25; body `token` + `platform`; user id always from the session) |
+| POST | `/api/me/push-token` | worker (stores Expo `ExponentPushToken[...]`, `ExpoPushToken[...]`, or UUID token for RA-25; body `token` + `platform`; user id always from the session) |
 | POST | `/api/auth/sign-out` | signed-in user (add `?all=1` to revoke every device) |
 | GET | `/api/manager/queue` | manager, admin |
 | GET | `/api/manager/dead-letters` | manager, admin |
@@ -82,6 +85,6 @@ Local web: copy `.env.example` to `apps/web/.env.local` with **dev** values. Loc
 | GET/POST | `/api/cron/abandoned-uploads` | Vercel cron (`Authorization: Bearer CRON_SECRET`) |
 | GET/POST | `/api/cron/work` | Vercel cron (`Authorization: Bearer CRON_SECRET`) |
 
-Denied API responses look like `{ "error": { "code": "unauthenticated" \| "forbidden" \| "invalid_request" \| "not_found" \| "conflict" \| "internal", "message": "..." } }` and do not include receipt image bytes. Denials are logged as `[authz-denied]` with user id and route only. Image reads are logged as `[receipt-image-access]` with user id and receipt id only.
+Denied API responses look like `{ "error": { "code": "unauthenticated" \| "account_inactive" \| "forbidden" \| "invalid_request" \| "not_found" \| "conflict" \| "internal", "message": "..." } }` and do not include receipt image bytes. Denials are logged as `[authz-denied]` with user id and route only. Image reads are logged as `[receipt-image-access]` with user id and receipt id only.
 
 `receipts` is the core document (status, storage key/metadata, optional GPS, retention dates). Related tables: immutable `extractions`, append-only `reviews`, `receipt_lines` (integer cents), `job_candidates`, `housecall_intents`, `housecall_links`, append-only `export_attempts`, append-only `audit_events`, leased `work_items`, and `housecall_outbox`. Confirming an upload queues extract work once, then kicks an idempotent worker after commit (no-op until the extract provider exists). Approving a receipt writes the review, intent, and outbox in one transaction, then kicks export (same). Daily cron recovers missed **purge** work. Receipt and Housecall-step transition guards live in `@svl/domain` (`evaluateReceiptTransition`, `evaluateHousecallStepAttempt`); a unique index blocks a second succeeded export attempt for the same step target. Bearer `POST /api/auth/sign-out` uses Auth admin logout so refresh tokens are revoked.

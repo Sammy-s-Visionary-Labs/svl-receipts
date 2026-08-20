@@ -13,6 +13,7 @@ import {
 import { fetchMe, postSignOut } from "@/lib/api/client";
 import { clearPersistedIdentity, loadPersistedIdentity, persistIdentity } from "./identity-store";
 import { type AuthPhase, type IdentityError, type MeIdentity, resolveAuthPhase } from "./phase";
+import { restoreInitialSession } from "./session-restore";
 import { getMobileSupabaseClient } from "./supabase";
 
 type AuthState = {
@@ -27,6 +28,14 @@ type AuthState = {
 
 const AuthContext = createContext<AuthState | null>(null);
 
+async function clearPersistedIdentityQuietly(): Promise<void> {
+  try {
+    await clearPersistedIdentity();
+  } catch {
+    // Auth recovery must remain available even if secure storage is temporarily unavailable.
+  }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [identity, setIdentity] = useState<MeIdentity | null>(null);
@@ -37,45 +46,45 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const applyIdentity = useCallback(async (next: Session | null, isBoot: boolean) => {
     sessionRef.current = next;
     setSession(next);
-    if (!next) {
+    try {
+      if (!next) {
+        setIdentity(null);
+        setError(null);
+        await clearPersistedIdentityQuietly();
+        return;
+      }
+
+      const cached = await loadPersistedIdentity(next.user.id).catch(() => null);
+      if (cached) {
+        setIdentity(cached);
+        setError(null);
+      }
+
+      const result = await fetchMe(next.access_token);
+      if (sessionRef.current?.user.id !== next.user.id) {
+        return;
+      }
+      if (result.ok) {
+        setIdentity(result.identity);
+        setError(null);
+        await persistIdentity(result.identity).catch(() => undefined);
+      } else if (result.error === "inactive" || result.error === "revoked") {
+        setIdentity(null);
+        setError(result.error);
+        await clearPersistedIdentityQuietly();
+      } else if (!cached) {
+        setIdentity(null);
+        setError("network");
+      } else {
+        setError(null);
+      }
+    } catch {
       setIdentity(null);
-      setError(null);
-      await clearPersistedIdentity();
+      setError(next ? "network" : null);
+    } finally {
       if (isBoot) {
         setBooting(false);
       }
-      return;
-    }
-
-    const cached = await loadPersistedIdentity(next.user.id);
-    if (cached) {
-      setIdentity(cached);
-      setError(null);
-    }
-
-    const result = await fetchMe(next.access_token);
-    if (sessionRef.current?.user.id !== next.user.id) {
-      if (isBoot) {
-        setBooting(false);
-      }
-      return;
-    }
-    if (result.ok) {
-      setIdentity(result.identity);
-      setError(null);
-      await persistIdentity(result.identity);
-    } else if (result.error === "inactive") {
-      setIdentity(null);
-      setError("inactive");
-      await clearPersistedIdentity();
-    } else if (!cached) {
-      setIdentity(null);
-      setError("network");
-    } else {
-      setError(null);
-    }
-    if (isBoot) {
-      setBooting(false);
     }
   }, []);
 
@@ -84,11 +93,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const supabase = getMobileSupabaseClient();
 
-      void supabase.auth.getSession().then(async ({ data }) => {
+      void restoreInitialSession(() => supabase.auth.getSession()).then(async (result) => {
         if (cancelled) {
           return;
         }
-        await applyIdentity(data.session, true);
+        if (result.kind === "revoked") {
+          sessionRef.current = null;
+          setSession(null);
+          setIdentity(null);
+          setError("revoked");
+          await clearPersistedIdentityQuietly();
+          setBooting(false);
+          return;
+        }
+        await applyIdentity(result.session, true);
       });
 
       const { data: listener } = supabase.auth.onAuthStateChange((event, next) => {
@@ -96,11 +114,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return;
         }
         if (event === "INITIAL_SESSION") {
-          return;
-        }
-        if (event === "TOKEN_REFRESHED") {
-          sessionRef.current = next;
-          setSession(next);
           return;
         }
         void applyIdentity(next, false);

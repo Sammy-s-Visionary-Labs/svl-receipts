@@ -2,13 +2,14 @@ import { parseUserRole, type UserRole } from "@svl/domain";
 
 export type AuthPhase =
   | "booting"
+  | "revoked"
   | "signed_out"
   | "needs_network"
   | "inactive"
   | "wrong_role"
   | "ready";
 
-export type IdentityError = "network" | "inactive";
+export type IdentityError = "network" | "inactive" | "revoked";
 
 export function resolveAuthPhase(input: {
   booting: boolean;
@@ -18,6 +19,9 @@ export function resolveAuthPhase(input: {
 }): AuthPhase {
   if (input.booting) {
     return "booting";
+  }
+  if (input.error === "revoked") {
+    return "revoked";
   }
   if (!input.hasSession) {
     return "signed_out";
@@ -37,12 +41,14 @@ export function resolveAuthPhase(input: {
   return "booting";
 }
 
-export type AuthDestination = "booting" | "login" | "offline" | "blocked" | "tabs";
+export type AuthDestination = "booting" | "revoked" | "login" | "offline" | "blocked" | "tabs";
 
 export function destinationForPhase(phase: AuthPhase): AuthDestination {
   switch (phase) {
     case "booting":
       return "booting";
+    case "revoked":
+      return "revoked";
     case "signed_out":
       return "login";
     case "needs_network":

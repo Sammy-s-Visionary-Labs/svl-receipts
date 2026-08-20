@@ -27,10 +27,18 @@ describe("resolveAuthPhase", () => {
     ).toBe("wrong_role");
   });
 
-  it("distinguishes missing session, inactive accounts, and network loss", () => {
+  it("distinguishes missing, revoked, inactive, and offline sessions", () => {
     expect(resolveAuthPhase({ booting: false, hasSession: false, role: null, error: null })).toBe(
       "signed_out",
     );
+    expect(
+      resolveAuthPhase({
+        booting: false,
+        hasSession: false,
+        role: null,
+        error: "revoked",
+      }),
+    ).toBe("revoked");
     expect(
       resolveAuthPhase({
         booting: false,
@@ -53,6 +61,7 @@ describe("resolveAuthPhase", () => {
 describe("destinationForPhase", () => {
   it("maps each phase to a distinct screen", () => {
     expect(destinationForPhase("booting")).toBe("booting");
+    expect(destinationForPhase("revoked")).toBe("revoked");
     expect(destinationForPhase("signed_out")).toBe("login");
     expect(destinationForPhase("needs_network")).toBe("offline");
     expect(destinationForPhase("inactive")).toBe("blocked");

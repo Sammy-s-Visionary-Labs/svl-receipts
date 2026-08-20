@@ -2,6 +2,7 @@ import { isUserRole, type UserRole } from "./roles";
 
 /** Stable API error codes. Response bodies must not include receipt contents. */
 export const AUTH_ERROR_CODES = {
+  accountInactive: "account_inactive",
   unauthenticated: "unauthenticated",
   forbidden: "forbidden",
 } as const;

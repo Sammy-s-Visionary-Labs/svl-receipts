@@ -54,6 +54,7 @@ function RootLayoutNav() {
       <PushRegistrar />
       <Stack>
         <Stack.Screen name="login" options={{ headerShown: false }} />
+        <Stack.Screen name="session-ended" options={{ headerShown: false }} />
         <Stack.Screen name="offline" options={{ headerShown: false }} />
         <Stack.Screen name="blocked" options={{ headerShown: false }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />

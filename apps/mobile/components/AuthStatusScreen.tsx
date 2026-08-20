@@ -3,10 +3,12 @@ import { Text, View } from "@/components/Themed";
 
 export function AuthStatusScreen({
   kind,
+  actionLabel,
   onRetry,
   onSignOut,
 }: {
-  kind: "booting" | "offline" | "wrong_role" | "inactive";
+  kind: "booting" | "revoked" | "offline" | "wrong_role" | "inactive";
+  actionLabel?: string;
   onRetry?: () => void;
   onSignOut?: () => void;
 }) {
@@ -16,7 +18,7 @@ export function AuthStatusScreen({
       <Text style={styles.title}>{copy.title}</Text>
       <Text style={styles.body}>{copy.body}</Text>
       {onRetry ? <Button title="Try again" onPress={onRetry} /> : null}
-      {onSignOut ? <Button title="Sign out" onPress={onSignOut} /> : null}
+      {onSignOut ? <Button title={actionLabel ?? "Sign out"} onPress={onSignOut} /> : null}
     </View>
   );
 }
@@ -25,6 +27,10 @@ const COPY = {
   booting: {
     title: "Opening SVL Receipts",
     body: "Restoring your session…",
+  },
+  revoked: {
+    title: "Your session ended",
+    body: "Sign in again to continue. Receipts queued on this phone have not been deleted.",
   },
   offline: {
     title: "Can't reach the server",

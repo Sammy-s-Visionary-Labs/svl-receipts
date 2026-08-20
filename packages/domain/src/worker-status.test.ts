@@ -2,9 +2,9 @@ import { describe, expect, it } from "vitest";
 import { RECEIPT_STATUSES } from "./receipt-status";
 import {
   QUEUE_SIGN_OUT_POLICY,
+  WORKER_FACING_LABELS,
   workerStatusFromDeviceQueue,
   workerStatusFromReceipt,
-  WORKER_FACING_LABELS,
 } from "./worker-status";
 
 describe("worker-facing status", () => {

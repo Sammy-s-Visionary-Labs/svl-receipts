@@ -5,6 +5,7 @@ import { useAuth } from "@/lib/auth/auth-context";
 import { type AuthDestination, destinationForPhase } from "@/lib/auth/phase";
 
 const HREFS: Record<Exclude<AuthDestination, "booting">, Href> = {
+  revoked: "/session-ended" as Href,
   login: "/login" as Href,
   offline: "/offline" as Href,
   blocked: "/blocked" as Href,

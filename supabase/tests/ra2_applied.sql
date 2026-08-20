@@ -181,6 +181,21 @@ begin
   )
   returning id into owner;
 
+  perform public.upsert_device_push_token(
+    owner,
+    'ExpoPushToken[applied-test-xxxxxxxxxxxxxxxxxxxxxx]',
+    'ios'
+  );
+  if not exists (
+    select 1
+    from public.device_push_tokens t
+    where t.user_id = owner
+      and t.expo_push_token = 'ExpoPushToken[applied-test-xxxxxxxxxxxxxxxxxxxxxx]'
+      and t.platform = 'ios'
+  ) then
+    raise exception 'upsert_device_push_token did not persist the worker token';
+  end if;
+
   update public.profiles set role = 'manager' where id = owner;
 
   insert into public.receipts (owner_user_id, status, storage_key, content_type)

@@ -1,6 +1,7 @@
 import Constants from "expo-constants";
-import { type IdentityError, type MeIdentity, parseMeIdentity } from "@/lib/auth/phase";
+import type { IdentityError, MeIdentity } from "@/lib/auth/phase";
 import { resolveApiBaseUrl } from "./config";
+import { identityResultFromResponse } from "./identity-response";
 
 export class ApiError extends Error {
   readonly status: number;
@@ -38,18 +39,7 @@ export async function fetchMe(
     return { ok: false, error: "network" };
   }
 
-  if (response.status === 401) {
-    return { ok: false, error: "inactive" };
-  }
-  if (!response.ok) {
-    return { ok: false, error: "network" };
-  }
-
-  const identity = parseMeIdentity(await response.json());
-  if (!identity) {
-    return { ok: false, error: "inactive" };
-  }
-  return { ok: true, identity };
+  return identityResultFromResponse(response);
 }
 
 export async function postSignOut(accessToken: string, everywhere: boolean): Promise<void> {
