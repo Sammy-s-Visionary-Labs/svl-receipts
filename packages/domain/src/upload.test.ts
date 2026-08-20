@@ -6,12 +6,14 @@ import {
   isReceiptContentType,
   isSha256Checksum,
   MAX_RECEIPT_BYTES,
+  MAX_RECEIPT_PAGES,
   normalizeChecksum,
 } from "./upload";
 
 describe("receipt upload constraints", () => {
   it("caps images at 10 MiB and allows jpeg/png/webp only", () => {
     expect(MAX_RECEIPT_BYTES).toBe(10 * 1024 * 1024);
+    expect(MAX_RECEIPT_PAGES).toBe(5);
     expect(ALLOWED_RECEIPT_CONTENT_TYPES).toEqual(["image/jpeg", "image/png", "image/webp"]);
     expect(isReceiptContentType("image/jpeg")).toBe(true);
     expect(isReceiptContentType("application/pdf")).toBe(false);

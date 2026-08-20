@@ -1,13 +1,11 @@
 import { StyleSheet } from "react-native";
 import { Text, View } from "@/components/Themed";
 
-export default function CaptureScreen() {
+export default function RecentScreen() {
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Take receipt photo</Text>
-      <Text style={styles.body}>
-        Capture opens from this screen. Camera and gallery come in the next step.
-      </Text>
+      <Text style={styles.title}>My recent uploads</Text>
+      <Text style={styles.body}>Receipts you send will show up here.</Text>
     </View>
   );
 }
@@ -20,8 +18,8 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   title: {
-    fontSize: 28,
-    fontWeight: "700",
+    fontSize: 24,
+    fontWeight: "600",
   },
   body: {
     fontSize: 16,

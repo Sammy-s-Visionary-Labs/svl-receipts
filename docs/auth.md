@@ -14,7 +14,7 @@ split migration history described in [the RA-208 runbook](../supabase/migration-
   before `npm run db:stop`.
 - For the existing dev and production projects, follow the runbook's exact dev-first history repair,
   dry-run, push, schema comparison, and rollback-only applied test. The next pending migration is
-  `20260818191408_ra2_audit_and_replay_fixes.sql`; apply it normally with `db push`, never by marking
+  `20260819180000_device_push_tokens.sql`; apply it normally with `db push`, never by marking
   unapplied SQL as applied.
 - After the history is reconciled, create every database change with a new forward migration and
   deploy it through the same reviewed `db push` workflow.
@@ -56,17 +56,18 @@ Receipt lifecycle changes go only through authenticated Next.js APIs and trusted
 
 `anon` and `authenticated` must not have `INSERT` / `UPDATE` / `DELETE` / `TRUNCATE` on lifecycle tables, and must not execute privileged mutation RPCs (`PUBLIC` included in those revokes). Workers may keep RLS-protected **reads** of their own profile and history. RLS stays enabled as defense in depth, including active-profile checks on remaining owner read policies.
 
-Privileged RPCs (`create_upload_pending_receipt`, `submit_confirmed_receipt`, `approve_receipt_with_outbox`, `set_retention_hold`, `claim_work`, `defer_work`, `fail_work`, `claim_abandoned_upload`, `delete_abandoned_upload`, `assert_purge_eligible`, `release_purge_claim`, `purge_receipt_content`) take `p_actor_id` / `p_worker_id` from the API or runner and are executable by `service_role` only. GET `/api/receipts/[id]` returns `retentionStartedAt` (column `retention_started_at`).
+Privileged RPCs (`create_upload_pending_receipt`, `submit_confirmed_receipt`, `approve_receipt_with_outbox`, `set_retention_hold`, `claim_work`, `defer_work`, `fail_work`, `claim_abandoned_upload`, `delete_abandoned_upload`, `assert_purge_eligible`, `release_purge_claim`, `purge_receipt_content`, `upsert_device_push_token`) take `p_actor_id` / `p_worker_id` / `p_user_id` from the API or runner and are executable by `service_role` only. GET `/api/receipts/[id]` returns `retentionStartedAt` (column `retention_started_at`).
 
 Integration tests must prove `anon`, workers, and disabled users cannot mutate tables or privileged RPCs directly. `npm test` checks that `supabase/tests/ra2_applied.sql` covers those RPCs. Execute the rollback-only test through `npm run test:applied` with `SVL_APPLIED_DATABASE_URL` set to the reviewed target; do not paste it into the SQL editor. See [architecture.md](architecture.md).
 
-Local web: copy `.env.example` to `apps/web/.env.local` with **dev** values. Local mobile: `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY` (same publishable/anon key as web).
+Local web: copy `.env.example` to `apps/web/.env.local` with **dev** values. Local mobile: `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY` (same publishable/anon key as web), plus `EXPO_PUBLIC_API_URL` when the phone cannot use `http://<expo-host>:3000`. Optional `EXPO_PUBLIC_PROJECT_ID` (EAS) and `EXPO_PUBLIC_SUPPORT_EMAIL`.
 
 ## Routes
 
 | Method | Path | Who |
 | --- | --- | --- |
 | GET | `/api/me` | any active user |
+| POST | `/api/me/push-token` | worker (stores Expo token for RA-25; body `token` + `platform`; user id always from the session) |
 | POST | `/api/auth/sign-out` | signed-in user (add `?all=1` to revoke every device) |
 | GET | `/api/manager/queue` | manager, admin |
 | GET | `/api/manager/dead-letters` | manager, admin |

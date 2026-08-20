@@ -8,6 +8,7 @@ import {
   isTerminalReceiptStatus,
   parseExtractionV1,
   parseHousecallIntentV1,
+  READABILITY_SCHEMA_VERSION,
   resolveReceiptStatus,
 } from "./index";
 
@@ -16,9 +17,10 @@ describe("@svl/domain", () => {
     expect(DOMAIN_PACKAGE).toBe("@svl/domain");
   });
 
-  it("pins extraction and housecall contract versions at 1", () => {
+  it("pins extraction, housecall, and readability contract versions at 1", () => {
     expect(EXTRACTION_SCHEMA_VERSION).toBe(1);
     expect(HOUSECALL_PAYLOAD_VERSION).toBe(1);
+    expect(READABILITY_SCHEMA_VERSION).toBe(1);
   });
 });
 
