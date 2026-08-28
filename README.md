@@ -75,6 +75,6 @@ npm run db:stop       # Stop and discard the local stack
 
 Copy `.env.example` into `apps/web/.env.local` (gitignored) using **dev** values only. Never commit secrets. Housecall, AI, Supabase service-role, and `CRON_SECRET` stay server-only.
 
-For Expo, set `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY` to the same **dev** public values.
+For Expo, set `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY` to the same **dev** public values. On a physical phone also set `EXPO_PUBLIC_API_URL` to the Next.js origin (not `localhost`). Optional: `EXPO_PUBLIC_PROJECT_ID`, `EXPO_PUBLIC_SUPPORT_EMAIL`.
 
 Cloud mapping, owners, rotation, and free-tier quota checks: [docs/environments.md](docs/environments.md).

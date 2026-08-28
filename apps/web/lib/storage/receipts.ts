@@ -5,6 +5,7 @@ import {
   MAX_RECEIPT_BYTES,
   RECEIPT_BUCKET,
   type ReceiptContentType,
+  type ReceiptStorageObjectExistence,
   SIGNED_READ_TTL_SECONDS,
 } from "@svl/domain";
 import { createServiceRoleClient } from "@/lib/supabase/service";
@@ -49,7 +50,17 @@ export async function createReceiptReadUrl(storageKey: string) {
   return data.signedUrl;
 }
 
-export type ReceiptObjectExistence = "present" | "absent" | "unknown";
+export type ReceiptObjectExistence = ReceiptStorageObjectExistence;
+
+export class ReceiptObjectSetRemovalError extends Error {
+  readonly existence: ReceiptObjectExistence;
+
+  constructor(existence: ReceiptObjectExistence, cause: unknown) {
+    super("receipt_object_set_removal_failed", { cause });
+    this.name = "ReceiptObjectSetRemovalError";
+    this.existence = existence;
+  }
+}
 
 export async function receiptObjectExists(storageKey: string): Promise<ReceiptObjectExistence> {
   const supabase = createServiceRoleClient();
@@ -115,4 +126,33 @@ export async function removeReceiptObject(storageKey: string): Promise<void> {
   if (existence === "unknown") {
     throw new Error("storage_object_existence_unknown");
   }
+}
+
+export async function removeReceiptObjectSet(storageKeys: readonly string[]): Promise<void> {
+  const uniqueKeys = [...new Set(storageKeys)];
+  for (const storageKey of uniqueKeys) {
+    try {
+      await removeReceiptObject(storageKey);
+    } catch (cause) {
+      const existence = await receiptObjectSetExistence(uniqueKeys);
+      if (existence === "absent") {
+        return;
+      }
+      throw new ReceiptObjectSetRemovalError(existence, cause);
+    }
+  }
+}
+
+async function receiptObjectSetExistence(
+  storageKeys: readonly string[],
+): Promise<ReceiptObjectExistence> {
+  let anyPresent = false;
+  for (const storageKey of storageKeys) {
+    const existence = await receiptObjectExists(storageKey);
+    if (existence === "unknown") {
+      return "unknown";
+    }
+    anyPresent ||= existence === "present";
+  }
+  return anyPresent ? "present" : "absent";
 }

@@ -23,6 +23,12 @@
     "postgres": "3.4.7",
     "supabase": "2.115.0"
   },
+  "overrides": {
+    "metro": "0.84.5",
+    "metro-config": "0.84.5",
+    "metro-transform-worker": "0.84.5",
+    "react-native-gesture-handler": "2.32.0"
+  },
   "engines": {
     "node": ">=22"
   }

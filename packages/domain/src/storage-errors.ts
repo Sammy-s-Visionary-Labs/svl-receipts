@@ -44,3 +44,16 @@ export function isReceiptStorageObjectAbsent(error: unknown): boolean {
   }
   return false;
 }
+
+export type ReceiptStorageObjectExistence = "present" | "absent" | "unknown";
+
+/**
+ * A purge claim may be released only when Storage positively confirms that an
+ * object remains. Unknown state keeps the database fence in place so a
+ * concurrent purge cannot race an indeterminate delete.
+ */
+export function shouldReleasePurgeClaimAfterStorageFailure(
+  existence: ReceiptStorageObjectExistence,
+): boolean {
+  return existence === "present";
+}

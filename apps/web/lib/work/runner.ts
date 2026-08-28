@@ -3,11 +3,12 @@ import {
   isDeferablePurgeReason,
   isHandledWorkKind,
   persistableWorkReason,
+  shouldReleasePurgeClaimAfterStorageFailure,
   WORK_HANDLED_KINDS,
   WORK_LEASE_SECONDS,
   type WorkKind,
 } from "@svl/domain";
-import { receiptObjectExists, removeReceiptObject } from "@/lib/storage/receipts";
+import { ReceiptObjectSetRemovalError, removeReceiptObjectSet } from "@/lib/storage/receipts";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 
 export type WorkRow = {
@@ -165,26 +166,34 @@ async function runPurge(
     return;
   }
 
-  const storageKey = snapshot?.storageKey;
-  if (storageKey) {
-    try {
-      await removeReceiptObject(storageKey);
-    } catch (cause) {
-      const existence = await receiptObjectExists(storageKey);
-      if (existence === "present") {
-        const { error: releaseError } = await supabase.rpc("release_purge_claim", {
-          p_receipt_id: row.receipt_id,
-          p_worker_id: workerId,
-        });
-        if (releaseError) {
-          console.error("[work-runner] release_purge_claim", releaseError);
-        }
-        throw cause;
-      }
-      if (existence === "unknown") {
-        throw cause;
+  const { data: pages, error: pagesError } = await supabase
+    .from("receipt_pages")
+    .select("storage_key")
+    .eq("receipt_id", row.receipt_id)
+    .order("page_index", { ascending: true });
+  if (pagesError) {
+    throw pagesError;
+  }
+  const storageKeys = (pages ?? []).map((page) => page.storage_key);
+  if (storageKeys.length === 0 && snapshot?.storageKey) {
+    storageKeys.push(snapshot.storageKey);
+  }
+  try {
+    await removeReceiptObjectSet(storageKeys);
+  } catch (cause) {
+    if (
+      cause instanceof ReceiptObjectSetRemovalError &&
+      shouldReleasePurgeClaimAfterStorageFailure(cause.existence)
+    ) {
+      const { error: releaseError } = await supabase.rpc("release_purge_claim", {
+        p_receipt_id: row.receipt_id,
+        p_worker_id: workerId,
+      });
+      if (releaseError) {
+        console.error("[work-runner] release_purge_claim", releaseError);
       }
     }
+    throw cause;
   }
 
   const { error: purgeError } = await supabase.rpc("purge_receipt_content", {

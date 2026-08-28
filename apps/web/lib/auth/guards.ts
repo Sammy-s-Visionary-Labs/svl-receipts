@@ -100,8 +100,8 @@ export async function requireActor(
 
   const actor = await loadProfile(supabase, user.id);
   if (!actor || !actorMayUseApp(actor)) {
-    logDenied(route, actor, AUTH_ERROR_CODES.unauthenticated);
-    throw new AuthHttpError(401, AUTH_ERROR_CODES.unauthenticated, "Account is not active");
+    logDenied(route, actor, AUTH_ERROR_CODES.accountInactive);
+    throw new AuthHttpError(401, AUTH_ERROR_CODES.accountInactive, "Account is not active");
   }
 
   return { actor, supabase };

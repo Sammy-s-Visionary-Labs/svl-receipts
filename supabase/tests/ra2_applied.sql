@@ -22,7 +22,9 @@ begin
     'public.export_attempts',
     'public.audit_events',
     'public.work_items',
-    'public.housecall_outbox'
+    'public.housecall_outbox',
+    'public.device_push_tokens',
+    'public.receipt_pages'
   ]
   loop
     if has_table_privilege('anon', tbl, 'INSERT')
@@ -55,7 +57,8 @@ begin
     'fail_work(uuid,text,text,boolean)',
     'purge_receipt_content(uuid,text)',
     'assert_purge_eligible(uuid,text)',
-    'set_retention_hold(uuid,uuid,boolean,text,uuid)'
+    'set_retention_hold(uuid,uuid,boolean,text,uuid)',
+    'upsert_device_push_token(uuid,text,text)'
   ]
   loop
     if has_function_privilege('anon', fn_ident, 'EXECUTE') then
@@ -178,6 +181,21 @@ begin
     false
   )
   returning id into owner;
+
+  perform public.upsert_device_push_token(
+    owner,
+    'ExpoPushToken[applied-test-xxxxxxxxxxxxxxxxxxxxxx]',
+    'ios'
+  );
+  if not exists (
+    select 1
+    from public.device_push_tokens t
+    where t.user_id = owner
+      and t.expo_push_token = 'ExpoPushToken[applied-test-xxxxxxxxxxxxxxxxxxxxxx]'
+      and t.platform = 'ios'
+  ) then
+    raise exception 'upsert_device_push_token did not persist the worker token';
+  end if;
 
   update public.profiles set role = 'manager' where id = owner;
 

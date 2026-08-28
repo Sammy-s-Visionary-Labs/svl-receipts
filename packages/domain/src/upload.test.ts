@@ -6,12 +6,15 @@ import {
   isReceiptContentType,
   isSha256Checksum,
   MAX_RECEIPT_BYTES,
+  MAX_RECEIPT_PAGES,
   normalizeChecksum,
+  receiptManifestDigestInput,
 } from "./upload";
 
 describe("receipt upload constraints", () => {
   it("caps images at 10 MiB and allows jpeg/png/webp only", () => {
     expect(MAX_RECEIPT_BYTES).toBe(10 * 1024 * 1024);
+    expect(MAX_RECEIPT_PAGES).toBe(5);
     expect(ALLOWED_RECEIPT_CONTENT_TYPES).toEqual(["image/jpeg", "image/png", "image/webp"]);
     expect(isReceiptContentType("image/jpeg")).toBe(true);
     expect(isReceiptContentType("application/pdf")).toBe(false);
@@ -42,5 +45,19 @@ describe("receipt upload constraints", () => {
     expect(declaredContentTypeMatches("image/jpeg", "image/jpeg")).toBe(true);
     expect(declaredContentTypeMatches(null, "image/jpeg")).toBe(false);
     expect(declaredContentTypeMatches("image/png", "image/jpeg")).toBe(false);
+  });
+
+  it("builds a deterministic ordered page manifest", () => {
+    const first = "a".repeat(64);
+    const second = "b".repeat(64);
+    expect(
+      receiptManifestDigestInput([
+        { pageIndex: 1, checksum: second, byteSize: 200 },
+        { pageIndex: 0, checksum: first, byteSize: 100 },
+      ]),
+    ).toBe(`0:${first}:100\n1:${second}:200`);
+    expect(() =>
+      receiptManifestDigestInput([{ pageIndex: 1, checksum: first, byteSize: 100 }]),
+    ).toThrow("invalid_receipt_page_manifest");
   });
 });

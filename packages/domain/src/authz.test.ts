@@ -32,6 +32,7 @@ describe("parseUserRole", () => {
 
 describe("negative permission checks", () => {
   it("keeps error codes stable and free of receipt payloads", () => {
+    expect(AUTH_ERROR_CODES.accountInactive).toBe("account_inactive");
     expect(AUTH_ERROR_CODES.unauthenticated).toBe("unauthenticated");
     expect(AUTH_ERROR_CODES.forbidden).toBe("forbidden");
   });

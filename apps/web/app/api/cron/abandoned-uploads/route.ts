@@ -2,7 +2,7 @@ import { ABANDONED_UPLOAD_MAX_AGE_HOURS } from "@svl/domain";
 import { authErrorResponse } from "@/lib/auth/guards";
 import { requireCronSecret } from "@/lib/cron/secret";
 import { HttpError, httpErrorResponse } from "@/lib/http";
-import { removeReceiptObject } from "@/lib/storage/receipts";
+import { removeReceiptObjectSet } from "@/lib/storage/receipts";
 import { createServiceRoleClient } from "@/lib/supabase/service";
 
 type AbandonedRow = {
@@ -42,10 +42,20 @@ async function cleanupAbandonedUploads(request: Request) {
           throw claimError;
         }
         const snapshot = claimed as { storageKey?: string | null } | null;
-        const storageKey = snapshot?.storageKey ?? row.storage_key;
-        if (storageKey) {
-          await removeReceiptObject(storageKey);
+        const { data: pages, error: pagesError } = await supabase
+          .from("receipt_pages")
+          .select("storage_key")
+          .eq("receipt_id", row.id)
+          .order("page_index", { ascending: true });
+        if (pagesError) {
+          throw pagesError;
         }
+        const storageKeys = (pages ?? []).map((page) => page.storage_key);
+        const fallbackKey = snapshot?.storageKey ?? row.storage_key;
+        if (storageKeys.length === 0 && fallbackKey) {
+          storageKeys.push(fallbackKey);
+        }
+        await removeReceiptObjectSet(storageKeys);
         const { error: deleteError } = await supabase.rpc("delete_abandoned_upload", {
           p_receipt_id: row.id,
         });

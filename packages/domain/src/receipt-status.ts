@@ -1,6 +1,10 @@
 /**
- * Receipt lifecycle statuses.
+ * Receipt lifecycle statuses (server).
  * A single "approved" flag is not enough — capture, AI, review, and export need distinct states.
+ *
+ * `rejected_unreadable` is a top-level status, not a synonym of `rejected`.
+ * Photo-quality failures use it plus reason codes in `readability.ts`.
+ * A person declining a receipt uses `rejected`. Worker UI: see `worker-status.ts`.
  */
 export const RECEIPT_STATUSES = [
   "upload_pending",

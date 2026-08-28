@@ -82,6 +82,40 @@ Rules:
 2. Fill **dev** values from the vault.
 3. Never point local env at prod.
 
+### Local Android upload replay
+
+`npm run db:start` deliberately starts only PostgreSQL for migration checks. It is not enough for
+an end-to-end mobile upload because Auth, the Data API, and Storage are excluded. Use this separate
+flow only with the disposable local Supabase stack:
+
+1. Start the full stack with `npx supabase start`, then apply the migrations with
+   `npm run db:reset`.
+2. Read the local URL and keys from `npx supabase status -o env`. Put the local URL, local anon key,
+   and local service-role key in `apps/web/.env.local`; never copy a hosted or production key into
+   this replay.
+3. Keep `apps/mobile/.env.local` client-only: it may contain `EXPO_PUBLIC_*` values, but never
+   `SUPABASE_SERVICE_ROLE_KEY`, Housecall, AI, or cron secrets.
+4. For an Android emulator, run `adb reverse tcp:3000 tcp:3000` and
+   `adb reverse tcp:54321 tcp:54321`. The mobile public Supabase and API URLs can then both use
+   `http://127.0.0.1` with ports `54321` and `3000` respectively.
+5. Stop every existing Metro process. If `apps/mobile/.env.local` exists, move it to a unique private
+   backup outside the project before starting the replay; do not overwrite an existing backup. Expo
+   SDK 57's virtual env module can bundle that file even when `EXPO_NO_DOTENV=1`, causing a supposed
+   local replay to authenticate against hosted dev. Start Next.js with `npm run dev:web`. From
+   `apps/mobile`, export `EXPO_NO_DOTENV=1` plus the local `EXPO_PUBLIC_SUPABASE_URL`,
+   `EXPO_PUBLIC_SUPABASE_ANON_KEY`, and `EXPO_PUBLIC_API_URL`, then run
+   `npx expo start --dev-client --localhost --clear --android`. Inspect the generated bundle or local
+   Auth request log to prove the local URL won before sending. Stop Metro and restore the exact
+   `.env.local` backup as soon as the replay finishes. Fully reload the app after changing public
+   values because Expo inlines them.
+6. Use a disposable active worker and sanitized fixtures. Verify the durable `submitted` receipt,
+   ordered `receipt_pages`, exact checksums/byte sizes, confirmed Storage objects, and one `extract`
+   work item before calling the replay successful.
+
+Production upload targets remain HTTPS-only. Debug builds accept plain HTTP only for explicit
+loopback/emulator hosts used by this local replay; private-LAN and arbitrary HTTP signed targets are
+rejected.
+
 ## Ownership
 
 | Resource | Owner | Who can rotate keys |
