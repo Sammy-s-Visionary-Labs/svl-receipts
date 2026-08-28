@@ -23,5 +23,6 @@ export * from "./roles";
 export * from "./storage-errors";
 export * from "./transitions";
 export * from "./upload";
+export * from "./upload-telemetry";
 export * from "./work";
 export * from "./worker-status";

@@ -68,3 +68,36 @@ export function normalizeChecksum(value: string): string {
 export function isSha256Checksum(value: string): boolean {
   return SHA256_HEX.test(normalizeChecksum(value));
 }
+
+export type ConfirmedReceiptPage = {
+  pageIndex: number;
+  checksum: string;
+  byteSize: number;
+};
+
+export function isConfirmedReceiptPage(value: ConfirmedReceiptPage): boolean {
+  return (
+    Number.isInteger(value.pageIndex) &&
+    value.pageIndex >= 0 &&
+    value.pageIndex < MAX_RECEIPT_PAGES &&
+    isSha256Checksum(value.checksum) &&
+    Number.isInteger(value.byteSize) &&
+    value.byteSize > 0 &&
+    value.byteSize <= MAX_RECEIPT_BYTES
+  );
+}
+
+/** Stable input for the receipt-level SHA-256 manifest digest. */
+export function receiptManifestDigestInput(pages: readonly ConfirmedReceiptPage[]): string {
+  const ordered = [...pages].sort((left, right) => left.pageIndex - right.pageIndex);
+  if (
+    ordered.length < 1 ||
+    ordered.length > MAX_RECEIPT_PAGES ||
+    ordered.some((page, index) => page.pageIndex !== index || !isConfirmedReceiptPage(page))
+  ) {
+    throw new Error("invalid_receipt_page_manifest");
+  }
+  return ordered
+    .map((page) => `${page.pageIndex}:${normalizeChecksum(page.checksum)}:${page.byteSize}`)
+    .join("\n");
+}

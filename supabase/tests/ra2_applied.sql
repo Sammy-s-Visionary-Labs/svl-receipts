@@ -23,7 +23,8 @@ begin
     'public.audit_events',
     'public.work_items',
     'public.housecall_outbox',
-    'public.device_push_tokens'
+    'public.device_push_tokens',
+    'public.receipt_pages'
   ]
   loop
     if has_table_privilege('anon', tbl, 'INSERT')

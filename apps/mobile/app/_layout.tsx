@@ -2,10 +2,12 @@ import { useFonts } from "expo-font";
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect } from "react";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import "react-native-reanimated";
 
 import { useColorScheme } from "@/components/useColorScheme";
 import { AuthProvider, useAuth } from "@/lib/auth/auth-context";
+import { ReceiptCaptureProvider } from "@/lib/capture/receipt-capture-context";
 import { PushRegistrar } from "@/lib/push/register";
 
 export {
@@ -33,15 +35,17 @@ export default function RootLayout() {
   }
 
   return (
-    <AuthProvider>
-      <RootLayoutNav />
-    </AuthProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <AuthProvider>
+        <RootLayoutNav />
+      </AuthProvider>
+    </GestureHandlerRootView>
   );
 }
 
 function RootLayoutNav() {
   const colorScheme = useColorScheme();
-  const { phase } = useAuth();
+  const { phase, session } = useAuth();
 
   useEffect(() => {
     if (phase !== "booting") {
@@ -50,15 +54,21 @@ function RootLayoutNav() {
   }, [phase]);
 
   return (
-    <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
-      <PushRegistrar />
-      <Stack>
-        <Stack.Screen name="login" options={{ headerShown: false }} />
-        <Stack.Screen name="session-ended" options={{ headerShown: false }} />
-        <Stack.Screen name="offline" options={{ headerShown: false }} />
-        <Stack.Screen name="blocked" options={{ headerShown: false }} />
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-      </Stack>
-    </ThemeProvider>
+    <ReceiptCaptureProvider key={session?.user.id ?? "signed-out"}>
+      <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
+        <PushRegistrar />
+        <Stack>
+          <Stack.Screen name="login" options={{ headerShown: false }} />
+          <Stack.Screen name="session-ended" options={{ headerShown: false }} />
+          <Stack.Screen name="offline" options={{ headerShown: false }} />
+          <Stack.Screen name="blocked" options={{ headerShown: false }} />
+          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          <Stack.Screen
+            name="capture"
+            options={{ headerShown: false, presentation: "fullScreenModal" }}
+          />
+        </Stack>
+      </ThemeProvider>
+    </ReceiptCaptureProvider>
   );
 }

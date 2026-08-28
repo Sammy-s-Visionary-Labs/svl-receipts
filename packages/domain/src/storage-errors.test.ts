@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { isReceiptStorageObjectAbsent } from "./storage-errors";
+import {
+  isReceiptStorageObjectAbsent,
+  shouldReleasePurgeClaimAfterStorageFailure,
+} from "./storage-errors";
 
 describe("receipt storage absence classifier", () => {
   it("treats NoSuchKey as the object being gone", () => {
@@ -19,5 +22,14 @@ describe("receipt storage absence classifier", () => {
       true,
     );
     expect(isReceiptStorageObjectAbsent({ error: "ObjectNotFound" })).toBe(true);
+  });
+
+  it("releases a purge fence after a failed delete only when presence is confirmed", () => {
+    expect(shouldReleasePurgeClaimAfterStorageFailure("present")).toBe(true);
+  });
+
+  it("retains a purge fence when a failed delete leaves Storage state unknown", () => {
+    expect(shouldReleasePurgeClaimAfterStorageFailure("unknown")).toBe(false);
+    expect(shouldReleasePurgeClaimAfterStorageFailure("absent")).toBe(false);
   });
 });

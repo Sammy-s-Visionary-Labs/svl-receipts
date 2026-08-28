@@ -38,5 +38,7 @@ enable_signup = false
 enable_anonymous_sign_ins = false
 
 [auth.email]
-enable_signup = false
+# Keep the email/password provider available for admin-provisioned workers.
+# auth.enable_signup above still prevents public self-registration.
+enable_signup = true
 enable_confirmations = false
