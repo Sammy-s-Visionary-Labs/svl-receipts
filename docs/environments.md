@@ -12,7 +12,8 @@ There is **one GitHub repo** and **one Vercel project**. There are **two Supabas
 - Any other git branch → Vercel **Preview** → **dev** Supabase
 - Laptop (`apps/web/.env.local`) → **dev** Supabase only
 
-Vercel Hobby. No Railway worker.
+RA-25's one-minute work recovery requires Vercel Pro/Enterprise or an equivalent authenticated
+external scheduler. There is no Railway worker.
 
 ## Matrix
 
@@ -65,8 +66,11 @@ Set them in Vercel → **Settings → Environment Variables**. The same **name**
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Client-safe (publishable / legacy anon) | prod publishable/anon | dev publishable/anon | No |
 | `SUPABASE_SERVICE_ROLE_KEY` | Server-only (secret / legacy service_role) | prod secret | dev secret | Yes |
 | `HOUSECALL_API_KEY` | Server-only | prod Housecall key | sandbox or dummy | Yes |
-| `AI_PROVIDER` | Server-only | provider name (`gemini` / `openai`) | test provider | No |
-| `AI_API_KEY` | Server-only | prod AI key | sandbox or dummy | Yes |
+| `AI_PROVIDER` | Server-only | `gemini` | `gemini` | No |
+| `GEMINI_API_KEY` | Server-only | prod Gemini paid-tier key | dev Gemini paid-tier key | Yes |
+| `AI_API_KEY` | Server-only fallback | leave empty when `GEMINI_API_KEY` is set | optional fallback | Yes |
+| `GEMINI_MODEL` | Server-only | `gemini-3.5-flash-lite` | `gemini-3.5-flash-lite` | No |
+| `EXPO_ACCESS_TOKEN` | Optional server-only push credential | required only when EAS enhanced push security is enabled | same | Yes |
 | `CRON_SECRET` | Server-only (Vercel cron auth for abandoned-upload cleanup and the work runner) | unique 16+ char string | a **different** unique string | Yes |
 
 Rules:
@@ -81,6 +85,28 @@ Rules:
 1. Copy `.env.example` to `apps/web/.env.local` (gitignored).
 2. Fill **dev** values from the vault.
 3. Never point local env at prod.
+
+For a physical phone running against the laptop, set `apps/mobile/.env.local`
+`EXPO_PUBLIC_API_URL` to `http://<laptop-LAN-address>:3000`, keep both devices on the same network,
+and restart Metro so the public value is rebuilt. Never use `localhost` or `127.0.0.1` for a
+physical device. An installed build without a Metro LAN host must contain an explicit reachable
+API origin (normally the deployed HTTPS origin); the app intentionally refuses a physical-device
+localhost fallback.
+
+### Local Android native toolchain
+
+Use Java 17 for Gradle. In Android Studio, select the installed Java 17 runtime under
+**Settings → Build, Execution, Deployment → Build Tools → Gradle → Gradle JDK**. Do not use the
+Android Studio bundled Java 25 runtime for this Expo SDK 57 project: React Native Worklets native
+configuration fails on its restricted-method warning. If `apps/mobile/android` has been generated,
+its ignored `gradle/gradle-daemon-jvm.properties` should report `toolchainVersion=17` before running
+native Gradle tasks.
+
+The aggregate `app:lintDebug` task can currently crash inside the third-party
+`react-native-worklets` lint analyzer with `Cannot find a KaModule for the VirtualFile`. Treat that
+specific analyzer exception as an upstream tooling limitation, not an SVL lint result. The required
+local gates remain the repository lint/typecheck/tests, Expo's Android production export, and a
+successful `app:assembleDebug`; do not suppress other Android lint findings.
 
 ### Local Android upload replay
 
@@ -157,16 +183,19 @@ If the **project URL** ever changes, also update `NEXT_PUBLIC_SUPABASE_URL` and 
 2. Vault, then Vercel, correct environment, redeploy.
 3. Production and Preview must stay different strings.
 
-## Quota checks (Hobby / free tier)
+## Quota checks (hosting / free tier)
 
 Check **both** Supabase projects. They do not share one quota.
 
-### Vercel Hobby
+### Vercel
 
 1. [https://vercel.com/dashboard](https://vercel.com/dashboard) → company team.
 2. Team **Settings → Billing** / **Usage**.
 3. Look at deployments, bandwidth, and function invocations.
-4. Cron jobs: Hobby allows **two cron jobs**, each **at most once per day**. Daily cron is **recovery** (missed/stale work, abandoned-upload cleanup, due purges, retries). Primary extract/export kicks happen immediately after upload confirmation and after approval. See [architecture.md](architecture.md). A schedule more frequent than daily will fail the deploy. There is no always-on worker.
+4. RA-25 configures `/api/cron/work` every minute. Vercel Hobby rejects that schedule; use
+   Pro/Enterprise or an equivalent external scheduler authenticated with `CRON_SECRET`. The
+   immediate post-confirm kick is not a substitute for retry recovery. See
+   [architecture.md](architecture.md).
 
 ### Supabase free
 

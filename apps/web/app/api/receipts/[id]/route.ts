@@ -1,4 +1,6 @@
+import { isReadabilityReason, READABILITY_RETAKE_COPY, type ReadabilityReason } from "@svl/domain";
 import { authErrorResponse, requireReceiptAccess } from "@/lib/auth/guards";
+import { createServiceRoleClient } from "@/lib/supabase/service";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -26,6 +28,21 @@ export async function GET(request: Request, context: RouteContext) {
       retention_hold_reason: string | null;
       content_deleted_at: string | null;
     } | null;
+    const service = createServiceRoleClient();
+    const { data: readabilityData } = await service
+      .from("readability_checks")
+      .select("readable, failed_page_indexes, reasons, created_at")
+      .eq("receipt_id", id)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const readability = readabilityData as {
+      readable: boolean;
+      failed_page_indexes: number[];
+      reasons: string[];
+      created_at: string;
+    } | null;
+    const reasons = (readability?.reasons ?? []).filter(isReadabilityReason);
     return Response.json({
       id,
       ownerUserId,
@@ -36,6 +53,18 @@ export async function GET(request: Request, context: RouteContext) {
       retentionHold: row?.retention_hold ?? false,
       retentionHoldReason: row?.retention_hold_reason ?? null,
       contentDeletedAt: row?.content_deleted_at ?? null,
+      readability:
+        readability === null
+          ? null
+          : {
+              readable: readability.readable,
+              failedPageIndexes: readability.failed_page_indexes,
+              reasons: reasons.map((code: ReadabilityReason) => ({
+                code,
+                guidance: READABILITY_RETAKE_COPY[code],
+              })),
+              checkedAt: readability.created_at,
+            },
     });
   } catch (error) {
     return authErrorResponse(error);

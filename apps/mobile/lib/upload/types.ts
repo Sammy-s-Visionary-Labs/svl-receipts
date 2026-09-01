@@ -93,6 +93,10 @@ export type SubmissionUpdate = {
   confirmation?: ReceiptSubmissionAcknowledgement;
 };
 
+export type ReceiptSubmissionUpdateHandler = (
+  update: SubmissionUpdate,
+) => unknown | Promise<unknown>;
+
 export type ReceiptSubmissionDependencies = {
   createSubmissionId: () => string;
   preparePage: (page: ReceiptPage, pageIndex: number) => Promise<PreparedUploadPage>;

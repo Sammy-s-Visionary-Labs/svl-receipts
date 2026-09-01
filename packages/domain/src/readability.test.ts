@@ -34,5 +34,21 @@ describe("readability check v1", () => {
         reasons: ["gemini_BLOCKED"],
       }),
     ).toBe(false);
+    expect(
+      isReadabilityCheckV1({
+        schema_version: 1,
+        readable: true,
+        failed_page_indexes: [0],
+        reasons: ["blurry"],
+      }),
+    ).toBe(false);
+    expect(
+      isReadabilityCheckV1({
+        schema_version: 1,
+        readable: false,
+        failed_page_indexes: [],
+        reasons: ["unreadable"],
+      }),
+    ).toBe(false);
   });
 });

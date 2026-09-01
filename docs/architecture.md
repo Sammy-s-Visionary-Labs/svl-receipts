@@ -25,16 +25,22 @@ If an approved receipt permanently fails one Housecall step, retention still doe
 
 Holds (owner + reason) skip deletion. Purge must not record database success until object removal has succeeded (see §3).
 
-## 2. Processing on Hobby cron
+## 2. Processing and retry scheduler
 
-Vercel Hobby remains the pilot host (two crons, each at most daily). That daily job is **recovery**, not the primary trigger.
+The durable queue is the source of truth. Immediate post-commit work keeps the normal path fast, and
+the scheduled worker recovers missed kicks, expired leases, and provider failures on their bounded
+retry schedule.
 
 Intended flow:
 
-1. Upload **confirmation** (object verified) commits the receipt and queues extraction work in one transaction.
-2. After that commit, immediately kick an **idempotent** extraction worker.
+1. Upload **confirmation** (object verified) commits the receipt and queues readability work in one transaction.
+2. After the response is ready, Next.js `after()` kicks one capped, idempotent readability batch.
 3. Approval commits the Housecall outbox and queues export work in one transaction, then immediately kicks an **idempotent** export worker.
-4. The daily cron recovers missed or stale work, cleans abandoned uploads, enqueues due retention purges, and retries failures.
+4. `/api/cron/work` runs every minute to recover missed or stale work, enqueue due purges, and honor minute-scale retries. Abandoned-upload cleanup remains a separate daily job.
+
+The one-minute Vercel schedule requires Pro/Enterprise. Hobby rejects this `* * * * *` schedule, so
+an equivalent authenticated external scheduler is required if the project stays on Hobby. A release
+must not silently downgrade RA-25 recovery to daily retries.
 
 Do not run external AI or Housecall HTTP inside the database transaction. The durable `work_items` row is the source of truth if the immediate kick fails.
 
@@ -83,7 +89,7 @@ As of `20260818191408_ra2_audit_and_replay_fixes.sql` and the matching Next.js r
 
 - Retention uses `retention_started_at`, set once when the current Housecall intent is fully exported or the receipt is declined (including `duplicate`). Confirm does not start the clock. The column is write-once after it is set.
 - Lifecycle mutations go through service-role RPCs from Next.js. `anon` and `authenticated` have no DML on the current application tables; authenticated reads are RLS-scoped and owner reads require an active profile. The migration role's default privileges are hardened as defense in depth; every future migration must still grant access explicitly and verify the resulting live grants.
-- The work runner claims only `purge`, uses a unique lease id per batch, and marks work succeeded only after the handler ran. Extract/export rows stay queued until those providers exist. Confirm and approve kick those kinds after commit; unimplemented kicks no-op and leave the queue as source of truth.
+- The work runner claims `readability` and `purge`, uses a unique lease id per batch, and marks work succeeded only after the handler ran. Extract/export rows stay queued until those providers exist. Receipt confirmation schedules readability after the response; the durable queue/cron is the recovery path.
 - `claim_work` does not lease purge rows that are held, not yet due, or already purged. Only `retention_hold` and `purge_not_eligible` are deferred (`defer_work`, with a `work_retried` audit). Unexpected SQL errors use `fail_work`.
 - `fail_work` / `defer_work` persist allowlisted codes only (`persistable_work_reason`). Provider `Error.message` stays in runtime logs.
 - Clearing a hold requeues only that receipt's **hold-caused** purge dead letters (`retention_hold`), resets `attempt_count`, and audits the queue recovery. Other dead letters, including legacy generic `conflict` failures, stay dead. Repeat hold set/clear is a no-op, while owner/reason changes are audited with truthful before/after state.
@@ -91,7 +97,8 @@ As of `20260818191408_ra2_audit_and_replay_fixes.sql` and the matching Next.js r
 - Purge fences the receipt (`purge_claimed_at`) before Storage delete, then `purge_receipt_content`. A hold during that window is `retention_hold`. If Storage delete fails and the object is still present, the runner releases the fence. If existence is unknown, the fence stays and the job retries. Absence is `NoSuchKey` (or legacy object-not-found), not a bare 404 or `NoSuchBucket`.
 - Confirm requires the object's declared Content-Type to match the session. Missing Content-Type is a mismatch.
 - RA-23 stores every ordered object in `receipt_pages` (1..5). The client computes all SHA-256 values before requesting signed targets, reuses its submission UUID on retries, uploads with no service-role credential, and waits for one atomic full-manifest confirmation before showing Sent. A partial or rejected set stays `upload_pending`.
-- Active-session cancellation and response-loss retries retain their receipt UUID, checksums, and completed page indexes in memory. RA-24 separately owns encrypted restart/offline persistence, automatic backoff, sign-out ownership fencing, and post-Sent local cleanup.
+- RA-24 AES-256-GCM encrypts captured JPEGs and versioned queue metadata in the app document directory. A small device key stays in SecureStore. Plaintext exists only in a cache staging directory during upload and stale staging is removed at the next queue startup. Interrupted Sending jobs recover as Pending after a lease expires; retryable failures use bounded exponential backoff, manual retry restores the full attempt budget, and only durable server confirmation permits idempotent local-file cleanup. Queue rows are owner-bound and survive sign-out.
+- RA-25 inserts `readability` before `extract`. Gemini 3.5 Flash-Lite receives high-resolution image parts with minimal thinking and a strict JSON schema; the prompt explicitly prohibits transcription/extraction. Only normalized page indexes, reason codes, model identity, and numeric usage are stored. Provider outages retry without creating an unreadable result; only an explicit hard unreadable result moves the receipt to `rejected_unreadable`.
 - Upload telemetry is allowlist-only: receipt ID, event, page count/index, duration, result, failure category, and occurrence time. Images, OCR, coordinates, object URLs, signed tokens, secret values, and free-form error strings are discarded.
 - Abandoned-upload cleanup claims the row first (`cleanup_claimed_at`), then removes storage, then `delete_abandoned_upload`. Confirm refuses claimed sessions.
 - Approve upserts lines by `sort_index` so `job_candidates` keep their line ids. Job-cost inserts still require `receipt_line_id`. Same-receipt triggers nest `NEW` field access by table so intent/link/attempt inserts do not crash, and they also guard `receipt_lines.extraction_id` and `housecall_outbox.intent_id`.
@@ -102,4 +109,4 @@ As of `20260818191408_ra2_audit_and_replay_fixes.sql` and the matching Next.js r
 
 After the one-year purge, `housecall_intents.job_cost_lines` currently keeps descriptions, quantities, costs, and job ids. That is the existing Housecall trail; whether that full payload must be redacted is an open product question, not changed here.
 
-Vision/Housecall HTTP remains a later epic. Export-abandoned UI is [RA-206](https://visionary-labs.atlassian.net/browse/RA-206) (policy recorded; not in this pass).
+Receipt text extraction and Housecall HTTP remain later epics. Export-abandoned UI is [RA-206](https://visionary-labs.atlassian.net/browse/RA-206) (policy recorded; not in this pass).

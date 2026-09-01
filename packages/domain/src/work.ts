@@ -1,6 +1,6 @@
 /** Durable DB work-queue vocabulary. Keep in sync with work_items SQL. */
 
-export const WORK_KINDS = ["extract", "export", "purge"] as const;
+export const WORK_KINDS = ["readability", "extract", "export", "purge"] as const;
 
 export type WorkKind = (typeof WORK_KINDS)[number];
 
@@ -21,6 +21,16 @@ export const WORK_PERSISTED_ERROR_CODES = [
   "deferred",
   "invalid_request",
   "forbidden",
+  "provider_timeout",
+  "provider_rate_limited",
+  "provider_unavailable",
+  "provider_invalid_response",
+  "provider_empty_response",
+  "provider_authentication_failed",
+  "provider_request_rejected",
+  "provider_not_configured",
+  "invalid_page_set",
+  "storage_object_missing",
   "worker_failure",
 ] as const;
 
@@ -62,7 +72,7 @@ export function isDeferablePurgeReason(reason: unknown): boolean {
 export const WORK_LEASE_SECONDS = 5 * 60;
 
 /** Kinds the current runner may claim and complete. Extract/export stay queued until providers exist. */
-export const WORK_HANDLED_KINDS = ["purge"] as const satisfies readonly WorkKind[];
+export const WORK_HANDLED_KINDS = ["readability", "purge"] as const satisfies readonly WorkKind[];
 
 export function isHandledWorkKind(value: string): value is (typeof WORK_HANDLED_KINDS)[number] {
   return (WORK_HANDLED_KINDS as readonly string[]).includes(value);

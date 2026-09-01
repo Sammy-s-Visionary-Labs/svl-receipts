@@ -56,6 +56,6 @@ describe("foundation hardening migration", () => {
     expect(sql).toContain("where public.work_items.status = 'dead_letter'");
     expect(sql).toContain("gps_lat = null");
     expect(sql).toContain("gps_lng = null");
-    expect(WORK_HANDLED_KINDS).toEqual(["purge"]);
+    expect(WORK_HANDLED_KINDS).toEqual(["readability", "purge"]);
   });
 });

@@ -1,8 +1,15 @@
-import { WORKER_FACING_LABELS, workerStatusFromDeviceQueue } from "@svl/domain";
+import {
+  isReceiptStatus,
+  WORKER_FACING_LABELS,
+  workerStatusFromDeviceQueue,
+  workerStatusFromReceipt,
+} from "@svl/domain";
 import { type Href, Redirect, useRouter } from "expo-router";
+import { useEffect, useState } from "react";
 import { Image, Pressable, ScrollView, StyleSheet } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Text, useThemeColor, View } from "@/components/Themed";
+import { ApiError, fetchReceiptReadability, type ReceiptReadabilityStatus } from "@/lib/api/client";
 import { useAuth } from "@/lib/auth/auth-context";
 import { useReceiptCapture } from "@/lib/capture/receipt-capture-context";
 
@@ -15,14 +22,100 @@ function formatBytes(bytes: number): string {
 export default function ReceiptReadyScreen() {
   const router = useRouter();
   const { session } = useAuth();
-  const { state, submission, submitReceipt, cancelSubmission, startNewReceipt } =
-    useReceiptCapture();
+  const {
+    state,
+    submission,
+    submitReceipt,
+    cancelSubmission,
+    startNewReceipt,
+    beginRequiredRetakes,
+  } = useReceiptCapture();
   const backgroundColor = useThemeColor({ light: "#f6f8fb", dark: "#080b10" }, "background");
   const isBusy = ["preparing", "creating_session", "uploading", "confirming"].includes(
     submission.phase,
   );
   const isSent = submission.phase === "sent" && submission.confirmation !== null;
-  const workerStatus = workerStatusFromDeviceQueue(submission.deviceStatus);
+  const [cloudStatus, setCloudStatus] = useState<ReceiptReadabilityStatus | null>(null);
+  const [cloudErrorMessage, setCloudErrorMessage] = useState<string | null>(null);
+  const needsRetake =
+    cloudStatus?.status === "rejected_unreadable" || cloudStatus?.readability?.readable === false;
+  const retakePageIndexes = [
+    ...new Set(
+      cloudStatus?.readability?.failedPageIndexes.filter(
+        (index) => index >= 0 && index < state.pages.length,
+      ) ?? [],
+    ),
+  ];
+  const workerStatus = needsRetake
+    ? "needs_retake"
+    : cloudStatus?.status && isReceiptStatus(cloudStatus.status)
+      ? workerStatusFromReceipt(cloudStatus.status)
+      : workerStatusFromDeviceQueue(submission.deviceStatus);
+
+  useEffect(() => {
+    const receiptId = submission.confirmation?.id;
+    const accessToken = session?.access_token;
+    if (!isSent || !receiptId || !accessToken) {
+      setCloudStatus(null);
+      setCloudErrorMessage(null);
+      return;
+    }
+    let active = true;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let pollCount = 0;
+    const refresh = async () => {
+      pollCount += 1;
+      let next: ReceiptReadabilityStatus;
+      try {
+        next = await fetchReceiptReadability(accessToken, receiptId);
+      } catch (error) {
+        if (!active) {
+          return;
+        }
+        const terminalApiError =
+          error instanceof ApiError && [401, 403, 404].includes(error.status);
+        if (terminalApiError) {
+          setCloudErrorMessage(
+            error.status === 401
+              ? "Your session ended before the cloud result could be loaded. Sign in again and open Recent."
+              : "This receipt result is unavailable. Open Recent after checking your account access.",
+          );
+          return;
+        }
+        if (pollCount >= 40) {
+          setCloudErrorMessage(
+            "The cloud check is taking longer than expected. You can leave this screen and check Recent later.",
+          );
+          return;
+        }
+        timer = setTimeout(() => void refresh(), 3_000);
+        return;
+      }
+      if (!active) {
+        return;
+      }
+      setCloudStatus(next);
+      setCloudErrorMessage(null);
+      const isFinal =
+        next.readability !== null
+          ? true
+          : next.status === "failed" || next.status === "rejected_unreadable";
+      if (!isFinal && pollCount < 40) {
+        timer = setTimeout(() => void refresh(), 3_000);
+      } else if (!isFinal) {
+        setCloudErrorMessage(
+          "The cloud check is taking longer than expected. You can leave this screen and check Recent later.",
+        );
+      }
+    };
+    void refresh();
+    return () => {
+      active = false;
+      if (timer) {
+        clearTimeout(timer);
+      }
+    };
+  }, [isSent, session?.access_token, submission.confirmation?.id]);
 
   if (state.pages.length === 0) {
     return <Redirect href={"/(tabs)" as Href} />;
@@ -39,18 +132,24 @@ export default function ReceiptReadyScreen() {
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor }]}>
       <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.checkmark}>
+        <View style={[styles.checkmark, needsRetake && styles.retakeIcon]}>
           <Text lightColor="#ffffff" darkColor="#ffffff" style={styles.checkmarkText}>
-            ✓
+            {needsRetake ? "!" : "✓"}
           </Text>
         </View>
         <Text accessibilityRole="header" style={styles.title}>
-          {isSent ? "Receipt sent" : "Receipt photos ready"}
+          {needsRetake
+            ? "Receipt needs a retake"
+            : isSent
+              ? "Receipt sent"
+              : "Receipt photos ready"}
         </Text>
         <Text style={styles.body}>
-          {isSent && submission.confirmation
-            ? `Receipt •••${receiptSuffix(submission.confirmation.id)} was confirmed at ${formatConfirmationTime(submission.confirmation.submittedAt)}.`
-            : `${state.pages.length} ${state.pages.length === 1 ? "page is" : "pages are"} ready to send. Sent appears only after the server verifies the full set.`}
+          {needsRetake
+            ? "The upload was received safely, but one or more photos cannot be read reliably."
+            : isSent && submission.confirmation
+              ? `Receipt •••${receiptSuffix(submission.confirmation.id)} was confirmed at ${formatConfirmationTime(submission.confirmation.submittedAt)}.`
+              : `${state.pages.length} ${state.pages.length === 1 ? "page is" : "pages are"} ready to send. Sent appears only after the server verifies the full set.`}
         </Text>
 
         <View lightColor="#ffffff" darkColor="#121821" style={styles.statusCard}>
@@ -75,6 +174,34 @@ export default function ReceiptReadyScreen() {
             </Text>
           ) : null}
         </View>
+
+        {cloudErrorMessage ? (
+          <View lightColor="#fff7ed" darkColor="#2b1708" style={styles.statusCard}>
+            <Text accessibilityLiveRegion="polite" style={styles.locationBody}>
+              {cloudErrorMessage}
+            </Text>
+          </View>
+        ) : null}
+
+        {needsRetake && cloudStatus.readability ? (
+          <View lightColor="#fff7ed" darkColor="#2b1708" style={styles.statusCard}>
+            <Text style={styles.cardTitle}>What to fix</Text>
+            {cloudStatus.readability.reasons.map((reason) => (
+              <Text key={reason.code} style={styles.locationBody}>
+                • {reason.guidance}
+              </Text>
+            ))}
+            {cloudStatus.readability.failedPageIndexes.length > 0 ? (
+              <Text style={styles.locationBody}>
+                Retake{" "}
+                {cloudStatus.readability.failedPageIndexes
+                  .map((index) => `page ${index + 1}`)
+                  .join(", ")}
+                .
+              </Text>
+            ) : null}
+          </View>
+        ) : null}
 
         <View lightColor="#ffffff" darkColor="#121821" style={styles.photoCard}>
           <Text style={styles.cardTitle}>Selected pages</Text>
@@ -115,7 +242,7 @@ export default function ReceiptReadyScreen() {
           </Text>
         </View>
 
-        {!isSent ? (
+        {submission.phase === "idle" ? (
           <Pressable
             accessibilityRole="button"
             disabled={isBusy}
@@ -123,6 +250,20 @@ export default function ReceiptReadyScreen() {
             style={[styles.reviewButton, isBusy && styles.disabled]}
           >
             <Text style={styles.reviewButtonText}>Review photos again</Text>
+          </Pressable>
+        ) : null}
+
+        {submission.phase === "failed" || submission.phase === "cancelled" ? (
+          <Pressable
+            accessibilityHint="Leaves the protected receipt in the queue for automatic retry"
+            accessibilityRole="button"
+            onPress={() => {
+              startNewReceipt();
+              router.replace("/(tabs)" as Href);
+            }}
+            style={styles.reviewButton}
+          >
+            <Text style={styles.reviewButtonText}>Keep queued and finish</Text>
           </Pressable>
         ) : null}
 
@@ -140,8 +281,17 @@ export default function ReceiptReadyScreen() {
             accessibilityRole="button"
             onPress={() => {
               if (isSent) {
-                startNewReceipt();
-                router.replace("/(tabs)" as Href);
+                if (needsRetake) {
+                  if (retakePageIndexes.length > 0) {
+                    beginRequiredRetakes(retakePageIndexes);
+                    router.replace("/capture/camera" as Href);
+                    return;
+                  }
+                  startNewReceipt();
+                  router.replace("/capture/camera" as Href);
+                  return;
+                }
+                router.replace("/(tabs)/recent" as Href);
                 return;
               }
               if (session?.access_token) {
@@ -152,7 +302,13 @@ export default function ReceiptReadyScreen() {
           >
             <Text lightColor="#ffffff" darkColor="#ffffff" style={styles.doneButtonText}>
               {isSent
-                ? "Done"
+                ? needsRetake
+                  ? retakePageIndexes.length === 1
+                    ? `Retake page ${Number(retakePageIndexes[0]) + 1}`
+                    : retakePageIndexes.length > 1
+                      ? `Retake ${retakePageIndexes.length} pages`
+                      : "Retake receipt"
+                  : "Done"
                 : submission.phase === "failed" || submission.phase === "cancelled"
                   ? "Retry sending"
                   : "Send receipt"}
@@ -187,6 +343,9 @@ const styles = StyleSheet.create({
     fontSize: 40,
     lineHeight: 44,
     fontWeight: "800",
+  },
+  retakeIcon: {
+    backgroundColor: "#ea580c",
   },
   title: {
     fontSize: 30,
@@ -336,9 +495,9 @@ function submissionStatusText(
     case "confirming":
       return "Waiting for the server to verify every page and checksum.";
     case "cancelled":
-      return "Pending on this device. The same receipt can resume safely.";
+      return "Upload paused. The protected receipt remains queued for automatic retry.";
     case "failed":
-      return "The receipt was not marked Sent. Retry when ready.";
+      return "Not Sent yet. The receipt is queued for automatic retry, or you can retry now.";
     case "sent":
       return "The server durably confirmed the complete receipt page set.";
   }

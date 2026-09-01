@@ -20,6 +20,17 @@ export const READABILITY_REASONS = [
 
 export type ReadabilityReason = (typeof READABILITY_REASONS)[number];
 
+export const READABILITY_RETAKE_COPY = {
+  blurry: "Hold the phone steady, tap to focus, and retake the blurry page.",
+  too_dark: "Move to brighter, even light and retake the dark page.",
+  glare: "Tilt the phone or receipt until reflections move off the printed details.",
+  cropped: "Retake with every receipt edge and corner visible.",
+  rotated: "Retake with the receipt upright in the frame.",
+  low_resolution: "Move closer without cropping the receipt, then retake the page.",
+  not_a_receipt: "Photograph the receipt itself and submit that image.",
+  unreadable: "Retake the page so all printed details are visible and in focus.",
+} as const satisfies Record<ReadabilityReason, string>;
+
 export type ReadableCheckV1 = {
   schema_version: ReadabilitySchemaVersion;
   readable: true;
@@ -64,7 +75,13 @@ export function isReadabilityCheckV1(value: unknown): value is ReadabilityCheckV
   }
 
   if (candidate.readable === true) {
-    return true;
+    return (
+      (candidate.failed_page_indexes === undefined ||
+        (Array.isArray(candidate.failed_page_indexes) &&
+          candidate.failed_page_indexes.length === 0)) &&
+      (candidate.reasons === undefined ||
+        (Array.isArray(candidate.reasons) && candidate.reasons.length === 0))
+    );
   }
 
   if (candidate.readable !== false) {
@@ -73,6 +90,7 @@ export function isReadabilityCheckV1(value: unknown): value is ReadabilityCheckV
 
   return (
     Array.isArray(candidate.failed_page_indexes) &&
+    candidate.failed_page_indexes.length > 0 &&
     candidate.failed_page_indexes.every((index) => Number.isInteger(index) && index >= 0) &&
     Array.isArray(candidate.reasons) &&
     candidate.reasons.length > 0 &&

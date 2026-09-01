@@ -1,10 +1,11 @@
 import Constants from "expo-constants";
-import * as Device from "expo-device";
 import * as Notifications from "expo-notifications";
+import { type Href, useRouter } from "expo-router";
 import { useEffect } from "react";
 import { Platform } from "react-native";
 import { postPushToken } from "@/lib/api/client";
 import { useAuth } from "@/lib/auth/auth-context";
+import { consumeReceiptNotificationResponse } from "./navigation";
 import { isExpoPushToken } from "./token";
 
 function configureForegroundHandler() {
@@ -13,7 +14,7 @@ function configureForegroundHandler() {
   }
   Notifications.setNotificationHandler({
     handleNotification: async () => ({
-      shouldPlaySound: false,
+      shouldPlaySound: true,
       shouldSetBadge: false,
       shouldShowBanner: true,
       shouldShowList: true,
@@ -23,14 +24,14 @@ function configureForegroundHandler() {
 
 export async function registerWorkerPushToken(accessToken: string): Promise<void> {
   try {
-    if (Platform.OS === "web" || !Device.isDevice) {
+    if (Platform.OS === "web") {
       return;
     }
 
     if (Platform.OS === "android") {
       await Notifications.setNotificationChannelAsync("default", {
         name: "Receipts",
-        importance: Notifications.AndroidImportance.DEFAULT,
+        importance: Notifications.AndroidImportance.HIGH,
       });
     }
 
@@ -63,6 +64,7 @@ export async function registerWorkerPushToken(accessToken: string): Promise<void
 }
 
 export function PushRegistrar() {
+  const router = useRouter();
   const { phase, session } = useAuth();
 
   useEffect(() => {
@@ -75,6 +77,32 @@ export function PushRegistrar() {
     }
     void registerWorkerPushToken(session.access_token);
   }, [phase, session?.access_token]);
+
+  useEffect(() => {
+    if (Platform.OS === "web" || phase !== "ready") {
+      return;
+    }
+
+    const openReceipt = (response: Notifications.NotificationResponse) => {
+      consumeReceiptNotificationResponse({
+        response,
+        defaultActionIdentifier: Notifications.DEFAULT_ACTION_IDENTIFIER,
+        openRoute: (route) => router.replace(route as Href),
+        clearLastResponse: Notifications.clearLastNotificationResponse,
+      });
+    };
+
+    try {
+      const initialResponse = Notifications.getLastNotificationResponse();
+      if (initialResponse) {
+        openReceipt(initialResponse);
+      }
+      const subscription = Notifications.addNotificationResponseReceivedListener(openReceipt);
+      return () => subscription.remove();
+    } catch {
+      // Notification navigation is best-effort; Recent remains the durable fallback.
+    }
+  }, [phase, router]);
 
   return null;
 }

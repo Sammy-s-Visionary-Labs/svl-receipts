@@ -106,8 +106,9 @@ describe("work leases and retries", () => {
     ).toBe("dead_letter");
   });
 
-  it("treats only purge as a handled work kind until extract/export providers exist", () => {
-    expect(WORK_HANDLED_KINDS).toEqual(["purge"]);
+  it("handles readability and purge while extract/export providers remain deferred", () => {
+    expect(WORK_HANDLED_KINDS).toEqual(["readability", "purge"]);
+    expect(isHandledWorkKind("readability")).toBe(true);
     expect(isHandledWorkKind("purge")).toBe(true);
     expect(isHandledWorkKind("extract")).toBe(false);
     expect(isHandledWorkKind("export")).toBe(false);
@@ -116,6 +117,7 @@ describe("work leases and retries", () => {
   it("persists allowlisted work codes and drops secret-bearing provider messages", () => {
     expect(persistableWorkReason("retention_hold")).toBe("retention_hold");
     expect(persistableWorkReason("purge_not_eligible")).toBe("purge_not_eligible");
+    expect(persistableWorkReason(new Error("provider_unavailable"))).toBe("provider_unavailable");
     expect(persistableWorkReason("Authorization: Bearer TOPSECRET")).toBe("worker_failure");
     expect(persistableWorkReason(new Error("permission denied for function"))).toBe(
       "worker_failure",
