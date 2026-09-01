@@ -12,8 +12,10 @@ There is **one GitHub repo** and **one Vercel project**. There are **two Supabas
 - Any other git branch → Vercel **Preview** → **dev** Supabase
 - Laptop (`apps/web/.env.local`) → **dev** Supabase only
 
-RA-25's one-minute work recovery requires Vercel Pro/Enterprise or an equivalent authenticated
-external scheduler. There is no Railway worker.
+The project remains on Vercel Hobby. Immediate post-commit work handles the normal path, while the
+built-in work-recovery cron runs once daily at 08:30 UTC. Preview verification invokes the same
+authenticated route manually. An external scheduler is required for one-minute recovery without a
+hosting-plan upgrade. There is no Railway worker.
 
 ## Matrix
 
@@ -192,9 +194,9 @@ Check **both** Supabase projects. They do not share one quota.
 1. [https://vercel.com/dashboard](https://vercel.com/dashboard) → company team.
 2. Team **Settings → Billing** / **Usage**.
 3. Look at deployments, bandwidth, and function invocations.
-4. RA-25 configures `/api/cron/work` every minute. Vercel Hobby rejects that schedule; use
-   Pro/Enterprise or an equivalent external scheduler authenticated with `CRON_SECRET`. The
-   immediate post-confirm kick is not a substitute for retry recovery. See
+4. Vercel Hobby schedules `/api/cron/work` once daily at 08:30 UTC. Invoke it manually during
+   Preview verification. For one-minute recovery, use an equivalent external scheduler
+   authenticated with `CRON_SECRET`; Hobby rejects a one-minute Vercel cron. See
    [architecture.md](architecture.md).
 
 ### Supabase free

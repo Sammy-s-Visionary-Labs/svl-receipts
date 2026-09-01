@@ -36,11 +36,12 @@ Intended flow:
 1. Upload **confirmation** (object verified) commits the receipt and queues readability work in one transaction.
 2. After the response is ready, Next.js `after()` kicks one capped, idempotent readability batch.
 3. Approval commits the Housecall outbox and queues export work in one transaction, then immediately kicks an **idempotent** export worker.
-4. `/api/cron/work` runs every minute to recover missed or stale work, enqueue due purges, and honor minute-scale retries. Abandoned-upload cleanup remains a separate daily job.
+4. `/api/cron/work` recovers missed or stale work, enqueues due purges, and honors durable retries. The current Vercel Hobby deployment runs this recovery at 08:30 UTC daily; Preview verification invokes it manually. Abandoned-upload cleanup remains a separate daily job.
 
-The one-minute Vercel schedule requires Pro/Enterprise. Hobby rejects this `* * * * *` schedule, so
-an equivalent authenticated external scheduler is required if the project stays on Hobby. A release
-must not silently downgrade RA-25 recovery to daily retries.
+The normal readability path still starts immediately after upload confirmation. The Hobby schedule
+is an explicit pilot tradeoff: if that immediate kick and its in-process retry fail, recovery may be
+delayed until the daily run. An equivalent authenticated external scheduler is required to restore
+one-minute recovery while remaining on Hobby.
 
 Do not run external AI or Housecall HTTP inside the database transaction. The durable `work_items` row is the source of truth if the immediate kick fails.
 
