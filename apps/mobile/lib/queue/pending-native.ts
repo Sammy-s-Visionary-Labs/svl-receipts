@@ -16,6 +16,7 @@ const QUEUE_ENCRYPTION_KEY = "svl.pending-receipts.aes-key.v1";
 const LEGACY_QUEUE_DIRECTORY = "pending-receipts-v1";
 const QUEUE_DIRECTORY = "pending-receipts-v2";
 const UPLOAD_STAGING_DIRECTORY = "pending-receipt-upload-staging-v1";
+const PREVIEW_STAGING_DIRECTORY = "pending-receipt-preview-staging-v1";
 const METADATA_FILE_NAME = "queue-metadata.svle";
 const SAFE_QUEUE_ID = /^[a-zA-Z0-9_-]{1,80}$/;
 
@@ -201,11 +202,43 @@ const queueFileStore = {
     }
   },
 
+  async preparePreviewPage(
+    queueId: string,
+    durablePage: ReceiptPage,
+    pageIndex: number,
+  ): Promise<string> {
+    assertSafeQueueId(queueId);
+    if (!Number.isInteger(pageIndex) || pageIndex < 0 || pageIndex >= 5) {
+      throw new Error("pending_queue_page_index_invalid");
+    }
+    const plaintext = await decryptBytes(await new File(durablePage.uri).bytes());
+    if (plaintext.byteLength !== durablePage.imageMetadata.finalBytes) {
+      throw new Error("pending_queue_decrypted_page_changed");
+    }
+    const directory = new Directory(Paths.cache, PREVIEW_STAGING_DIRECTORY, queueId);
+    directory.create({ idempotent: true, intermediates: true });
+    const destination = new File(directory, `page-${pageIndex}.jpg`);
+    await writeFileAtomically(destination, plaintext);
+    return destination.uri;
+  },
+
+  async removePreviewPages(queueId: string): Promise<void> {
+    assertSafeQueueId(queueId);
+    const directory = new Directory(Paths.cache, PREVIEW_STAGING_DIRECTORY, queueId);
+    if (directory.exists) {
+      directory.delete();
+    }
+  },
+
   async removePages(queueId: string): Promise<void> {
     assertSafeQueueId(queueId);
     const directory = new Directory(Paths.document, QUEUE_DIRECTORY, queueId);
     if (directory.exists) {
       directory.delete();
+    }
+    const previewDirectory = new Directory(Paths.cache, PREVIEW_STAGING_DIRECTORY, queueId);
+    if (previewDirectory.exists) {
+      previewDirectory.delete();
     }
   },
 };
@@ -297,11 +330,11 @@ async function removeLegacyDirectories(raw: string): Promise<void> {
 }
 
 let singleton: PendingReceiptQueue | null = null;
-let uploadStagingCleaned = false;
+let transientStagingCleaned = false;
 
 export function getPendingReceiptQueue(): PendingReceiptQueue {
   if (!singleton) {
-    removeStaleUploadStaging();
+    removeStaleTransientStaging();
     singleton = new PendingReceiptQueue({
       metadata: encryptedMetadataStore,
       files: queueFileStore,
@@ -312,13 +345,15 @@ export function getPendingReceiptQueue(): PendingReceiptQueue {
   return singleton;
 }
 
-function removeStaleUploadStaging(): void {
-  if (uploadStagingCleaned) {
+function removeStaleTransientStaging(): void {
+  if (transientStagingCleaned) {
     return;
   }
-  const stagingRoot = new Directory(Paths.cache, UPLOAD_STAGING_DIRECTORY);
-  if (stagingRoot.exists) {
-    stagingRoot.delete();
+  for (const name of [UPLOAD_STAGING_DIRECTORY, PREVIEW_STAGING_DIRECTORY]) {
+    const stagingRoot = new Directory(Paths.cache, name);
+    if (stagingRoot.exists) {
+      stagingRoot.delete();
+    }
   }
-  uploadStagingCleaned = true;
+  transientStagingCleaned = true;
 }

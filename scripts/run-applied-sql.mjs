@@ -4,9 +4,12 @@ import { fileURLToPath } from "node:url";
 import postgres from "postgres";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-const sqlFiles = ["ra2_applied.sql", "ra23_applied.sql", "ra25_applied.sql"].map((name) =>
-  join(root, "supabase", "tests", name),
-);
+const sqlFiles = [
+  "ra2_applied.sql",
+  "ra23_applied.sql",
+  "ra25_applied.sql",
+  "ra209_applied.sql",
+].map((name) => join(root, "supabase", "tests", name));
 const url = process.env.SVL_APPLIED_DATABASE_URL;
 
 if (!url) {

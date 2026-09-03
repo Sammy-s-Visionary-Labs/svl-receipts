@@ -1,8 +1,10 @@
 import {
   isReadabilityReason,
   isReceiptStatus,
+  isWorkerFacingStatus,
   type ReadabilityReason,
   type ReceiptStatus,
+  type WorkerFacingStatus,
 } from "@svl/domain";
 
 const RECEIPT_ID_PATTERN =
@@ -23,6 +25,23 @@ export type ReceiptReadabilityStatus = {
 export type RecentReceipt = ReceiptReadabilityStatus & {
   id: string;
   submittedAt: string | null;
+  workerStatus: WorkerFacingStatus;
+  pageCount: number;
+  thumbnail: SignedReceiptImage | null;
+};
+
+export type SignedReceiptImage = { url: string; expiresAt: string };
+
+export type RecentReceiptsPage = {
+  receipts: RecentReceipt[];
+  nextCursor: string | null;
+};
+
+export type WorkerReceiptDetail = ReceiptReadabilityStatus & {
+  id: string;
+  submittedAt: string | null;
+  workerStatus: WorkerFacingStatus;
+  pages: Array<{ pageIndex: number; image: SignedReceiptImage }>;
 };
 
 function parseReadability(value: unknown): ReceiptReadabilityEvidence | null | undefined {
@@ -92,12 +111,34 @@ export function parseReceiptReadabilityStatus(value: unknown): ReceiptReadabilit
   return { status, readability } as ReceiptReadabilityStatus;
 }
 
-export function parseRecentReceiptsResponse(value: unknown): RecentReceipt[] | null {
+function parseSignedImage(value: unknown): SignedReceiptImage | null | undefined {
+  if (value === null) return null;
+  if (!value || typeof value !== "object") return undefined;
+  const image = value as Record<string, unknown>;
+  if (
+    typeof image.url !== "string" ||
+    !/^https?:\/\//.test(image.url) ||
+    typeof image.expiresAt !== "string" ||
+    Number.isNaN(Date.parse(image.expiresAt))
+  ) {
+    return undefined;
+  }
+  return { url: image.url, expiresAt: image.expiresAt };
+}
+
+export function parseRecentReceiptsResponse(value: unknown): RecentReceiptsPage | null {
   if (!value || typeof value !== "object") {
     return null;
   }
-  const receipts = (value as Record<string, unknown>).receipts;
+  const envelope = value as Record<string, unknown>;
+  const receipts = envelope.receipts;
   if (!Array.isArray(receipts) || receipts.length > 25) {
+    return null;
+  }
+  if (
+    envelope.nextCursor !== null &&
+    (typeof envelope.nextCursor !== "string" || envelope.nextCursor.length === 0)
+  ) {
     return null;
   }
   const parsed = receipts.map((receipt) => {
@@ -107,10 +148,18 @@ export function parseRecentReceiptsResponse(value: unknown): RecentReceipt[] | n
     const candidate = receipt as Record<string, unknown>;
     const status = parseReceiptReadabilityStatus(candidate);
     const submittedAt = candidate.submittedAt;
+    const thumbnail = parseSignedImage(candidate.thumbnail);
     if (
       !status ||
       typeof candidate.id !== "string" ||
       !RECEIPT_ID_PATTERN.test(candidate.id) ||
+      typeof candidate.workerStatus !== "string" ||
+      !isWorkerFacingStatus(candidate.workerStatus) ||
+      typeof candidate.pageCount !== "number" ||
+      !Number.isInteger(candidate.pageCount) ||
+      candidate.pageCount < 1 ||
+      candidate.pageCount > 5 ||
+      thumbnail === undefined ||
       (submittedAt !== null &&
         (typeof submittedAt !== "string" || Number.isNaN(Date.parse(submittedAt))))
     ) {
@@ -119,8 +168,71 @@ export function parseRecentReceiptsResponse(value: unknown): RecentReceipt[] | n
     return {
       id: candidate.id,
       submittedAt,
+      workerStatus: candidate.workerStatus,
+      pageCount: candidate.pageCount,
+      thumbnail,
       ...status,
     } as RecentReceipt;
   });
-  return parsed.some((receipt) => receipt === null) ? null : (parsed as RecentReceipt[]);
+  return parsed.some((receipt) => receipt === null)
+    ? null
+    : {
+        receipts: parsed as RecentReceipt[],
+        nextCursor: envelope.nextCursor as string | null,
+      };
+}
+
+export function parseWorkerReceiptDetail(value: unknown): WorkerReceiptDetail | null {
+  if (!value || typeof value !== "object") return null;
+  const candidate = value as Record<string, unknown>;
+  const rawStatus = candidate.status;
+  const readability = parseReadability(candidate.readability);
+  const submittedAt = candidate.submittedAt;
+  if (
+    readability === undefined ||
+    (rawStatus !== undefined &&
+      rawStatus !== null &&
+      (typeof rawStatus !== "string" || !isReceiptStatus(rawStatus))) ||
+    typeof candidate.id !== "string" ||
+    !RECEIPT_ID_PATTERN.test(candidate.id) ||
+    typeof candidate.workerStatus !== "string" ||
+    !isWorkerFacingStatus(candidate.workerStatus) ||
+    (submittedAt !== null &&
+      (typeof submittedAt !== "string" || Number.isNaN(Date.parse(submittedAt)))) ||
+    !Array.isArray(candidate.pages) ||
+    candidate.pages.length < 1 ||
+    candidate.pages.length > 5
+  ) {
+    return null;
+  }
+  const pages = candidate.pages.map((value) => {
+    if (!value || typeof value !== "object") return null;
+    const page = value as Record<string, unknown>;
+    const image = parseSignedImage(page.image);
+    return typeof page.pageIndex === "number" &&
+      Number.isInteger(page.pageIndex) &&
+      page.pageIndex >= 0 &&
+      page.pageIndex < 5 &&
+      image
+      ? { pageIndex: page.pageIndex, image }
+      : null;
+  });
+  if (pages.some((page) => page === null)) return null;
+  const typedPages = pages as Array<{ pageIndex: number; image: SignedReceiptImage }>;
+  if (
+    typedPages.some((page, index) => {
+      const previous = typedPages[index - 1];
+      return previous ? page.pageIndex <= previous.pageIndex : false;
+    })
+  ) {
+    return null;
+  }
+  return {
+    id: candidate.id,
+    submittedAt,
+    workerStatus: candidate.workerStatus,
+    pages: typedPages,
+    status: (rawStatus ?? null) as ReceiptStatus | null,
+    readability,
+  } as WorkerReceiptDetail;
 }

@@ -43,6 +43,8 @@ export type PendingQueueFileStore = {
   copyPages(sourcePages: ReceiptPage[], durablePages: ReceiptPage[]): Promise<void>;
   prepareUploadPages(queueId: string, durablePages: ReceiptPage[]): Promise<ReceiptPage[]>;
   removeUploadPages(queueId: string): Promise<void>;
+  preparePreviewPage(queueId: string, durablePage: ReceiptPage, pageIndex: number): Promise<string>;
+  removePreviewPages(queueId: string): Promise<void>;
   removePages(queueId: string): Promise<void>;
 };
 
@@ -231,6 +233,19 @@ export class PendingReceiptQueue {
 
   async removeUploadPages(id: string): Promise<void> {
     await this.dependencies.files.removeUploadPages(id);
+  }
+
+  async preparePreviewPage(id: string, pageIndex = 0): Promise<string> {
+    const item = await this.get(id);
+    const page = item?.pages[pageIndex];
+    if (!item?.filesReady || item.status === "sent" || !page) {
+      throw new Error("pending_receipt_preview_not_ready");
+    }
+    return this.dependencies.files.preparePreviewPage(item.id, page, pageIndex);
+  }
+
+  async removePreviewPages(id: string): Promise<void> {
+    await this.dependencies.files.removePreviewPages(id);
   }
 
   async markSending(id: string): Promise<PendingReceiptQueueItem> {

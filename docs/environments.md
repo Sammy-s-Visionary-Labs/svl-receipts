@@ -187,7 +187,9 @@ If the **project URL** ever changes, also update `NEXT_PUBLIC_SUPABASE_URL` and 
 
 ## Quota checks (hosting / free tier)
 
-Check **both** Supabase projects. They do not share one quota.
+Measure **both** Supabase projects separately. Supabase plan quotas are organization-wide, so dev and
+production Storage usage must also be added when both projects are in the same organization. The
+automated setup and response steps are in [storage-capacity-runbook.md](storage-capacity-runbook.md).
 
 ### Vercel
 
@@ -212,7 +214,11 @@ Approved policy is in [architecture.md](architecture.md). The 365-day clock star
 
 Never-submitted receipts have no start event. A manager/admin hold (owner + reason) skips deletion. The database must not record a purge until Storage object removal has succeeded.
 
-**Pilot Storage (1 GB, both projects).** Keep Free-tier Storage for now. Add client-side resize/compression before upload, usage and average-size monitoring, and alerts at 70% / 85% / 95% of quota on **both** `svl-receipts-dev` and `svl-receipts-prod`. Prefer buying more managed storage over self-hosting if usage requires it.
+**Pilot Storage (1 GB organization quota).** Keep Free-tier Storage for now. Client-side
+resize/compression is enabled. A daily least-privilege monitor measures each project and their combined
+usage, records average object/receipt sizes, and maintains assigned GitHub alerts at 70% / 85% / 95%.
+Prefer buying more managed storage over self-hosting if usage requires it. See
+[storage-capacity-runbook.md](storage-capacity-runbook.md).
 
 **Backup expiration is a release risk.** Supabase Free has **no PITR**. If the project has automatic backups, deleted receipt content can remain until those backups expire — app-level purge is not the same as backup expiration. Before a production retention go-live, check **Project Settings → Add-ons / Backups** on both projects. If PITR is ever enabled, record its recovery window here.
 

@@ -7,11 +7,18 @@ import { identityResultFromResponse } from "./identity-response";
 import {
   parseReceiptReadabilityStatus,
   parseRecentReceiptsResponse,
+  parseWorkerReceiptDetail,
   type ReceiptReadabilityStatus,
-  type RecentReceipt,
+  type RecentReceiptsPage,
+  type WorkerReceiptDetail,
 } from "./receipt-response";
 
-export type { ReceiptReadabilityStatus, RecentReceipt } from "./receipt-response";
+export type {
+  ReceiptReadabilityStatus,
+  RecentReceipt,
+  RecentReceiptsPage,
+  WorkerReceiptDetail,
+} from "./receipt-response";
 
 export class ApiError extends Error {
   readonly status: number;
@@ -117,15 +124,19 @@ export async function fetchReceiptReadability(
   }
 }
 
-export async function fetchRecentReceipts(accessToken: string): Promise<RecentReceipt[]> {
-  const response = await apiFetch("/api/me/receipts", {
+export async function fetchRecentReceipts(
+  accessToken: string,
+  cursor?: string | null,
+): Promise<RecentReceiptsPage> {
+  const query = cursor ? `?cursor=${encodeURIComponent(cursor)}` : "";
+  const response = await apiFetch(`/api/me/receipts${query}`, {
     method: "GET",
     headers: { Authorization: `Bearer ${accessToken}` },
   });
   if (!response.ok) {
     throw new ApiError(response.status, "internal", "Recent receipts could not be loaded");
   }
-  let parsed: RecentReceipt[] | null;
+  let parsed: RecentReceiptsPage | null;
   try {
     parsed = parseRecentReceiptsResponse(await response.json());
   } catch {
@@ -135,4 +146,33 @@ export async function fetchRecentReceipts(accessToken: string): Promise<RecentRe
     throw new ApiError(502, "invalid_response", "Recent receipts response was invalid");
   }
   return parsed;
+}
+
+export async function fetchWorkerReceiptDetail(
+  accessToken: string,
+  receiptId: string,
+): Promise<WorkerReceiptDetail> {
+  let response: Response;
+  try {
+    response = await apiFetch(`/api/me/receipts/${encodeURIComponent(receiptId)}`, {
+      method: "GET",
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+  } catch {
+    throw new ApiError(0, "network", "Receipt details could not be reached");
+  }
+  if (!response.ok) {
+    throw new ApiError(
+      response.status,
+      response.status === 404 ? "not_found" : "internal",
+      "Receipt details could not be loaded",
+    );
+  }
+  try {
+    const parsed = parseWorkerReceiptDetail(await response.json());
+    if (parsed) return parsed;
+  } catch {
+    // Normalize malformed and non-JSON responses below.
+  }
+  throw new ApiError(502, "invalid_response", "Receipt details response was invalid");
 }

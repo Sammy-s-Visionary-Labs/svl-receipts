@@ -1,0 +1,41 @@
+name: Storage capacity monitor
+
+on:
+  schedule:
+    - cron: "17 9 * * *"
+  workflow_dispatch:
+    inputs:
+      test_usage_percent:
+        description: "Optional synthetic percentage for alert-path verification (for example 70, 85, 95, or 0 to close)"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: storage-capacity-monitor
+  cancel-in-progress: false
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Measure and alert
+        run: npm run monitor:storage
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          SVL_DEV_DATABASE_URL: ${{ secrets.SVL_DEV_DATABASE_URL }}
+          SVL_PROD_DATABASE_URL: ${{ secrets.SVL_PROD_DATABASE_URL }}
+          SVL_STORAGE_ALERT_ASSIGNEE: ${{ vars.SVL_STORAGE_ALERT_ASSIGNEE }}
+          SVL_STORAGE_QUOTA_BYTES: ${{ vars.SVL_STORAGE_QUOTA_BYTES }}
+          SVL_STORAGE_QUOTA_SCOPE: ${{ vars.SVL_STORAGE_QUOTA_SCOPE }}
+          SVL_STORAGE_TEST_USAGE_PERCENT: ${{ inputs.test_usage_percent }}

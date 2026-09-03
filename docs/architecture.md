@@ -55,7 +55,10 @@ Required before relying on Free-tier Storage:
 
 - Client-side resize/compression before upload.
 - Storage usage and average-receipt-size monitoring.
-- Alerts at **70%**, **85%**, and **95%** of the Storage quota (check **both** `svl-receipts-dev` and `svl-receipts-prod`).
+- Alerts at **70%**, **85%**, and **95%** of the organization Storage quota. Measure
+  `svl-receipts-dev` and `svl-receipts-prod` separately and combine them when they share an
+  organization. The daily implementation and response process are in
+  [storage-capacity-runbook.md](storage-capacity-runbook.md).
 - A storage abstraction so the provider can change later without rewriting receipt lifecycle code.
 - **Verified deletion:** the database must not record a purge (or clear `storage_key` / set `content_deleted_at`) until object removal has succeeded.
 
@@ -100,6 +103,13 @@ As of `20260818191408_ra2_audit_and_replay_fixes.sql` and the matching Next.js r
 - RA-23 stores every ordered object in `receipt_pages` (1..5). The client computes all SHA-256 values before requesting signed targets, reuses its submission UUID on retries, uploads with no service-role credential, and waits for one atomic full-manifest confirmation before showing Sent. A partial or rejected set stays `upload_pending`.
 - RA-24 AES-256-GCM encrypts captured JPEGs and versioned queue metadata in the app document directory. A small device key stays in SecureStore. Plaintext exists only in a cache staging directory during upload and stale staging is removed at the next queue startup. Interrupted Sending jobs recover as Pending after a lease expires; retryable failures use bounded exponential backoff, manual retry restores the full attempt budget, and only durable server confirmation permits idempotent local-file cleanup. Queue rows are owner-bound and survive sign-out.
 - RA-25 inserts `readability` before `extract`. Gemini 3.5 Flash-Lite receives high-resolution image parts with minimal thinking and a strict JSON schema; the prompt explicitly prohibits transcription/extraction. Only normalized page indexes, reason codes, model identity, and numeric usage are stored. Provider outages retry without creating an unreadable result; only an explicit hard unreadable result moves the receipt to `rejected_unreadable`.
+- RA-26 provides an owner-scoped, cursor-paginated worker history with 60-second signed thumbnails,
+  a read-only ordered multi-page detail, and canonical worker status labels. The mobile view merges
+  owner-bound device queue state with cloud rows, lets cloud confirmation win deduplication, and
+  stages encrypted first-page previews only in transient cache.
+- RA-209 measures aggregate Storage and confirmed-receipt size through a dedicated least-privilege
+  database role. A daily GitHub workflow evaluates per-project and shared-organization capacity and
+  maintains one assigned issue per live/test alert path with 70% / 85% / 95% escalation.
 - Upload telemetry is allowlist-only: receipt ID, event, page count/index, duration, result, failure category, and occurrence time. Images, OCR, coordinates, object URLs, signed tokens, secret values, and free-form error strings are discarded.
 - Abandoned-upload cleanup claims the row first (`cleanup_claimed_at`), then removes storage, then `delete_abandoned_upload`. Confirm refuses claimed sessions.
 - Approve upserts lines by `sort_index` so `job_candidates` keep their line ids. Job-cost inserts still require `receipt_line_id`. Same-receipt triggers nest `NEW` field access by table so intent/link/attempt inserts do not crash, and they also guard `receipt_lines.extraction_id` and `housecall_outbox.intent_id`.

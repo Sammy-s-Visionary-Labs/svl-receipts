@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { parseReceiptReadabilityStatus, parseRecentReceiptsResponse } from "./receipt-response";
+import {
+  parseReceiptReadabilityStatus,
+  parseRecentReceiptsResponse,
+  parseWorkerReceiptDetail,
+} from "./receipt-response";
 
 const id = "8bb96a3a-7a5c-4ec8-b4cf-b5a7463d78c1";
 
@@ -58,25 +62,83 @@ describe("receipt API response parsing", () => {
           {
             id,
             status: "processing",
+            workerStatus: "sent",
+            pageCount: 2,
+            thumbnail: {
+              url: "https://storage.example/first.jpg?token=short-lived",
+              expiresAt: "2026-09-01T17:56:00.000Z",
+            },
             submittedAt: "2026-09-01T17:55:00.000Z",
             readability: null,
           },
         ],
+        nextCursor: "opaque-cursor",
       }),
-    ).toEqual([
-      {
-        id,
-        status: "processing",
-        submittedAt: "2026-09-01T17:55:00.000Z",
-        readability: null,
-      },
-    ]);
+    ).toEqual({
+      receipts: [
+        {
+          id,
+          status: "processing",
+          workerStatus: "sent",
+          pageCount: 2,
+          thumbnail: {
+            url: "https://storage.example/first.jpg?token=short-lived",
+            expiresAt: "2026-09-01T17:56:00.000Z",
+          },
+          submittedAt: "2026-09-01T17:55:00.000Z",
+          readability: null,
+        },
+      ],
+      nextCursor: "opaque-cursor",
+    });
     expect(
       parseRecentReceiptsResponse({
         receipts: [
-          { id: "not-a-receipt", status: "processing", submittedAt: null, readability: null },
+          {
+            id: "not-a-receipt",
+            status: "processing",
+            workerStatus: "sent",
+            pageCount: 1,
+            thumbnail: null,
+            submittedAt: null,
+            readability: null,
+          },
         ],
+        nextCursor: null,
       }),
     ).toBeNull();
+  });
+
+  it("accepts ordered read-only detail and rejects unordered pages", () => {
+    const detail = {
+      id,
+      status: "rejected_unreadable",
+      workerStatus: "needs_retake",
+      submittedAt: "2026-09-01T17:55:00.000Z",
+      readability: {
+        readable: false,
+        failedPageIndexes: [1],
+        reasons: [{ code: "glare", guidance: "Tilt the receipt." }],
+        checkedAt: "2026-09-01T18:00:00.000Z",
+      },
+      pages: [
+        {
+          pageIndex: 0,
+          image: {
+            url: "https://storage.example/one.jpg",
+            expiresAt: "2026-09-01T18:01:00.000Z",
+          },
+        },
+        {
+          pageIndex: 1,
+          image: {
+            url: "https://storage.example/two.jpg",
+            expiresAt: "2026-09-01T18:01:00.000Z",
+          },
+        },
+      ],
+    };
+    expect(parseWorkerReceiptDetail(detail)).toEqual(detail);
+    expect(parseWorkerReceiptDetail({ ...detail, pages: [...detail.pages].reverse() })).toBeNull();
   });
 });

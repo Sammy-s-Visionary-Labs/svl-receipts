@@ -50,6 +50,36 @@ export async function createReceiptReadUrl(storageKey: string) {
   return data.signedUrl;
 }
 
+export type SignedReceiptReadTarget = {
+  storageKey: string;
+  url: string;
+  expiresAt: string;
+};
+
+export async function createReceiptReadTargets(
+  storageKeys: string[],
+): Promise<Map<string, SignedReceiptReadTarget>> {
+  const uniqueKeys = [...new Set(storageKeys)];
+  if (uniqueKeys.length === 0) {
+    return new Map();
+  }
+  const supabase = createServiceRoleClient();
+  const { data, error } = await supabase.storage
+    .from(RECEIPT_BUCKET)
+    .createSignedUrls(uniqueKeys, SIGNED_READ_TTL_SECONDS);
+  if (error || !data) {
+    throw error ?? new Error("Failed to create signed read URLs");
+  }
+  const expiresAt = new Date(Date.now() + SIGNED_READ_TTL_SECONDS * 1000).toISOString();
+  const targets = new Map<string, SignedReceiptReadTarget>();
+  for (const item of data) {
+    if (item.path && item.signedUrl && !item.error) {
+      targets.set(item.path, { storageKey: item.path, url: item.signedUrl, expiresAt });
+    }
+  }
+  return targets;
+}
+
 export type ReceiptObjectExistence = ReceiptStorageObjectExistence;
 
 export class ReceiptObjectSetRemovalError extends Error {

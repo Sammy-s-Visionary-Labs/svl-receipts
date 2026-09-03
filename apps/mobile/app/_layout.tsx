@@ -67,6 +67,7 @@ function RootLayoutNav() {
             name="capture"
             options={{ headerShown: false, presentation: "fullScreenModal" }}
           />
+          <Stack.Screen name="receipts" options={{ headerShown: false }} />
         </Stack>
       </ThemeProvider>
     </ReceiptCaptureProvider>

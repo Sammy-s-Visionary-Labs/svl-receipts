@@ -311,6 +311,24 @@ describe("native encrypted pending receipt storage", () => {
     expect((await restartedQueue.get(item.id))?.id).toBe(item.id);
   });
 
+  it("stages one decrypted preview in cache and removes it without touching ciphertext", async () => {
+    const sourceUri = "file:///source/receipt.jpg";
+    runtime.files.set(sourceUri, bytes);
+    const queue = await newQueue();
+    const item = await queue.enqueue({
+      ownerUserId: "worker-1",
+      pages: [receiptPage(sourceUri)],
+      location: null,
+    });
+
+    const previewUri = await queue.preparePreviewPage(item.id);
+    expect(previewUri).toContain("pending-receipt-preview-staging-v1");
+    expect(Array.from(runtime.files.get(previewUri) ?? [])).toEqual(Array.from(bytes));
+    await queue.removePreviewPages(item.id);
+    expect(runtime.files.has(previewUri)).toBe(false);
+    expect(runtime.files.has(item.pages[0]?.uri ?? "")).toBe(true);
+  });
+
   it("migrates legacy plaintext queue files before removing them", async () => {
     const legacyPage = receiptPage("file:///document/pending-receipts-v1/legacy-1/page-0.jpg");
     runtime.files.set(legacyPage.uri, bytes);

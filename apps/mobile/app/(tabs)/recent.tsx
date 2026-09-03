@@ -1,17 +1,13 @@
-import {
-  isReceiptStatus,
-  WORKER_FACING_LABELS,
-  type WorkerFacingStatus,
-  workerStatusFromReceipt,
-} from "@svl/domain";
+import { WORKER_FACING_LABELS, type WorkerFacingStatus } from "@svl/domain";
 import { type Href, useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  FlatList,
+  Image,
   Pressable,
   RefreshControl,
-  ScrollView,
   StyleSheet,
 } from "react-native";
 import { Text, useThemeColor, View } from "@/components/Themed";
@@ -19,6 +15,13 @@ import { fetchRecentReceipts, type RecentReceipt } from "@/lib/api/client";
 import { useAuth } from "@/lib/auth/auth-context";
 import { planCloudRetake } from "@/lib/capture/cloud-retake";
 import { useReceiptCapture } from "@/lib/capture/receipt-capture-context";
+import type { PendingReceiptQueueItem } from "@/lib/queue/pending";
+import { getPendingReceiptQueue } from "@/lib/queue/pending-native";
+import {
+  appendRecentReceiptPage,
+  mergeRecentHistory,
+  type RecentHistoryItem,
+} from "@/lib/recent/history";
 
 export default function RecentScreen() {
   const router = useRouter();
@@ -28,45 +31,92 @@ export default function RecentScreen() {
     : params.receiptId;
   const { session } = useAuth();
   const { state, submission, beginRequiredRetakes, startNewReceipt } = useReceiptCapture();
-  const [receipts, setReceipts] = useState<RecentReceipt[]>([]);
+  const [cloudReceipts, setCloudReceipts] = useState<RecentReceipt[]>([]);
+  const [deviceReceipts, setDeviceReceipts] = useState<PendingReceiptQueueItem[]>([]);
+  const [devicePreviewUris, setDevicePreviewUris] = useState<Map<string, string>>(new Map());
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const requestGenerationRef = useRef(0);
+  const previewQueueIdsRef = useRef<Set<string>>(new Set());
   const backgroundColor = useThemeColor({ light: "#f6f8fb", dark: "#080b10" }, "background");
+  const receipts = useMemo(
+    () => mergeRecentHistory({ cloud: cloudReceipts, device: deviceReceipts, devicePreviewUris }),
+    [cloudReceipts, deviceReceipts, devicePreviewUris],
+  );
 
   const loadReceipts = useCallback(
     async (showRefresh: boolean) => {
       const requestGeneration = requestGenerationRef.current + 1;
       requestGenerationRef.current = requestGeneration;
       const accessToken = session?.access_token;
-      if (!accessToken) {
+      const ownerUserId = session?.user.id;
+      if (!accessToken || !ownerUserId) {
         setLoading(false);
         return;
       }
-      if (showRefresh) {
-        setRefreshing(true);
-      }
-      try {
-        const nextReceipts = await fetchRecentReceipts(accessToken);
-        if (requestGenerationRef.current !== requestGeneration) {
-          return;
-        }
-        setReceipts(nextReceipts);
+      if (showRefresh) setRefreshing(true);
+
+      const queue = getPendingReceiptQueue();
+      const [cloudResult, deviceResult] = await Promise.allSettled([
+        fetchRecentReceipts(accessToken),
+        queue.list(ownerUserId),
+      ]);
+      if (requestGenerationRef.current !== requestGeneration) return;
+
+      if (cloudResult.status === "fulfilled") {
+        setCloudReceipts(cloudResult.value.receipts);
+        setNextCursor(cloudResult.value.nextCursor);
         setErrorMessage(null);
-      } catch {
-        if (requestGenerationRef.current !== requestGeneration) {
-          return;
-        }
-        setErrorMessage("Recent receipts could not be loaded. Check the connection and try again.");
-      } finally {
+      } else {
+        setErrorMessage(
+          "Cloud receipts could not be loaded. Device uploads are still shown below.",
+        );
+      }
+
+      if (deviceResult.status === "fulfilled") {
+        setDeviceReceipts(deviceResult.value);
+        const previews = new Map<string, string>();
+        const preparedIds = new Set<string>();
+        await Promise.all(
+          deviceResult.value.map(async (item) => {
+            if (!item.filesReady || item.status === "sent" || item.pages.length === 0) return;
+            try {
+              previews.set(item.id, await queue.preparePreviewPage(item.id));
+              preparedIds.add(item.id);
+            } catch {
+              // The status row is still useful when a protected preview cannot be staged.
+            }
+          }),
+        );
         if (requestGenerationRef.current === requestGeneration) {
-          setLoading(false);
-          setRefreshing(false);
+          const staleIds = new Set(
+            [...previewQueueIdsRef.current].filter((id) => !preparedIds.has(id)),
+          );
+          await cleanupPreviews(queue, staleIds);
+          if (requestGenerationRef.current === requestGeneration) {
+            previewQueueIdsRef.current = preparedIds;
+            setDevicePreviewUris(previews);
+          } else {
+            await cleanupPreviews(queue, preparedIds);
+          }
+        } else {
+          await cleanupPreviews(queue, preparedIds);
         }
+      } else if (cloudResult.status === "fulfilled") {
+        setErrorMessage(
+          "Uploads saved on this device could not be read. Cloud receipts are shown.",
+        );
+      }
+
+      if (requestGenerationRef.current === requestGeneration) {
+        setLoading(false);
+        setRefreshing(false);
       }
     },
-    [session?.access_token],
+    [session?.access_token, session?.user.id],
   );
 
   useFocusEffect(
@@ -74,11 +124,31 @@ export default function RecentScreen() {
       void loadReceipts(false);
       return () => {
         requestGenerationRef.current += 1;
+        const queue = getPendingReceiptQueue();
+        const ids = previewQueueIdsRef.current;
+        previewQueueIdsRef.current = new Set();
+        void cleanupPreviews(queue, ids);
       };
     }, [loadReceipts]),
   );
 
-  function startRetake(receipt: RecentReceipt) {
+  async function loadMore() {
+    const accessToken = session?.access_token;
+    if (!accessToken || !nextCursor || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const page = await fetchRecentReceipts(accessToken, nextCursor);
+      setCloudReceipts((current) => appendRecentReceiptPage(current, page.receipts));
+      setNextCursor(page.nextCursor);
+      setErrorMessage(null);
+    } catch {
+      setErrorMessage("Older receipts could not be loaded. Try again.");
+    } finally {
+      setLoadingMore(false);
+    }
+  }
+
+  function startRetake(receipt: RecentHistoryItem) {
     const plan = planCloudRetake({
       receiptId: receipt.id,
       currentReceiptId: submission.confirmation?.id ?? null,
@@ -87,11 +157,8 @@ export default function RecentScreen() {
       hasUnsentDraft: state.pages.length > 0 && submission.phase !== "sent",
     });
     const proceed = () => {
-      if (plan.kind === "replace_pages") {
-        beginRequiredRetakes(plan.indexes);
-      } else {
-        startNewReceipt();
-      }
+      if (plan.kind === "replace_pages") beginRequiredRetakes(plan.indexes);
+      else startNewReceipt();
       router.push("/capture/camera" as Href);
     };
     if (!plan.warnBeforeReplacingDraft) {
@@ -109,8 +176,77 @@ export default function RecentScreen() {
   }
 
   return (
-    <ScrollView
+    <FlatList
       contentContainerStyle={styles.content}
+      data={loading ? [] : receipts}
+      initialNumToRender={8}
+      ItemSeparatorComponent={() => <View style={styles.separator} />}
+      keyExtractor={(receipt) => `${receipt.source}-${receipt.id}`}
+      ListEmptyComponent={
+        loading ? null : (
+          <View lightColor="#ffffff" darkColor="#121821" style={styles.messageCard}>
+            <Text style={styles.cardTitle}>No uploads yet</Text>
+            <Text style={styles.body}>Receipts you send will appear here.</Text>
+          </View>
+        )
+      }
+      ListFooterComponent={
+        nextCursor ? (
+          <Pressable
+            accessibilityRole="button"
+            disabled={loadingMore}
+            onPress={() => void loadMore()}
+            style={[styles.secondaryButton, styles.footerButton]}
+          >
+            {loadingMore ? (
+              <ActivityIndicator color="#2563eb" />
+            ) : (
+              <Text style={styles.secondaryButtonText}>Load older receipts</Text>
+            )}
+          </Pressable>
+        ) : null
+      }
+      ListHeaderComponent={
+        <View lightColor="#f6f8fb" darkColor="#080b10" style={styles.listHeader}>
+          <View lightColor="#f6f8fb" darkColor="#080b10" style={styles.headingBlock}>
+            <Text accessibilityRole="header" style={styles.title}>
+              My recent uploads
+            </Text>
+            <Text style={styles.body}>
+              Uploads from this phone and cloud results appear together, newest first.
+            </Text>
+          </View>
+
+          {errorMessage ? (
+            <View lightColor="#fef2f2" darkColor="#351313" style={styles.messageCard}>
+              <Text accessibilityLiveRegion="assertive" style={styles.errorText}>
+                {errorMessage}
+              </Text>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => void loadReceipts(true)}
+                style={styles.secondaryButton}
+              >
+                <Text style={styles.secondaryButtonText}>Try again</Text>
+              </Pressable>
+            </View>
+          ) : null}
+
+          {loading ? (
+            <View
+              accessibilityLabel="Loading recent receipts"
+              lightColor="#ffffff"
+              darkColor="#121821"
+              style={styles.loadingCard}
+            >
+              <ActivityIndicator color="#2563eb" />
+              <Text style={styles.body}>Loading recent receipts…</Text>
+            </View>
+          ) : null}
+        </View>
+      }
+      maxToRenderPerBatch={8}
+      removeClippedSubviews
       refreshControl={
         <RefreshControl
           onRefresh={() => void loadReceipts(true)}
@@ -118,122 +254,99 @@ export default function RecentScreen() {
           tintColor="#2563eb"
         />
       }
-      style={[styles.container, { backgroundColor }]}
-    >
-      <View lightColor="#f6f8fb" darkColor="#080b10" style={styles.headingBlock}>
-        <Text accessibilityRole="header" style={styles.title}>
-          My recent uploads
-        </Text>
-        <Text style={styles.body}>
-          Cloud results stay here even if the app was closed when a receipt finished checking.
-        </Text>
-      </View>
-
-      {errorMessage ? (
-        <View lightColor="#fef2f2" darkColor="#351313" style={styles.messageCard}>
-          <Text accessibilityLiveRegion="assertive" style={styles.errorText}>
-            {errorMessage}
-          </Text>
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => void loadReceipts(true)}
-            style={styles.secondaryButton}
+      renderItem={({ item: receipt }) => {
+        const isHighlighted = receipt.id === highlightedReceiptId;
+        const needsRetake = receipt.workerStatus === "needs_retake";
+        return (
+          <View
+            lightColor="#ffffff"
+            darkColor="#121821"
+            style={[styles.receiptCard, isHighlighted && styles.highlightedCard]}
           >
-            <Text style={styles.secondaryButtonText}>Try again</Text>
-          </Pressable>
-        </View>
-      ) : null}
-
-      {loading ? (
-        <View
-          accessibilityLabel="Loading recent receipts"
-          lightColor="#ffffff"
-          darkColor="#121821"
-          style={styles.loadingCard}
-        >
-          <ActivityIndicator color="#2563eb" />
-          <Text style={styles.body}>Loading recent receipts…</Text>
-        </View>
-      ) : receipts.length === 0 && !errorMessage ? (
-        <View lightColor="#ffffff" darkColor="#121821" style={styles.messageCard}>
-          <Text style={styles.cardTitle}>No uploads yet</Text>
-          <Text style={styles.body}>Receipts you send will appear here.</Text>
-        </View>
-      ) : (
-        receipts.map((receipt) => {
-          const workerStatus = receiptStatusForDisplay(receipt);
-          const isHighlighted = receipt.id === highlightedReceiptId;
-          const needsRetake = workerStatus === "needs_retake";
-          const currentFailedPages = receipt.readability?.failedPageIndexes.filter(
-            (index) =>
-              submission.confirmation?.id === receipt.id &&
-              index >= 0 &&
-              index < state.pages.length,
-          );
-          return (
-            <View
+            <Pressable
+              accessibilityHint={
+                receipt.source === "cloud" ? "Opens read-only receipt details" : undefined
+              }
               accessibilityLabel={isHighlighted ? "Receipt opened from notification" : undefined}
-              key={receipt.id}
-              lightColor="#ffffff"
-              darkColor="#121821"
-              style={[styles.receiptCard, isHighlighted && styles.highlightedCard]}
+              accessibilityRole={receipt.source === "cloud" ? "button" : undefined}
+              disabled={receipt.source !== "cloud"}
+              onPress={() => router.push(`/receipts/${receipt.id}` as Href)}
             >
               <View style={styles.cardHeading}>
-                <View style={styles.transparent}>
+                {receipt.thumbnailUri ? (
+                  <Image
+                    accessibilityLabel="First receipt page"
+                    source={{ uri: receipt.thumbnailUri }}
+                    style={styles.thumbnail}
+                  />
+                ) : (
+                  <View
+                    accessibilityLabel="Receipt preview unavailable"
+                    lightColor="#e2e8f0"
+                    darkColor="#263140"
+                    style={styles.thumbnailPlaceholder}
+                  >
+                    <Text style={styles.thumbnailIcon}>▤</Text>
+                  </View>
+                )}
+                <View style={styles.cardCopy}>
                   <Text style={styles.cardTitle}>Receipt •••{receiptSuffix(receipt.id)}</Text>
                   <Text style={styles.timestamp}>{formatReceiptDate(receipt.submittedAt)}</Text>
+                  <Text style={styles.timestamp}>
+                    {receipt.pageCount} {receipt.pageCount === 1 ? "page" : "pages"}
+                  </Text>
                 </View>
-                <View style={[styles.statusChip, statusChipStyle(workerStatus)]}>
-                  <Text style={styles.statusText}>{WORKER_FACING_LABELS[workerStatus]}</Text>
+                <View style={[styles.statusChip, statusChipStyle(receipt.workerStatus)]}>
+                  <Text accessibilityElementsHidden style={styles.statusIcon}>
+                    {statusIcon(receipt.workerStatus)}
+                  </Text>
+                  <Text style={styles.statusText}>
+                    {WORKER_FACING_LABELS[receipt.workerStatus]}
+                  </Text>
                 </View>
               </View>
+            </Pressable>
 
-              {receipt.readability?.readable === true ? (
-                <Text style={styles.detail}>Photo readability check passed.</Text>
-              ) : null}
-
-              {needsRetake && receipt.readability ? (
-                <View lightColor="#fff7ed" darkColor="#2b1708" style={styles.retakeBlock}>
-                  <Text style={styles.cardTitle}>What to fix</Text>
-                  {receipt.readability.reasons.map((reason) => (
-                    <Text key={reason.code} style={styles.detail}>
-                      • {reason.guidance}
-                    </Text>
-                  ))}
-                  <Text style={styles.detail}>
-                    Retake pages{" "}
-                    {receipt.readability.failedPageIndexes.map((index) => index + 1).join(", ")}.
+            {receipt.readability?.readable === true ? (
+              <Text style={styles.detail}>Photo readability check passed.</Text>
+            ) : null}
+            {needsRetake && receipt.readability ? (
+              <View lightColor="#fff7ed" darkColor="#2b1708" style={styles.retakeBlock}>
+                <Text style={styles.cardTitle}>What to fix</Text>
+                {receipt.readability.reasons.map((reason) => (
+                  <Text key={reason.code} style={styles.detail}>
+                    • {reason.guidance}
                   </Text>
-                  <Pressable
-                    accessibilityRole="button"
-                    onPress={() => startRetake(receipt)}
-                    style={styles.primaryButton}
-                  >
-                    <Text lightColor="#ffffff" darkColor="#ffffff" style={styles.primaryButtonText}>
-                      {!currentFailedPages?.length
-                        ? "Retake receipt"
-                        : currentFailedPages.length === 1
-                          ? `Retake page ${Number(currentFailedPages[0]) + 1}`
-                          : `Retake ${currentFailedPages.length} pages`}
-                    </Text>
-                  </Pressable>
-                </View>
-              ) : null}
-            </View>
-          );
-        })
-      )}
-    </ScrollView>
+                ))}
+                <Text style={styles.detail}>
+                  Retake pages{" "}
+                  {receipt.readability.failedPageIndexes.map((index) => index + 1).join(", ")}.
+                </Text>
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => startRetake(receipt)}
+                  style={styles.primaryButton}
+                >
+                  <Text lightColor="#ffffff" darkColor="#ffffff" style={styles.primaryButtonText}>
+                    Retake receipt
+                  </Text>
+                </Pressable>
+              </View>
+            ) : null}
+          </View>
+        );
+      }}
+      style={[styles.container, { backgroundColor }]}
+      windowSize={7}
+    />
   );
 }
 
-function receiptStatusForDisplay(receipt: RecentReceipt): WorkerFacingStatus {
-  if (receipt.readability?.readable === false) {
-    return "needs_retake";
-  }
-  return receipt.status && isReceiptStatus(receipt.status)
-    ? workerStatusFromReceipt(receipt.status)
-    : "sent";
+async function cleanupPreviews(
+  queue: ReturnType<typeof getPendingReceiptQueue>,
+  ids: ReadonlySet<string>,
+): Promise<void> {
+  await Promise.all([...ids].map((id) => queue.removePreviewPages(id).catch(() => undefined)));
 }
 
 function receiptSuffix(receiptId: string): string {
@@ -241,13 +354,31 @@ function receiptSuffix(receiptId: string): string {
 }
 
 function formatReceiptDate(value: string | null): string {
-  if (!value) {
-    return "Submission time unavailable";
+  if (!value) return "Submission time unavailable";
+  return new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(
+    new Date(value),
+  );
+}
+
+function statusIcon(status: WorkerFacingStatus): string {
+  switch (status) {
+    case "pending":
+      return "◷";
+    case "sending":
+      return "↑";
+    case "failed":
+      return "!";
+    case "sent":
+      return "✓";
+    case "needs_retake":
+      return "↻";
+    case "in_review":
+      return "◉";
+    case "approved":
+      return "✓";
+    case "declined":
+      return "×";
   }
-  return new Intl.DateTimeFormat(undefined, {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(value));
 }
 
 function statusChipStyle(status: WorkerFacingStatus) {
@@ -265,7 +396,10 @@ function statusChipStyle(status: WorkerFacingStatus) {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  content: { padding: 24, paddingBottom: 40, gap: 16 },
+  content: { padding: 24, paddingBottom: 40 },
+  listHeader: { gap: 16, marginBottom: 16 },
+  separator: { height: 16, backgroundColor: "transparent" },
+  footerButton: { marginTop: 16 },
   headingBlock: { gap: 8 },
   title: { fontSize: 30, lineHeight: 36, fontWeight: "800" },
   body: { fontSize: 15, lineHeight: 22, opacity: 0.72 },
@@ -279,7 +413,7 @@ const styles = StyleSheet.create({
   messageCard: { borderRadius: 18, padding: 18, gap: 12 },
   receiptCard: {
     borderRadius: 18,
-    padding: 18,
+    padding: 16,
     gap: 14,
     elevation: 2,
     borderWidth: 2,
@@ -288,18 +422,35 @@ const styles = StyleSheet.create({
   highlightedCard: { borderColor: "#2563eb" },
   cardHeading: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "flex-start",
     gap: 12,
     backgroundColor: "transparent",
   },
-  transparent: { flex: 1, gap: 3, backgroundColor: "transparent" },
+  cardCopy: { flex: 1, gap: 3, backgroundColor: "transparent" },
   cardTitle: { fontSize: 17, lineHeight: 22, fontWeight: "800" },
   timestamp: { fontSize: 13, opacity: 0.65 },
-  statusChip: { borderRadius: 999, paddingHorizontal: 11, paddingVertical: 6 },
+  thumbnail: { width: 64, height: 82, borderRadius: 8, backgroundColor: "#e2e8f0" },
+  thumbnailPlaceholder: {
+    width: 64,
+    height: 82,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  thumbnailIcon: { fontSize: 28, opacity: 0.55 },
+  statusChip: {
+    maxWidth: 108,
+    borderRadius: 14,
+    paddingHorizontal: 9,
+    paddingVertical: 6,
+    flexDirection: "row",
+    gap: 4,
+    alignItems: "center",
+  },
   infoChip: { backgroundColor: "#dbeafe" },
   warningChip: { backgroundColor: "#ffedd5" },
   successChip: { backgroundColor: "#dcfce7" },
+  statusIcon: { color: "#172554", fontSize: 13, fontWeight: "900" },
   statusText: { color: "#172554", fontSize: 12, fontWeight: "800" },
   detail: { fontSize: 14, lineHeight: 20, opacity: 0.78 },
   retakeBlock: { borderRadius: 14, padding: 14, gap: 8 },

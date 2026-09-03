@@ -64,6 +64,8 @@ describe("durable pending receipt queue", () => {
         })),
       ),
       removeUploadPages: vi.fn(async () => undefined),
+      preparePreviewPage: vi.fn(async (_id, candidate) => `${candidate.uri}.preview`),
+      removePreviewPages: vi.fn(async () => undefined),
       removePages: vi.fn(async () => undefined),
     };
   });
@@ -185,6 +187,15 @@ describe("durable pending receipt queue", () => {
     await pending.removeUploadPages(item.id);
     expect(files.removeUploadPages).toHaveBeenCalledWith(item.id);
     expect(files.removePages).not.toHaveBeenCalled();
+  });
+
+  it("prepares and removes a temporary first-page preview", async () => {
+    const pending = queue();
+    const item = await pending.enqueue({ ownerUserId: "worker-1", pages: [page], location: null });
+    await expect(pending.preparePreviewPage(item.id)).resolves.toContain(".preview");
+    await pending.removePreviewPages(item.id);
+    expect(files.preparePreviewPage).toHaveBeenCalledWith(item.id, item.pages[0], 0);
+    expect(files.removePreviewPages).toHaveBeenCalledWith(item.id);
   });
 
   it("never cleans Pending or Failed files and cleans only after durable confirmation", async () => {
