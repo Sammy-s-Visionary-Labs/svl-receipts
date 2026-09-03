@@ -3,6 +3,8 @@ import { requireCronSecret } from "@/lib/cron/secret";
 import { HttpError, httpErrorResponse } from "@/lib/http";
 import { runWorkBatch } from "@/lib/work/runner";
 
+export const maxDuration = 60;
+
 async function run(request: Request) {
   try {
     requireCronSecret(request);

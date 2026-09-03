@@ -5,9 +5,9 @@ import type {
   PreparedUploadPage,
   ReceiptSubmissionAcknowledgement,
   ReceiptSubmissionDependencies,
+  ReceiptSubmissionUpdateHandler,
   ReceiptUploadAttempt,
   ReceiptUploadTarget,
-  SubmissionUpdate,
 } from "./types";
 
 type ReceiptSubmissionStage =
@@ -48,7 +48,7 @@ export async function executeReceiptSubmission(input: {
   existingAttempt: ReceiptUploadAttempt | null;
   signal: AbortSignal;
   dependencies: ReceiptSubmissionDependencies;
-  onUpdate: (update: SubmissionUpdate) => void;
+  onUpdate: ReceiptSubmissionUpdateHandler;
 }): Promise<ReceiptSubmissionAcknowledgement> {
   const { dependencies, signal } = input;
   let attempt = input.existingAttempt;
@@ -56,7 +56,7 @@ export async function executeReceiptSubmission(input: {
   const submissionStartedAt = dependencies.now().getTime();
   try {
     assertNotCancelled(signal);
-    input.onUpdate({
+    await input.onUpdate({
       phase: "preparing",
       deviceStatus: "sending",
       attempt,
@@ -102,7 +102,7 @@ export async function executeReceiptSubmission(input: {
       (!attempt.session || sessionNeedsRenewal(attempt.session.expiresAt, dependencies.now()))
     ) {
       stage = "creating_session";
-      input.onUpdate({
+      await input.onUpdate({
         phase: "creating_session",
         deviceStatus: "sending",
         attempt,
@@ -128,7 +128,7 @@ export async function executeReceiptSubmission(input: {
           status: "submitted" as const,
           submittedAt: session.submittedAt,
         };
-        input.onUpdate({
+        await input.onUpdate({
           phase: "sent",
           deviceStatus: "sent",
           attempt,
@@ -138,7 +138,7 @@ export async function executeReceiptSubmission(input: {
         return confirmation;
       }
       attempt = { ...attempt, session };
-      input.onUpdate({
+      await input.onUpdate({
         phase: "creating_session",
         deviceStatus: "sending",
         attempt,
@@ -164,7 +164,7 @@ export async function executeReceiptSubmission(input: {
         throw new ReceiptSubmissionError("invalid_response", "Upload target is missing", attempt);
       }
       stage = "uploading_page";
-      input.onUpdate({
+      await input.onUpdate({
         phase: "uploading",
         deviceStatus: "sending",
         attempt,
@@ -178,7 +178,7 @@ export async function executeReceiptSubmission(input: {
           (left, right) => left - right,
         ),
       };
-      input.onUpdate({
+      await input.onUpdate({
         phase: "uploading",
         deviceStatus: "sending",
         attempt,
@@ -197,7 +197,7 @@ export async function executeReceiptSubmission(input: {
 
     assertNotCancelled(signal);
     stage = "confirming";
-    input.onUpdate({
+    await input.onUpdate({
       phase: "confirming",
       deviceStatus: "sending",
       attempt,
@@ -224,7 +224,7 @@ export async function executeReceiptSubmission(input: {
       durationMs: Math.max(0, dependencies.now().getTime() - confirmationStartedAt),
       result: "success",
     });
-    input.onUpdate({
+    await input.onUpdate({
       phase: "sent",
       deviceStatus: "sent",
       attempt,

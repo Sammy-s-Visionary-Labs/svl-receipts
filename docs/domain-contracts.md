@@ -53,7 +53,9 @@ These choices sit on top of the locked RA-75 vocabulary. They do not replace `re
 | Active retry identity | Client-generated UUID is both idempotency key and receipt ID; retries cannot create a second internal receipt |
 | Sent truth | Device status becomes Sent only after `submit_confirmed_receipt_set` durably acknowledges every page checksum |
 | RA-23 / RA-24 boundary | RA-23 retries the active capture safely; RA-24 adds encrypted restart/offline persistence, backoff, and same-owner auto-resume |
+| RA-25 provider | Gemini 3.5 Flash-Lite, high image resolution, minimal thinking, structured readability-only output |
+| Readability failure | Provider errors retry/dead-letter to `failed`; they never produce `rejected_unreadable` without a normalized unreadable result |
 
 ## Out of scope here
 
-Supabase/SQL, upload HTTP types, provider-specific AI JSON, full Housecall REST types.
+Full receipt extraction/OCR, extracted financial fields, and full Housecall REST types.

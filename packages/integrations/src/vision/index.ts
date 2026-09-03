@@ -1,2 +1,2 @@
-/** Vision / OCR adapter — stub folder for RA-73. Provider bake-off comes later. */
-export {};
+/** Visual usability gate only. Receipt text extraction remains outside RA-25. */
+export * from "./gemini-readability";

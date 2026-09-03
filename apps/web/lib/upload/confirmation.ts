@@ -21,7 +21,7 @@ import {
   sha256Hex,
 } from "@/lib/storage/receipts";
 import { createServiceRoleClient } from "@/lib/supabase/service";
-import { kickWork } from "@/lib/work/runner";
+import { committedConfirmationReplay } from "./confirmation-replay";
 
 type RequestedConfirmation = {
   pageIndex: number;
@@ -76,7 +76,17 @@ export async function confirmReceiptUpload(request: Request, rawReceiptId: strin
     assertExactPageSet(pageRows, requestedPages);
 
     if (row.status !== "upload_pending") {
-      if (row.status === "submitted" && storedChecksumsMatch(pageRows, requestedPages)) {
+      // The acknowledgement may be lost after the database commits. Readability
+      // can advance the receipt to processing (or beyond) before the durable
+      // mobile queue replays this exact confirmation, so submitted_at plus the
+      // immutable confirmed checksums is the idempotency fence.
+      const replay = committedConfirmationReplay({
+        id: row.id,
+        status: row.status,
+        submittedAt: row.submitted_at,
+        checksumsMatch: storedChecksumsMatch(pageRows, requestedPages),
+      });
+      if (replay) {
         logMetric(
           "confirmation_api_completed",
           receiptId,
@@ -84,7 +94,7 @@ export async function confirmReceiptUpload(request: Request, rawReceiptId: strin
           Date.now() - startedAt,
           "success",
         );
-        return { id: row.id, status: row.status, submittedAt: row.submitted_at };
+        return replay;
       }
       throw new HttpError(409, "conflict", "Receipt is not awaiting upload confirmation");
     }
@@ -153,15 +163,6 @@ export async function confirmReceiptUpload(request: Request, rawReceiptId: strin
     if (submitError) {
       console.error("[upload-confirm]", { receiptId, code: submitError.code });
       throw rpcHttpError(submitError);
-    }
-
-    try {
-      await kickWork("extract");
-    } catch (cause) {
-      console.error("[upload-confirm] kick extract", {
-        receiptId,
-        cause: cause instanceof Error ? cause.name : "unknown",
-      });
     }
 
     const result = submitted as { id?: string; status?: string; submittedAt?: string } | null;

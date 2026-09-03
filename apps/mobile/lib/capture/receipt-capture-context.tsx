@@ -1,4 +1,3 @@
-import { randomUUID } from "expo-crypto";
 import {
   createContext,
   type ReactNode,
@@ -10,6 +9,10 @@ import {
   useRef,
   useState,
 } from "react";
+import { AppState } from "react-native";
+import { useAuth } from "@/lib/auth/auth-context";
+import type { PendingReceiptQueueItem } from "@/lib/queue/pending";
+import { getPendingReceiptQueue } from "@/lib/queue/pending-native";
 import {
   postReceiptConfirmation,
   postReceiptUploadEvent,
@@ -37,6 +40,7 @@ type ReceiptCaptureContextValue = {
   startNewReceipt: () => void;
   addPages: (pages: ReceiptPage[]) => void;
   beginRetake: (index: number) => void;
+  beginRequiredRetakes: (indexes: number[]) => void;
   cancelRetake: () => void;
   savePage: (page: ReceiptPage) => void;
   replacePage: (index: number, page: ReceiptPage) => void;
@@ -51,6 +55,7 @@ type ReceiptCaptureContextValue = {
 const ReceiptCaptureContext = createContext<ReceiptCaptureContextValue | null>(null);
 
 export function ReceiptCaptureProvider({ children }: { children: ReactNode }) {
+  const { session, userId } = useAuth();
   const [state, dispatch] = useReducer(
     receiptCaptureReducer,
     undefined,
@@ -60,6 +65,9 @@ export function ReceiptCaptureProvider({ children }: { children: ReactNode }) {
   const abortRef = useRef<AbortController | null>(null);
   const busyRef = useRef(false);
   const attemptRef = useRef<ReceiptUploadAttempt | null>(null);
+  const queueItemIdRef = useRef<string | null>(null);
+  const processingQueueIdsRef = useRef(new Set<string>());
+  const queueControllersRef = useRef(new Map<string, AbortController>());
   const submissionGenerationRef = useRef(0);
 
   const resetSubmission = useCallback(() => {
@@ -68,29 +76,38 @@ export function ReceiptCaptureProvider({ children }: { children: ReactNode }) {
     abortRef.current = null;
     busyRef.current = false;
     attemptRef.current = null;
+    queueItemIdRef.current = null;
     setSubmission(createInitialReceiptSubmissionState());
   }, []);
 
-  useEffect(() => () => abortRef.current?.abort(), []);
+  useEffect(
+    () => () => {
+      for (const controller of queueControllersRef.current.values()) {
+        controller.abort();
+      }
+      queueControllersRef.current.clear();
+    },
+    [],
+  );
 
-  const submitReceipt = useCallback(
-    async (accessToken: string) => {
-      if (
-        busyRef.current ||
-        state.pages.length === 0 ||
-        !state.confirmed ||
-        state.locationDecision === "undecided" ||
-        submission.phase === "sent"
-      ) {
+  const runQueuedReceipt = useCallback(
+    async (queued: PendingReceiptQueueItem, accessToken: string, showOnCurrentScreen: boolean) => {
+      if (processingQueueIdsRef.current.has(queued.id)) {
         return;
       }
-
-      busyRef.current = true;
+      processingQueueIdsRef.current.add(queued.id);
+      const queue = getPendingReceiptQueue();
       const controller = new AbortController();
+      queueControllersRef.current.set(queued.id, controller);
       const submissionGeneration = submissionGenerationRef.current;
-      abortRef.current = controller;
+      let latestAttempt = queued.attempt;
+      const showsCurrent = () => showOnCurrentScreen || queueItemIdRef.current === queued.id;
+      if (showsCurrent()) {
+        busyRef.current = true;
+        abortRef.current = controller;
+      }
       const dependencies: ReceiptSubmissionDependencies = {
-        createSubmissionId: randomUUID,
+        createSubmissionId: () => queued.id,
         preparePage: prepareReceiptPageForUpload,
         createSession: postReceiptUploadSession,
         uploadPage: putReceiptPage,
@@ -100,15 +117,19 @@ export function ReceiptCaptureProvider({ children }: { children: ReactNode }) {
       };
 
       try {
-        await executeReceiptSubmission({
-          pages: state.pages,
-          location: state.locationDecision === "included" ? state.location : null,
+        await queue.markSending(queued.id);
+        const uploadPages = await queue.prepareUploadPages(queued.id);
+        const confirmation = await executeReceiptSubmission({
+          pages: uploadPages,
+          location: queued.location,
           accessToken,
-          existingAttempt: attemptRef.current,
+          existingAttempt: queued.attempt,
           signal: controller.signal,
           dependencies,
-          onUpdate(update) {
-            if (submissionGenerationRef.current !== submissionGeneration) {
+          async onUpdate(update) {
+            latestAttempt = update.attempt;
+            await queue.saveAttempt(queued.id, update.attempt);
+            if (!showsCurrent() || submissionGenerationRef.current !== submissionGeneration) {
               return;
             }
             attemptRef.current = update.attempt;
@@ -123,39 +144,131 @@ export function ReceiptCaptureProvider({ children }: { children: ReactNode }) {
             });
           },
         });
+        await queue.markConfirmed(queued.id, confirmation);
       } catch (error) {
-        if (submissionGenerationRef.current !== submissionGeneration) {
-          return;
-        }
         const failure =
           error instanceof ReceiptSubmissionError
             ? error
             : new ReceiptSubmissionError(
                 "unknown",
                 "Receipt upload needs another try",
-                attemptRef.current,
+                latestAttempt,
               );
-        attemptRef.current = failure.attempt;
-        const cancelled = failure.category === "cancelled";
-        setSubmission({
-          phase: cancelled ? "cancelled" : "failed",
-          deviceStatus: cancelled ? "pending" : "failed",
-          attempt: failure.attempt,
-          currentPageIndex: null,
-          failureCategory: failure.category,
-          errorMessage: submissionMessage(failure.category),
-          confirmation: null,
-        });
+        await queue
+          .markFailed({
+            id: queued.id,
+            category: failure.category,
+            attempt: failure.attempt,
+          })
+          .catch(() => undefined);
+        if (showsCurrent() && submissionGenerationRef.current === submissionGeneration) {
+          attemptRef.current = failure.attempt;
+          const cancelled = failure.category === "cancelled";
+          setSubmission({
+            phase: cancelled ? "cancelled" : "failed",
+            deviceStatus: cancelled ? "pending" : "failed",
+            attempt: failure.attempt,
+            currentPageIndex: null,
+            failureCategory: failure.category,
+            errorMessage: submissionMessage(failure.category),
+            confirmation: null,
+          });
+        }
       } finally {
+        await queue.removeUploadPages(queued.id).catch(() => undefined);
+        queueControllersRef.current.delete(queued.id);
+        processingQueueIdsRef.current.delete(queued.id);
         if (abortRef.current === controller) {
           abortRef.current = null;
         }
-        if (submissionGenerationRef.current === submissionGeneration) {
+        if (showsCurrent() && submissionGenerationRef.current === submissionGeneration) {
           busyRef.current = false;
         }
       }
     },
-    [state, submission.phase],
+    [],
+  );
+
+  useEffect(() => {
+    if (!session?.access_token || !userId) {
+      return;
+    }
+    let active = true;
+    const runDue = async () => {
+      const queue = getPendingReceiptQueue();
+      await queue.recoverInterrupted(userId, processingQueueIdsRef.current);
+      const items = await queue.due(userId);
+      for (const item of items) {
+        if (!active) {
+          return;
+        }
+        await runQueuedReceipt(item, session.access_token, false);
+      }
+    };
+    const safelyRunDue = () => void runDue().catch(() => undefined);
+    safelyRunDue();
+    const timer = setInterval(safelyRunDue, 30_000);
+    const appState = AppState.addEventListener("change", (nextState) => {
+      if (nextState === "active") {
+        safelyRunDue();
+      }
+    });
+    return () => {
+      active = false;
+      clearInterval(timer);
+      appState.remove();
+      for (const controller of queueControllersRef.current.values()) {
+        controller.abort();
+      }
+    };
+  }, [runQueuedReceipt, session?.access_token, userId]);
+
+  const submitReceipt = useCallback(
+    async (accessToken: string) => {
+      if (
+        busyRef.current ||
+        !userId ||
+        state.pages.length === 0 ||
+        !state.confirmed ||
+        state.locationDecision === "undecided" ||
+        submission.phase === "sent"
+      ) {
+        return;
+      }
+
+      const queue = getPendingReceiptQueue();
+      try {
+        let queued = queueItemIdRef.current ? await queue.get(queueItemIdRef.current) : null;
+        if (!queued) {
+          setSubmission((current) => ({
+            ...current,
+            phase: "preparing",
+            deviceStatus: "pending",
+            errorMessage: null,
+          }));
+          queued = await queue.enqueue({
+            ownerUserId: userId,
+            pages: state.pages,
+            location: state.locationDecision === "included" ? state.location : null,
+          });
+          queueItemIdRef.current = queued.id;
+        } else if (queued.status === "failed") {
+          queued = await queue.requestManualRetry(queued.id);
+        }
+        attemptRef.current = queued.attempt;
+        await runQueuedReceipt(queued, accessToken, true);
+      } catch {
+        setSubmission((current) => ({
+          ...current,
+          phase: "failed",
+          deviceStatus: "failed",
+          failureCategory: "unknown",
+          errorMessage:
+            "This receipt could not be saved to the protected offline queue. Try again.",
+        }));
+      }
+    },
+    [runQueuedReceipt, state, submission.phase, userId],
   );
 
   const cancelSubmission = useCallback(() => {
@@ -176,6 +289,10 @@ export function ReceiptCaptureProvider({ children }: { children: ReactNode }) {
       beginRetake: (index) => {
         resetSubmission();
         dispatch({ type: "begin-retake", index });
+      },
+      beginRequiredRetakes: (indexes) => {
+        resetSubmission();
+        dispatch({ type: "begin-required-retakes", indexes });
       },
       cancelRetake: () => dispatch({ type: "cancel-retake" }),
       savePage: (page) => {

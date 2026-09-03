@@ -71,6 +71,7 @@ Local web: copy `.env.example` to `apps/web/.env.local` with **dev** values. Loc
 | --- | --- | --- |
 | GET | `/api/me` | any active user |
 | POST | `/api/me/push-token` | worker (stores Expo `ExponentPushToken[...]`, `ExpoPushToken[...]`, or UUID token for RA-25; body `token` + `platform`; user id always from the session) |
+| GET | `/api/me/receipts` | worker (latest 25 caller-owned confirmed uploads and normalized readability results) |
 | POST | `/api/auth/sign-out` | signed-in user (add `?all=1` to revoke every device) |
 | GET | `/api/manager/queue` | manager, admin |
 | GET | `/api/manager/dead-letters` | manager, admin |
@@ -78,7 +79,7 @@ Local web: copy `.env.example` to `apps/web/.env.local` with **dev** values. Loc
 | GET | `/api/receipts/[id]` | owner, or manager/admin |
 | GET | `/api/receipts/[id]/events` | owner, or manager/admin |
 | POST | `/api/upload-sessions` | any active user (creates or resumes one idempotent receipt and returns per-page signed uploads) |
-| POST | `/api/receipts/[id]/confirm` | owner (idempotent; verifies the exact full page set, types, sizes, and SHA-256 checksums; enqueues extract work once) |
+| POST | `/api/receipts/[id]/confirm` | owner (idempotent; verifies the exact full page set, types, sizes, and SHA-256 checksums; enqueues readability work once) |
 | POST | `/api/upload-events` | owner (allowlisted receipt-ID-correlated timing/result metrics only) |
 | POST | `/api/receipts/[id]/approve` | manager, admin (review + intent + outbox in one transaction) |
 | POST | `/api/receipts/[id]/retention-hold` | manager, admin (hold requires owner + reason) |
@@ -88,4 +89,4 @@ Local web: copy `.env.example` to `apps/web/.env.local` with **dev** values. Loc
 
 Denied API responses look like `{ "error": { "code": "unauthenticated" \| "account_inactive" \| "forbidden" \| "invalid_request" \| "not_found" \| "conflict" \| "internal", "message": "..." } }` and do not include receipt image bytes. Denials are logged as `[authz-denied]` with user id and route only. Image reads are logged as `[receipt-image-access]` with user id and receipt id only.
 
-`receipts` is the core document (status, page-1 compatibility pointer, optional GPS, retention dates). `receipt_pages` is the authoritative ordered 1..5 object manifest and is read-only to authenticated clients under receipt ownership RLS. Related tables: immutable `extractions`, append-only `reviews`, `receipt_lines` (integer cents), `job_candidates`, `housecall_intents`, `housecall_links`, append-only `export_attempts`, append-only `audit_events`, leased `work_items`, and `housecall_outbox`. Confirming an upload queues extract work once, then kicks an idempotent worker after commit (no-op until the extract provider exists). Approving a receipt writes the review, intent, and outbox in one transaction, then kicks export (same). Daily cron recovers missed **purge** work. Receipt and Housecall-step transition guards live in `@svl/domain` (`evaluateReceiptTransition`, `evaluateHousecallStepAttempt`); a unique index blocks a second succeeded export attempt for the same step target. Bearer `POST /api/auth/sign-out` uses Auth admin logout so refresh tokens are revoked.
+`receipts` is the core document (status, page-1 compatibility pointer, optional GPS, retention dates). `receipt_pages` is the authoritative ordered 1..5 object manifest and is read-only to authenticated clients under receipt ownership RLS. Related tables: append-only `readability_checks`, immutable `extractions`, append-only `reviews`, `receipt_lines` (integer cents), `job_candidates`, `housecall_intents`, `housecall_links`, append-only `export_attempts`, append-only `audit_events`, leased `work_items`, and `housecall_outbox`. Confirming an upload queues readability work once, then schedules an idempotent capped worker after the response. The authenticated recovery route handles missed kicks and retries; the Vercel Hobby deployment schedules it daily, and Preview verification invokes it manually. Readable results queue the later extract stage. Approving a receipt writes the review, intent, and outbox in one transaction, then kicks export. Receipt and Housecall-step transition guards live in `@svl/domain` (`evaluateReceiptTransition`, `evaluateHousecallStepAttempt`); a unique index blocks a second succeeded export attempt for the same step target. Bearer `POST /api/auth/sign-out` uses Auth admin logout so refresh tokens are revoked.

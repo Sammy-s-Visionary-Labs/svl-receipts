@@ -40,6 +40,7 @@ export type ReceiptLocationDecision = "undecided" | "included" | "skipped";
 export type ReceiptCaptureState = {
   pages: ReceiptPage[];
   replacementIndex: number | null;
+  requiredRetakeIndexes: number[];
   previewIndex: number;
   confirmed: boolean;
   location: ReceiptLocationMetadata;
@@ -50,6 +51,7 @@ export type ReceiptCaptureAction =
   | { type: "start-new" }
   | { type: "add-pages"; pages: ReceiptPage[] }
   | { type: "begin-retake"; index: number }
+  | { type: "begin-required-retakes"; indexes: number[] }
   | { type: "cancel-retake" }
   | { type: "save-page"; page: ReceiptPage }
   | { type: "replace-page"; index: number; page: ReceiptPage }
@@ -70,6 +72,7 @@ export function createInitialReceiptCaptureState(): ReceiptCaptureState {
   return {
     pages: [],
     replacementIndex: null,
+    requiredRetakeIndexes: [],
     previewIndex: 0,
     confirmed: false,
     location: createEmptyReceiptLocation(),
@@ -110,6 +113,7 @@ export function receiptCaptureReducer(
       return {
         pages,
         replacementIndex: null,
+        requiredRetakeIndexes: state.requiredRetakeIndexes.filter((index) => index < pages.length),
         previewIndex: firstAddedIndex,
         confirmed: false,
         location: createEmptyReceiptLocation(),
@@ -121,14 +125,34 @@ export function receiptCaptureReducer(
         return state;
       }
       return { ...state, replacementIndex: action.index, confirmed: false };
+    case "begin-required-retakes": {
+      const indexes = [...new Set(action.indexes)]
+        .filter((index) => Number.isInteger(index) && index >= 0 && index < state.pages.length)
+        .sort((left, right) => left - right);
+      const firstIndex = indexes[0];
+      if (firstIndex === undefined) {
+        return state;
+      }
+      return {
+        ...state,
+        replacementIndex: firstIndex,
+        requiredRetakeIndexes: indexes,
+        previewIndex: firstIndex,
+        confirmed: false,
+      };
+    }
     case "cancel-retake":
       return { ...state, replacementIndex: null };
     case "save-page":
       if (state.replacementIndex !== null) {
+        const replacedIndex = state.replacementIndex;
         return {
-          pages: replaceReceiptPage(state.pages, state.replacementIndex, action.page),
+          pages: replaceReceiptPage(state.pages, replacedIndex, action.page),
           replacementIndex: null,
-          previewIndex: state.replacementIndex,
+          requiredRetakeIndexes: state.requiredRetakeIndexes.filter(
+            (index) => index !== replacedIndex,
+          ),
+          previewIndex: replacedIndex,
           confirmed: false,
           location: createEmptyReceiptLocation(),
           locationDecision: "undecided",
@@ -137,6 +161,7 @@ export function receiptCaptureReducer(
       return {
         pages: appendReceiptPages(state.pages, [action.page]),
         replacementIndex: null,
+        requiredRetakeIndexes: state.requiredRetakeIndexes,
         previewIndex: Math.min(state.pages.length, MAX_RECEIPT_PAGES - 1),
         confirmed: false,
         location: createEmptyReceiptLocation(),
@@ -153,13 +178,20 @@ export function receiptCaptureReducer(
       return {
         pages: replaceReceiptPage(state.pages, action.index, action.page),
         replacementIndex: null,
+        requiredRetakeIndexes: state.requiredRetakeIndexes.filter(
+          (index) => index !== action.index,
+        ),
         previewIndex: action.index,
         confirmed: false,
         location: createEmptyReceiptLocation(),
         locationDecision: "undecided",
       };
     case "confirm":
-      if (state.pages.length === 0 || state.pages.length > MAX_RECEIPT_PAGES) {
+      if (
+        state.pages.length === 0 ||
+        state.pages.length > MAX_RECEIPT_PAGES ||
+        state.requiredRetakeIndexes.length > 0
+      ) {
         return state;
       }
       return { ...state, replacementIndex: null, confirmed: true };

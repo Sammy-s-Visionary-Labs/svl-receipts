@@ -71,6 +71,42 @@ describe("receipt capture page set", () => {
     expect(replaced.previewIndex).toBe(1);
   });
 
+  it("requires every cloud-failed page to change before reconfirming", () => {
+    const withPages = receiptCaptureReducer(createInitialReceiptCaptureState(), {
+      type: "add-pages",
+      pages: [page(1), page(2), page(3)],
+    });
+    const required = receiptCaptureReducer(withPages, {
+      type: "begin-required-retakes",
+      indexes: [2, 0, 2, 99],
+    });
+    expect(required).toMatchObject({
+      replacementIndex: 0,
+      requiredRetakeIndexes: [0, 2],
+      confirmed: false,
+    });
+
+    const firstReplaced = receiptCaptureReducer(required, {
+      type: "save-page",
+      page: page(10),
+    });
+    expect(firstReplaced.requiredRetakeIndexes).toEqual([2]);
+    expect(receiptCaptureReducer(firstReplaced, { type: "confirm" }).confirmed).toBe(false);
+
+    const retakingLast = receiptCaptureReducer(firstReplaced, { type: "begin-retake", index: 2 });
+    const allReplaced = receiptCaptureReducer(retakingLast, {
+      type: "save-page",
+      page: page(30),
+    });
+    expect(allReplaced.requiredRetakeIndexes).toEqual([]);
+    expect(receiptCaptureReducer(allReplaced, { type: "confirm" }).confirmed).toBe(true);
+    expect(allReplaced.pages.map((item) => item.uri)).toEqual([
+      "file:///receipt-10.jpg",
+      "file:///receipt-2.jpg",
+      "file:///receipt-30.jpg",
+    ]);
+  });
+
   it("replaces only a rotated page and clears confirmation and location", () => {
     const withPages = receiptCaptureReducer(createInitialReceiptCaptureState(), {
       type: "add-pages",

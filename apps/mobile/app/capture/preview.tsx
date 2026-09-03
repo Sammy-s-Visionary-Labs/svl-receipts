@@ -47,6 +47,8 @@ export default function ReceiptPreviewScreen() {
   const atPageCap = state.pages.length >= MAX_RECEIPT_PAGES;
   const rotationBusy = rotatingIndex !== null;
   const interactionBusy = galleryBusy || rotationBusy;
+  const nextRequiredRetakeIndex = state.requiredRetakeIndexes[0];
+  const hasRequiredRetakes = nextRequiredRetakeIndex !== undefined;
 
   function addAnotherPage() {
     cancelRetake();
@@ -104,8 +106,23 @@ export default function ReceiptPreviewScreen() {
   }
 
   function usePhotos() {
+    if (hasRequiredRetakes) {
+      Alert.alert(
+        "More retakes are required",
+        `Replace ${state.requiredRetakeIndexes.length === 1 ? "the remaining page" : `all ${state.requiredRetakeIndexes.length} remaining pages`} before sending this receipt again.`,
+      );
+      return;
+    }
     confirmPages();
     router.replace("/capture/location" as Href);
+  }
+
+  function continueRequiredRetakes() {
+    if (nextRequiredRetakeIndex === undefined) {
+      return;
+    }
+    beginRetake(nextRequiredRetakeIndex);
+    router.push("/capture/camera" as Href);
   }
 
   return (
@@ -143,6 +160,27 @@ export default function ReceiptPreviewScreen() {
             uri={activePage.uri}
           />
         </View>
+
+        {hasRequiredRetakes ? (
+          <View lightColor="#fff7ed" darkColor="#2b1708" style={styles.requiredRetakeCard}>
+            <Text style={styles.qualityTitle}>Cloud retakes still required</Text>
+            <Text style={styles.qualityBody}>
+              Replace page{state.requiredRetakeIndexes.length === 1 ? "" : "s"}{" "}
+              {state.requiredRetakeIndexes.map((index) => index + 1).join(", ")} before sending
+              again. Pages that already passed remain unchanged.
+            </Text>
+            <Pressable
+              accessibilityRole="button"
+              disabled={interactionBusy}
+              onPress={continueRequiredRetakes}
+              style={[styles.requiredRetakeButton, interactionBusy && styles.disabled]}
+            >
+              <Text lightColor="#ffffff" darkColor="#ffffff" style={styles.useButtonText}>
+                Retake page {nextRequiredRetakeIndex + 1}
+              </Text>
+            </Pressable>
+          </View>
+        ) : null}
 
         <View
           accessibilityLabel={`Local photo check for page ${activeIndex + 1}`}
@@ -288,9 +326,9 @@ export default function ReceiptPreviewScreen() {
           <Pressable
             accessibilityHint={`Keeps all ${state.pages.length} receipt ${state.pages.length === 1 ? "page" : "pages"}`}
             accessibilityRole="button"
-            disabled={interactionBusy}
+            disabled={interactionBusy || hasRequiredRetakes}
             onPress={usePhotos}
-            style={[styles.useButton, interactionBusy && styles.disabled]}
+            style={[styles.useButton, (interactionBusy || hasRequiredRetakes) && styles.disabled]}
           >
             <Text lightColor="#ffffff" darkColor="#ffffff" style={styles.useButtonText}>
               Use {state.pages.length === 1 ? "photo" : `${state.pages.length} photos`}
@@ -355,6 +393,19 @@ const styles = StyleSheet.create({
     gap: 9,
     borderRadius: 14,
     padding: 15,
+  },
+  requiredRetakeCard: {
+    gap: 10,
+    borderRadius: 14,
+    padding: 15,
+  },
+  requiredRetakeButton: {
+    minHeight: 50,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 14,
+    paddingHorizontal: 18,
+    backgroundColor: "#ea580c",
   },
   qualityTitle: {
     fontSize: 17,
