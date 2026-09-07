@@ -12,6 +12,7 @@ import {
 } from "@/lib/manager/queue-contract";
 
 export const TAB_LABELS: Record<QueueTab, string> = {
+  history: "All history",
   "needs-review": "Needs review",
   processing: "Processing",
   "partial-success": "Partial success",
@@ -20,6 +21,7 @@ export const TAB_LABELS: Record<QueueTab, string> = {
   "rejected-duplicate": "Rejected / Duplicate",
 };
 export const TAB_DESCRIPTIONS: Record<QueueTab, string> = {
+  history: "Approved, declined, duplicate, failed, partial, and exported receipts.",
   "needs-review": "Start with the oldest receipts awaiting a manager’s attention.",
   processing: "Receipts moving through upload, extraction, or export.",
   "partial-success": "Receipts with an incomplete Housecall export.",

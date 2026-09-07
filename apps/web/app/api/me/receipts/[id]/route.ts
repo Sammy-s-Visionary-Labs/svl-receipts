@@ -14,6 +14,9 @@ type ReceiptRow = {
   id: string;
   status: string;
   submitted_at: string;
+  clarification_reason?: string | null;
+  content_deleted_at?: string | null;
+  purge_claimed_at?: string | null;
 };
 
 type PageRow = {
@@ -27,7 +30,9 @@ export async function GET(request: Request, context: RouteContext) {
     const { actor, supabase } = await requireActor(request, "GET /api/me/receipts/[id]");
     const { data, error } = await supabase
       .from("receipts")
-      .select("id, status, submitted_at")
+      .select(
+        "id, status, submitted_at, clarification_reason, content_deleted_at, purge_claimed_at",
+      )
       .eq("id", id)
       .eq("owner_user_id", actor.userId)
       .not("submitted_at", "is", null)
@@ -39,6 +44,8 @@ export async function GET(request: Request, context: RouteContext) {
       throw new HttpError(404, "not_found", "Receipt is not available");
     }
     const receipt = data as ReceiptRow;
+    if (receipt.content_deleted_at || receipt.purge_claimed_at)
+      throw new HttpError(404, "not_found", "Receipt content is not available");
     const service = createServiceRoleClient();
     const [{ data: pagesData, error: pagesError }, { data: readabilityData, error: checkError }] =
       await Promise.all([
@@ -73,6 +80,7 @@ export async function GET(request: Request, context: RouteContext) {
         id: receipt.id,
         workerStatus: workerStatusForStoredReceipt(receipt.status),
         submittedAt: receipt.submitted_at,
+        ...(receipt.clarification_reason ? { clarification: receipt.clarification_reason } : {}),
         pages: pages.map((page) => {
           const target = imageTargets.get(page.storage_key);
           if (!target) {

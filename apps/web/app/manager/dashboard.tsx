@@ -148,7 +148,10 @@ export function ManagerDashboard({ actorRole }: { actorRole: "manager" | "admin"
     navigate({ ...filters, search: search.trim() });
   }
 
-  const isHistory = filters.tab === "completed" || filters.tab === "rejected-duplicate";
+  const isHistory =
+    filters.tab === "history" ||
+    filters.tab === "completed" ||
+    filters.tab === "rejected-duplicate";
   const denied = failure?.kind === "auth" || failure?.kind === "forbidden";
 
   return (
@@ -754,16 +757,20 @@ function ReceiptRow({
           {receiptAge(receipt.submittedAt, asOf)}
         </time>
       </td>
-      <td data-label="Top job suggestion">
+      <td data-label="Job assignment / suggestion">
         <span className={receipt.suggestedJob ? styles.jobLabel : styles.unavailable}>
-          {receipt.suggestedJob
-            ? receipt.suggestedJob.label || `Job ${receipt.suggestedJob.id}`
-            : "No suggestion yet"}
+          {receipt.assignedJobs?.length
+            ? receipt.assignedJobs.map((job) => job.label || job.id).join(" · ")
+            : receipt.suggestedJob
+              ? receipt.suggestedJob.label || `Job ${receipt.suggestedJob.id}`
+              : "No suggestion yet"}
         </span>
         <span className={styles.secondaryText}>
-          {receipt.suggestedJob
-            ? "Stored suggestion · ranking unavailable"
-            : "Job match unavailable"}
+          {receipt.assignedJobs?.length
+            ? `${receipt.assignedJobs.length} assigned jobs · ${receipt.assignedJobs.map((job) => job.id).join(", ")}`
+            : receipt.suggestedJob
+              ? "Stored suggestion · ranking unavailable"
+              : "Job match unavailable"}
         </span>
       </td>
       <td data-label="Field confidence">
@@ -871,6 +878,7 @@ function ReceiptSummary({
             </button>
           </div>
           <div className={styles.dialogBody}>
+            <Link href={`/receipts/${receipt.id}`}>Open full receipt review</Link>
             <div className={styles.summaryHero}>
               <ReceiptThumbnail key={receipt.id} receipt={receipt} large />
               <div>

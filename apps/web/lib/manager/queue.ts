@@ -178,6 +178,15 @@ export function normalizeQueueRow(value: Record<string, unknown>): QueueReceipt 
         : 0,
     thumbnailUrl:
       value.hasThumbnail === true ? `/api/manager/receipts/${value.id}/thumbnail` : null,
+    assignedJobs: Array.isArray(value.assignedJobs)
+      ? value.assignedJobs
+          .filter(
+            (j): j is { id: string; label: unknown } =>
+              !!j && typeof j === "object" && typeof j.id === "string",
+          )
+          .slice(0, 100)
+          .map((j) => ({ id: j.id, label: nullableText(j.label) }))
+      : [],
     suggestedJob:
       job && typeof job.id === "string"
         ? { id: job.id, label: nullableText(job.label), source: nullableText(job.source) }

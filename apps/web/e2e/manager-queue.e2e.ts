@@ -111,7 +111,9 @@ test.beforeEach(async ({ context, page }) => {
   );
 });
 
-test("oldest-first inbox exposes the six views and required row evidence", async ({ page }) => {
+test("oldest-first inbox exposes history and status views and required row evidence", async ({
+  page,
+}) => {
   await routeQueue(page, (route) => fulfillQueue(route));
   const firstRequest = queueRequest(page, () => true);
   await page.goto("/");
@@ -123,6 +125,7 @@ test("oldest-first inbox exposes the six views and required row evidence", async
   const tabs = page.getByRole("navigation", { name: "Receipt status" });
   await expect(tabs.getByRole("link")).toHaveText([
     "Needs review",
+    "All history",
     "Processing",
     "Partial success",
     "Failed",
@@ -182,7 +185,7 @@ test("all queue tabs navigate with their status and history navigation works", a
     .getByRole("link", { name: "History" })
     .click();
   await expect(page.getByRole("heading", { name: "Receipt history" })).toBeVisible();
-  await expect(page).toHaveURL(/tab=completed/);
+  await expect(page).toHaveURL(/tab=history/);
 });
 
 test("filters, search, sort and page size are submitted and clear the cursor", async ({ page }) => {

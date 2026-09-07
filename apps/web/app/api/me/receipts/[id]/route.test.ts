@@ -18,7 +18,12 @@ describe("GET /api/me/receipts/[id]", () => {
 
   it("returns only the owner's ordered page set and worker-facing detail", async () => {
     const maybeSingle = vi.fn(async () => ({
-      data: { id, status: "rejected_unreadable", submitted_at: "2026-09-03T12:00:00.000Z" },
+      data: {
+        id,
+        status: "rejected_unreadable",
+        submitted_at: "2026-09-03T12:00:00.000Z",
+        clarification_reason: "Confirm the quantity",
+      },
       error: null,
     }));
     const not = vi.fn(() => ({ maybeSingle }));
@@ -79,6 +84,7 @@ describe("GET /api/me/receipts/[id]", () => {
     expect(body).toEqual({
       id,
       workerStatus: "needs_retake",
+      clarification: "Confirm the quantity",
       submittedAt: "2026-09-03T12:00:00.000Z",
       pages: [
         {

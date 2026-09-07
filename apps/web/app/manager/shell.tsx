@@ -41,7 +41,7 @@ export function ManagerShell({
             {reviewCount !== undefined && <span className={styles.navCount}>{reviewCount}</span>}
           </Link>
           <Link
-            href="/?tab=completed"
+            href="/?tab=history&sort=newest"
             aria-current={active === "history" ? "page" : undefined}
             className={active === "history" ? styles.navActive : undefined}
           >

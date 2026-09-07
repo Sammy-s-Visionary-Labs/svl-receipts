@@ -2,6 +2,7 @@ import type { ReceiptStatus } from "@svl/domain";
 
 export const QUEUE_TABS = [
   "needs-review",
+  "history",
   "processing",
   "partial-success",
   "failed",
@@ -67,6 +68,7 @@ export type QueueReceipt = {
   pageCount: number;
   thumbnailUrl: string | null;
   /** Latest stored suggestion; no ranking or confidence is available yet. */
+  assignedJobs?: Array<{ id: string; label: string | null }>;
   suggestedJob: { id: string; label: string | null; source: string | null } | null;
   /** Minimum valid per-field extraction confidence; not a job-match score. */
   confidence: number | null;

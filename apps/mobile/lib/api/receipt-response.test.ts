@@ -139,6 +139,12 @@ describe("receipt API response parsing", () => {
       ],
     };
     expect(parseWorkerReceiptDetail(detail)).toEqual(detail);
+    expect(
+      parseWorkerReceiptDetail({ ...detail, clarification: "Confirm the quantity" })?.clarification,
+    ).toBe("Confirm the quantity");
+    expect(
+      parseWorkerReceiptDetail({ ...detail, clarification: "a".repeat(2001) })?.clarification,
+    ).toBeUndefined();
     expect(parseWorkerReceiptDetail({ ...detail, pages: [...detail.pages].reverse() })).toBeNull();
   });
 });
