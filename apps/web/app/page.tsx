@@ -1,7 +1,8 @@
-import { DOMAIN_PACKAGE } from "@svl/domain";
-import { INTEGRATIONS_PACKAGE } from "@svl/integrations";
+import { actorMayAccessManagerOps } from "@svl/domain";
 import { redirect } from "next/navigation";
+import { Suspense } from "react";
 import { getActorFromCookies } from "@/lib/auth/guards";
+import { ManagerDashboard } from "./manager/dashboard";
 import styles from "./page.module.css";
 import { SignOutButton } from "./sign-out-button";
 
@@ -13,18 +14,31 @@ export default async function Home() {
     redirect("/login");
   }
 
+  if (!actorMayAccessManagerOps(actor) || (actor.role !== "admin" && actor.role !== "manager"))
+    return (
+      <div className={styles.page}>
+        <main className={styles.main}>
+          <div className={styles.intro}>
+            <h1>Manager access required</h1>
+            <p>
+              This workspace is available to managers and administrators. Use the mobile app to
+              submit and track your receipts, or contact your administrator about access.
+            </p>
+            <SignOutButton />
+          </div>
+        </main>
+      </div>
+    );
+
   return (
-    <div className={styles.page}>
-      <main className={styles.main}>
-        <div className={styles.intro}>
-          <h1>SVL Receipts — Manager web</h1>
-          <p>
-            Signed in as <code>{actor.role}</code>. Role is loaded from the server profile, not the
-            browser. Scaffold: <code>{DOMAIN_PACKAGE}</code>, <code>{INTEGRATIONS_PACKAGE}</code>.
-          </p>
-          <SignOutButton />
+    <Suspense
+      fallback={
+        <div className={styles.page}>
+          <p role="status">Opening your receipt workspace…</p>
         </div>
-      </main>
-    </div>
+      }
+    >
+      <ManagerDashboard actorRole={actor.role} />
+    </Suspense>
   );
 }

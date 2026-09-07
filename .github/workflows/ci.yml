@@ -19,6 +19,25 @@ jobs:
       - run: npm test
       - run: npm run build:web
 
+  browser:
+    needs: check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: manager-queue-browser-results
+          path: test-results/
+          retention-days: 7
+
   database:
     needs: check
     runs-on: ubuntu-latest
@@ -33,7 +52,7 @@ jobs:
         run: npm run db:start
       - name: Replay every Git migration from a clean database
         run: npm run db:reset
-      - name: Run applied RA-2 permission and lifecycle checks
+      - name: Run applied permission, lifecycle, and manager queue checks
         run: npm run test:applied
         env:
           SVL_APPLIED_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
