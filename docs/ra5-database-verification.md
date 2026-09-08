@@ -1,6 +1,6 @@
 # RA-5 database and worker verification
 
-Verified on 2026-09-08 against the existing **local** Supabase PostgreSQL 17 database on port 54322. No production or hosted database was modified, no existing local receipt data was reset, and no Housecall requests were made.
+Verified on 2026-09-08 against the existing **local** Supabase PostgreSQL 17 database on port 54322. This local verification run did not modify hosted or production databases, reset existing local receipt data, or make Housecall requests. The subsequent hosted development rollout is recorded separately in `ra5-hosted-dev-verification.md`.
 
 The CLI-created migration `20260908200420_ra5_receipt_intelligence.sql` extends the verified RA-4 schema. The forward migration `20260908212303_ra5_scoped_receipt_work.sql` adds immediate receipt-scoped work claims and budget releases. Both are applied locally; the second migration preserves the already-applied first migration unchanged.
 

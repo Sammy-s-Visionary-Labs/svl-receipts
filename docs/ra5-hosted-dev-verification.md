@@ -49,3 +49,9 @@ Failures, timeouts, and competing leases are already exercised without provider 
 The forward migration `20260908212303_ra5_scoped_receipt_work.sql` supplies `claim_receipt_work` and `release_receipt_work`. It passed the local rollback suite and is applied locally. Deploy the application only after this forward migration is applied to the same development database; verify `supabase/tests/ra5_scoped_work_applied.sql` there before the positive upload/confirmation smoke.
 
 The coordinating task subsequently applied the additive `20260908212303_ra5_scoped_receipt_work.sql` migration on development and executed `ra5_scoped_work_applied.sql` successfully through the SQL connector. Together with the earlier seven suites, all eight suites have passed on development. The entire eight-suite run also passed locally. No production database was changed.
+
+## Completed Preview processing check
+
+Ready code `76a2ee96b397189a587291a9defedb518506b489` passed the bounded opt-in `verify-ra5-preview-pipeline.mjs` smoke: Select reached `needs_review` in 22 seconds with two complete lines/$175.00; Lowe's reached it in 18 seconds, retaining two observed lines and projecting only the one with a valid price. Its ambiguous date and missing field stayed flagged. Actual Gemini model/prompt provenance, integer cents, manager-only evidence, and zero export intents were verified. All 36 API authorization checks passed again with four approved active categories.
+
+The two exact Storage prefixes were removed and verified empty. A guarded development SQL transaction then removed only the two synthetic receipt IDs and their cascaded content/evidence; the existing user, approved categories and job catalog were preserved. Final reports: [pipeline](ra5-preview-pipeline-results.json), [API boundaries](ra5-preview-verification.json). No global queue was drained, no receipt was approved, and no Housecall request occurred.

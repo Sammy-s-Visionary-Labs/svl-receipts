@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "checkedAt": "2026-09-08T21:19:03.568Z",
+  "checkedAt": "2026-09-08T21:38:58.815Z",
   "targetProjectRef": "vrtcbrowjnipbldoioyr",
   "previewHost": "svl-receipts-web-git-codex-ra-5-receipt-intelligence-svl1.vercel.app",
   "mode": "application-read-only",
@@ -17,9 +17,9 @@
       "check": "categories",
       "httpStatus": 200,
       "passed": true,
-      "count": 0,
-      "activeCount": 0,
-      "configurationVersions": []
+      "count": 4,
+      "activeCount": 4,
+      "configurationVersions": [1]
     },
     {
       "role": "admin",
@@ -149,9 +149,9 @@
       "check": "categories",
       "httpStatus": 200,
       "passed": true,
-      "count": 0,
-      "activeCount": 0,
-      "configurationVersions": []
+      "count": 4,
+      "activeCount": 4,
+      "configurationVersions": [1]
     },
     {
       "role": "manager",
