@@ -29,6 +29,9 @@ export const WORK_PERSISTED_ERROR_CODES = [
   "provider_authentication_failed",
   "provider_request_rejected",
   "provider_not_configured",
+  "provider_invalid_configuration",
+  "provider_safety_refusal",
+  "provider_output_truncated",
   "invalid_page_set",
   "storage_object_missing",
   "worker_failure",
@@ -71,8 +74,12 @@ export function isDeferablePurgeReason(reason: unknown): boolean {
 
 export const WORK_LEASE_SECONDS = 5 * 60;
 
-/** Kinds the current runner may claim and complete. Extract/export stay queued until providers exist. */
-export const WORK_HANDLED_KINDS = ["readability", "purge"] as const satisfies readonly WorkKind[];
+/** Kinds the current runner may claim and complete. Export stays queued until the RA-6 provider exists. */
+export const WORK_HANDLED_KINDS = [
+  "readability",
+  "extract",
+  "purge",
+] as const satisfies readonly WorkKind[];
 
 export function isHandledWorkKind(value: string): value is (typeof WORK_HANDLED_KINDS)[number] {
   return (WORK_HANDLED_KINDS as readonly string[]).includes(value);

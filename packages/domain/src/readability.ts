@@ -1,6 +1,6 @@
 /**
  * Cloud readability gate result (RA-25).
- * Provider JSON (Gemini/OpenAI/etc.) stays in adapters — RA-35/RA-36 complete parseReceipt later.
+ * Provider JSON stays in adapters; RA-5 receipt-parse is a separate extraction contract.
  */
 
 export const READABILITY_SCHEMA_VERSION = 1 as const;

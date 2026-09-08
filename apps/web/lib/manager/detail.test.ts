@@ -80,6 +80,17 @@ describe("manager detail normalization", () => {
     });
     expect(JSON.stringify(d)).not.toContain("secret");
   });
+  it("preserves sparse extraction source indices when tax rows were filtered", () => {
+    const draft = extractionDraft({
+      id: "extraction",
+      lines: [
+        { source_index: 0, description: "Pipe" },
+        { source_index: 2, description: "Connector" },
+      ],
+    });
+    expect(draft.lines.map((line) => line.sourceIndex)).toEqual([0, 2]);
+    expect(draft.lines[1].id).toBe("extraction:2");
+  });
   it("does not invent missing job context", () =>
     expect(managerJob({ id: "job", label: "Same" })).toMatchObject({
       customer: null,

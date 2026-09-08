@@ -1,0 +1,93 @@
+{
+  "synthetic": true,
+  "neverExportToHousecall": true,
+  "jobs": [
+    {
+      "id": "ra5-test-job-sullivan",
+      "label": "Sullivan — TEST-1042",
+      "customer": "Sullivan",
+      "number": "1042",
+      "poReferences": ["TEST-1042"],
+      "active": true,
+      "status": "scheduled",
+      "scheduledAt": "2026-08-20T12:00:00Z",
+      "assignedWorkerIds": ["ra5-test-worker"],
+      "serviceAddress": "1 Test Street",
+      "lat": 41.6,
+      "lng": -83.6,
+      "vendorHistory": []
+    },
+    {
+      "id": "ra5-test-job-oak",
+      "label": "Oak Demo — TEST-2048",
+      "customer": "Oak Demo",
+      "number": "2048",
+      "poReferences": ["TEST-2048"],
+      "active": true,
+      "status": "in_progress",
+      "scheduledAt": "2026-08-21T12:00:00Z",
+      "assignedWorkerIds": ["ra5-test-worker"],
+      "serviceAddress": "2 Test Street",
+      "lat": 41.61,
+      "lng": -83.61,
+      "vendorHistory": []
+    },
+    {
+      "id": "ra5-test-job-sullivan-other",
+      "label": "Sullivan — TEST-9999",
+      "customer": "Sullivan",
+      "number": "9999",
+      "poReferences": ["TEST-9999"],
+      "active": true,
+      "status": "scheduled",
+      "scheduledAt": "2026-08-20T12:00:00Z",
+      "assignedWorkerIds": ["ra5-test-worker"],
+      "serviceAddress": "3 Test Street",
+      "lat": 41.62,
+      "lng": -83.62,
+      "vendorHistory": []
+    }
+  ],
+  "categories": [
+    {
+      "id": "materials",
+      "label": "Materials (test)",
+      "active": true,
+      "version": 1,
+      "keywords": [
+        "limestone",
+        "topsoil",
+        "sand",
+        "pipe",
+        "elbow",
+        "cement",
+        "screws",
+        "concrete",
+        "cedar",
+        "tube",
+        "brush"
+      ]
+    },
+    {
+      "id": "fuel",
+      "label": "Fuel (test)",
+      "active": true,
+      "version": 1,
+      "keywords": ["diesel", "gasoline"]
+    },
+    {
+      "id": "dump",
+      "label": "Disposal (test)",
+      "active": true,
+      "version": 1,
+      "keywords": ["disposal", "debris"]
+    },
+    {
+      "id": "misc",
+      "label": "Miscellaneous (test)",
+      "active": true,
+      "version": 1,
+      "keywords": []
+    }
+  ]
+}

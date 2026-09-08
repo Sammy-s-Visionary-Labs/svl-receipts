@@ -67,3 +67,21 @@
 @media(min-width:641px) and (max-width:1250px) { .actions { left:222px; } }
 @media(min-width:641px) and (max-width:900px) { .actions { left:194px; } }
 @media(max-width:640px) { .actions { position:static; } }
+
+.intelligencePanel { margin: 14px 0; padding: 14px; border: 1px solid #d9dfd4; border-radius: 8px; background: #f7f7ef; overflow-wrap: anywhere; }
+.intelligencePanel h3 { margin: 0 0 8px; }
+.intelligencePanel ul { padding-left: 20px; margin: 8px 0 12px; }
+.intelligencePanel li { margin: 5px 0; }
+.intelligencePanel > div + div { margin-top: 16px; padding-top: 12px; border-top: 1px solid #d9dfd4; }
+.intelligencePanel button { margin: 4px 4px 0 0; }
+.configuration { margin-top: 26px; padding: 24px; background: #fffef9; border: 1px solid #d9dfd4; border-radius: 12px; color: #243d33; }
+.configuration h2,.configuration h3 { margin: 12px 0; }
+.configuration p { margin: 12px 0; line-height: 1.6; }
+.configuration ul { padding-left: 20px; }
+.configuration li { margin: 8px 0; }
+.configuration label { display: block; margin: 8px 0; }
+.configuration input:not([type=checkbox]) { display: block; width: 100%; min-width: 0; box-sizing: border-box; margin-top: 5px; padding: 10px; border: 1px solid #bbc8bd; border-radius: 6px; font: inherit; }
+.configuration button { padding: 10px 14px; min-height: 42px; border: 1px solid #bbc8bd; border-radius: 7px; font: inherit; background: #fffef9; color: #254938; cursor: pointer; }
+.configuration button:disabled { opacity: .5; cursor: default; }
+.configuration :focus-visible { outline: 3px solid #c39b45; outline-offset: 3px; }
+.configuration a { text-decoration: underline; }

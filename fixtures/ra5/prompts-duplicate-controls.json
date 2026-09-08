@@ -1,0 +1,19 @@
+{
+  "generator": "built-in image_gen",
+  "prompts": [
+    {
+      "id": "home-depot-rephotographed",
+      "reference": "/Users/kinghill/Documents/Marcy SVL flow hcp reciepts/working/svl-receipts-ra5/fixtures/ra5/images/home-depot-base.png",
+      "prompt": "Edit this synthetic receipt fixture to simulate a NEW PHOTO of THE SAME PHYSICAL RECEIPT. Preserve every printed and handwritten character and every value exactly: Home Depot (SIMULATED), TEST-HD-007,08/23/2026,PO TEST-1042,Square steel tube 2each46.00 amount92.00,Paint brush1each2.48 amount2.48,subtotal94.48,tax7.32,total101.80,Sullivan. Preserve top/bottom SYNTHETIC TEST FIXTURE — NOT VALID FOR PURCHASE. Change only camera angle (slight clockwise tilt), framing (closer but whole receipt visible), brighter side lighting, wood background and add a small diagonal paper crease not obscuring text. High resolution realistic phone photograph, text fully legible. This tests near-duplicate detection across rephotography. Do not add/delete/change any item or identifier."
+    },
+    {
+      "id": "home-depot-separate-purchase",
+      "reference": "/Users/kinghill/Documents/Marcy SVL flow hcp reciepts/working/svl-receipts-ra5/fixtures/ra5/images/home-depot-base.png",
+      "prompt": "Edit this synthetic test receipt as a DIFFERENT LEGITIMATE TEST PURCHASE with the same products and same total. Change only receipt number TEST-HD-007 to TEST-HD-009 and purchase date08/23/2026 to08/24/2026, slightly change paper folds and handwriting style for Sullivan. Keep vendor Home Depot (SIMULATED),PO TEST-1042,every product and amount exactly: Square steel tube2each46.00 amount92.00;Paint brush1each2.48 amount2.48;subtotal94.48 tax7.32 total101.80. Preserve both SYNTHETIC TEST FIXTURE — NOT VALID FOR PURCHASE labels. Complete receipt, legible realistic smartphone photo. Different identifier and date are deliberate negative duplicate test. No other changes."
+    },
+    {
+      "id": "menards-picking-list",
+      "prompt": "Generate a high-resolution portrait phone photograph of a fictional Menards-style PICKING LIST on letter paper on wood. Top and bottom clearly 'SYNTHETIC TEST FIXTURE — NOT VALID FOR PURCHASE'. Simulated layout with no authentic logo/address/card/barcode. Exact text: 'Menards (SIMULATED)'; 'PICKING LIST — CUSTOMER COPY'; 'Document TEST-PICK-011'; 'Date08/22/2026'; 'PO TEST-1042'; 'Description | Qty | Unit'; 'Cedar post 4x4 | 3 | each'; 'PRE-TAX QUOTE TOTAL 52.47'; 'THIS IS NOT A RECEIPT'; 'Take this list to the cashier. Payment has not been established.' Natural blue handwriting 'Sullivan'. No unit price, paid total, tax or payment method anywhere. One complete page readable. This intentionally tests missing-price and nonreceipt-document review behavior."
+    }
+  ]
+}

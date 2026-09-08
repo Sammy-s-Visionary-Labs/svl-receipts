@@ -42,16 +42,62 @@ export type ExtractionV1 = {
 };
 
 export function isExtractionV1(value: unknown): value is ExtractionV1 {
-  if (typeof value !== "object" || value === null) {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
     return false;
   }
 
   const candidate = value as Partial<ExtractionV1>;
   return (
     candidate.schema_version === EXTRACTION_SCHEMA_VERSION &&
+    EXTRACTION_PROVIDERS.includes(candidate.provider as ExtractionProvider) &&
+    [candidate.vendor, candidate.invoice_number, candidate.ticket_number, candidate.raw_text].every(
+      (field) => field === undefined || typeof field === "string",
+    ) &&
+    (candidate.purchase_date === undefined || validExtractionDate(candidate.purchase_date)) &&
+    [candidate.receipt_total_cents, candidate.tax_cents].every(
+      (field) => field === undefined || validExtractionCents(field),
+    ) &&
     Array.isArray(candidate.lines) &&
+    candidate.lines.length <= 100 &&
+    candidate.lines.every(
+      (line) =>
+        !!line &&
+        typeof line === "object" &&
+        typeof line.description === "string" &&
+        typeof line.qty === "number" &&
+        Number.isFinite(line.qty) &&
+        line.qty > 0 &&
+        /^\d{1,9}(?:\.\d{1,3})?$/.test(String(line.qty)) &&
+        validExtractionCents(line.unit_cost_cents) &&
+        (line.uom === undefined || typeof line.uom === "string") &&
+        (line.job_hint === undefined || typeof line.job_hint === "string"),
+    ) &&
     typeof candidate.confidence === "object" &&
-    candidate.confidence !== null
+    candidate.confidence !== null &&
+    !Array.isArray(candidate.confidence) &&
+    Object.values(candidate.confidence).every(
+      (confidence) =>
+        typeof confidence === "number" &&
+        Number.isFinite(confidence) &&
+        confidence >= 0 &&
+        confidence <= 1,
+    )
+  );
+}
+
+function validExtractionCents(value: unknown): boolean {
+  return (
+    typeof value === "number" && Number.isSafeInteger(value) && value >= 0 && value <= 2147483647
+  );
+}
+
+function validExtractionDate(value: unknown): boolean {
+  return (
+    typeof value === "string" &&
+    /^\d{4}-\d{2}-\d{2}$/.test(value) &&
+    !value.startsWith("0000") &&
+    Number.isFinite(Date.parse(value)) &&
+    new Date(value).toISOString().slice(0, 10) === value
   );
 }
 

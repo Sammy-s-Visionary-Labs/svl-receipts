@@ -14,6 +14,7 @@ import {
   GEMINI_READABILITY_MODEL,
   GeminiReadabilityError,
   type GeminiReadabilityPage,
+  GeminiReceiptError,
   sendReceiptNeedsRetakePush,
 } from "@svl/integrations";
 import {
@@ -22,11 +23,13 @@ import {
   removeReceiptObjectSet,
 } from "@/lib/storage/receipts";
 import { createServiceRoleClient } from "@/lib/supabase/service";
+import { runExtraction } from "./extraction";
 
 export type WorkRow = {
   id: string;
   receipt_id: string;
   kind: string;
+  generation?: number;
 };
 
 function newWorkerId(): string {
@@ -115,6 +118,8 @@ async function processWorkRow(
 
     if (row.kind === "purge") {
       await runPurge(supabase, row, workerId);
+    } else if (row.kind === "extract") {
+      await runExtraction(supabase, row, workerId);
     } else if (row.kind === "readability") {
       await runReadability(supabase, row, workerId);
     }
@@ -138,12 +143,17 @@ async function processWorkRow(
         return "failed";
       }
     }
-    console.error("[work-runner] job failed", row.id, cause);
+    console.error("[work-runner] job failed", {
+      workId: row.id,
+      reason: persistableWorkReason(cause),
+    });
     const { error: failError } = await supabase.rpc("fail_work", {
       p_work_id: row.id,
       p_worker_id: workerId,
       p_reason: persistableWorkReason(cause),
-      p_retryable: !(cause instanceof GeminiReadabilityError) || cause.kind === "retryable",
+      p_retryable:
+        !(cause instanceof GeminiReadabilityError || cause instanceof GeminiReceiptError) ||
+        cause.kind === "retryable",
     });
     if (failError) {
       console.error("[work-runner] fail_work", failError);

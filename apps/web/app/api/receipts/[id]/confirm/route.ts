@@ -6,7 +6,8 @@ import { kickWork } from "@/lib/work/runner";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
-export const maxDuration = 60;
+// Includes after() work: provider timeout plus image preparation and persistence.
+export const maxDuration = 180;
 
 export async function POST(request: Request, context: RouteContext) {
   try {

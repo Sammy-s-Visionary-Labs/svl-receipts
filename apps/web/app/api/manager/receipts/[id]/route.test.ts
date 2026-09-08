@@ -39,7 +39,7 @@ beforeEach(() => {
       // biome-ignore lint/suspicious/noThenProperty: Supabase query builders are intentionally awaitable.
       then: (resolve: (value: unknown) => void) => resolve(result()),
     };
-    for (const method of ["select", "eq", "not", "order", "limit"])
+    for (const method of ["select", "eq", "not", "order", "limit", "in"])
       chain[method] = vi.fn(() => chain);
     for (const method of ["maybeSingle", "single"]) chain[method] = vi.fn(async () => result());
     return chain;
@@ -105,6 +105,68 @@ describe("manager receipt detail API", () => {
       { id: "e", lines: Array.from({ length: 101 }, () => ({ description: "line" })) },
     ];
     expect((await run()).status).toBe(422);
+  });
+  it("preserves incomplete RA5 lines instead of replacing them with the valid material projection", async () => {
+    rows.extractions = [
+      {
+        id: "e",
+        work_item_id: "work",
+        vendor: "Supply",
+        lines: [
+          { description: "Needs a cost", qty: 2, unit_cost_cents: null },
+          { description: "Complete", qty: 1, unit_cost_cents: 100 },
+        ],
+        confidence: {},
+      },
+    ];
+    rows.receipt_lines = [
+      { id: "projected", description: "Complete", qty: 1, unit_cost_cents: 100 },
+    ];
+    const body = await (await run()).json();
+    expect(body.draft.lines).toHaveLength(2);
+    expect(body.draft.lines[0]).toMatchObject({ description: "Needs a cost", unitCost: "" });
+  });
+  it("keeps old line evidence across a reordered reextraction without applying new line suggestions to old lines", async () => {
+    const oldId = "44900000-0000-4000-8000-000000000001";
+    const newId = "44900000-0000-4000-8000-000000000002";
+    rows.extractions = [
+      {
+        id: newId,
+        work_item_id: "work",
+        lines: [{ source_index: 0, description: "New first line" }],
+      },
+      { id: oldId, lines: [{ source_index: 0, description: "Old first line" }] },
+    ];
+    rows.reviews = [
+      {
+        extraction_id: oldId,
+        snapshot: {
+          vendor: "Saved",
+          lines: [
+            {
+              id: `${oldId}:0`,
+              sourceIndex: 0,
+              suggestionId: "old-suggestion",
+              description: "My saved material",
+            },
+          ],
+        },
+      },
+    ];
+    const body = await (await run()).json();
+    expect(body.reprocessed).toBe(true);
+    expect(body.draft.lines[0]).toEqual({ id: `${oldId}:0`, description: "My saved material" });
+    expect(body.lineEvidence[`${oldId}:0`].description).toBe("Old first line");
+  });
+  it("does not surface stale unversioned or prior-generation suggestions on a new extraction", async () => {
+    rows.extractions = [{ id: "current", work_item_id: "work", lines: [] }];
+    rows.job_candidates = [
+      { id: "legacy", housecall_job_id: "old" },
+      { id: "stale", extraction_id: "previous", housecall_job_id: "prior" },
+      { id: "new", extraction_id: "current", housecall_job_id: "current-job", score: 1002 },
+    ];
+    const body = await (await run()).json();
+    expect(body.suggestions.map((job: { id: string }) => job.id)).toEqual(["current-job"]);
   });
   it("requires authorization before reading receipt contents", async () => {
     vi.mocked(requireManager).mockRejectedValue(new AuthHttpError(403, "forbidden", "Denied"));

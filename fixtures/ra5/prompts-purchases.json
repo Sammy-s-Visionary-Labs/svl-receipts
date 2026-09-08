@@ -1,0 +1,17 @@
+{
+  "generator": "built-in image_gen",
+  "prompts": [
+    {
+      "id": "menards-purchase",
+      "prompt": "Create one high resolution portrait phone photograph of a fictional Menards-style itemized sale receipt printed in black on long thermal paper on a wooden desk. Must clearly say at top and bottom 'SYNTHETIC TEST FIXTURE — NOT VALID FOR PURCHASE'. This is a deliberately invented receipt-format test fixture, NOT the existing picking list and not authentic Menards evidence. No authentic logos, contact info, card numbers or barcodes. Exact text: 'Menards (SIMULATED)'; 'SALE'; 'Receipt TEST-MEN-006'; 'Purchase date 08/22/2026'; 'PO TEST-1042'; 'Description | Qty | Unit | Unit price | Amount'; 'Cedar post 4x4 | 3 | each | 17.49 | 52.47'; 'Subtotal 52.47'; 'Tax 4.07'; 'Total 56.54'. Blue handwritten 'Sullivan' in upper margin. Fully legible one complete receipt no extra items."
+    },
+    {
+      "id": "home-depot-base",
+      "prompt": "Create one high resolution portrait smartphone photo of a fictional Home Depot-style thermal sale receipt on dark wood table, with mild folds and realistic red handwritten 'Sullivan'. Header and footer exactly 'SYNTHETIC TEST FIXTURE — NOT VALID FOR PURCHASE'. No authentic logo, real contact details, payment card information or barcodes. Exact print: 'Home Depot (SIMULATED)'; 'Receipt TEST-HD-007'; 'Purchase date 08/23/2026'; 'PO TEST-1042'; 'Description | Qty | Unit | Unit price | Amount'; 'Square steel tube | 2 | each | 46.00 | 92.00'; 'Paint brush | 1 | each | 2.48 | 2.48'; 'Subtotal 94.48'; 'Tax 7.32'; 'Total 101.80'. One entire receipt in photo. Exact text and values matter."
+    },
+    {
+      "id": "fuel-category",
+      "prompt": "Create one high-resolution portrait phone photograph of a fictional generic gas station receipt on gray dashboard. Clear top and bottom 'SYNTHETIC TEST FIXTURE — NOT VALID FOR PURCHASE'. Exact black thermal print: 'Test Fuel Stop'; 'Receipt TEST-FUEL-010'; 'Purchase date 08/24/2026'; 'PO TEST-2048'; 'Description | Qty | Unit | Unit price | Amount'; 'Diesel fuel | 10.125 | gallon | 3.80 | 38.48'; 'Subtotal 38.48'; 'Tax 0.00'; 'Total 38.48'. Natural handwritten blue 'Oak Demo'. Quantity10.125 times3.80 equals38.475 and final line amount38.48 uses half-up cent rounding. Fully legible no actual address, card data, logos, barcode, extra numbers. One complete receipt."
+    }
+  ]
+}

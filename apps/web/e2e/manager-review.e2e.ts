@@ -387,3 +387,183 @@ test("real manager API guards deny worker and disabled-user requests", async ({ 
     expect((await request.get("/api/manager/jobs", { headers })).status()).toBe(expected);
   }
 });
+
+test("RA5 explains extraction and line matches, keeps duplicate decisions explicit, and uses category IDs", async ({
+  page,
+}, testInfo) => {
+  const state = await setup(page);
+  state.detail.extractionId = "44900000-0000-4000-8000-000000000001";
+  await page.route(`**/api/manager/receipts/${id}/evidence?*`, (route) =>
+    route.fulfill({
+      json: {
+        evidence: [{ field: "vendor", text: "COPPERFIELD SUPPLY", page_index: 0, confidence: 0.9 }],
+      },
+    }),
+  );
+  state.detail.categories = [
+    { id: "materials", label: "Materials", active: true, keywords: ["pipe"], version: 1 },
+    { id: "old", label: "Old category", active: false, keywords: [], version: 1 },
+  ];
+  state.detail.draft.category = "materials";
+  state.detail.original.category = "materials";
+  state.detail.warnings = [
+    {
+      code: "total_mismatch",
+      field: "receipt_total",
+      message: "Printed total differs from calculated material costs plus tax.",
+    },
+  ];
+  state.detail.categorySuggestion = {
+    categoryId: "materials",
+    confidence: 0.7,
+    reasons: [{ code: "keywords", message: "Pipe matches the approved Materials category." }],
+    scoringVersion: "ra5-rules-v1",
+  };
+  state.detail.suggestions = [
+    {
+      ...jobs[0],
+      suggestionId: "44500000-0000-4000-8000-000000000001",
+      score: 1002,
+      reasons: [
+        {
+          code: "exact_reference",
+          message: "Printed job reference matches.",
+          evidence: ["PO TEST-1042"],
+        },
+      ],
+    },
+    {
+      ...jobs[0],
+      suggestionId: "44500000-0000-4000-8000-000000000002",
+      sourceIndex: 1,
+      score: 2002,
+      reasons: [
+        {
+          code: "exact_reference",
+          message: "Reference on this material line matches this catalog job.",
+          evidence: ["Line 2: TEST-1042"],
+        },
+      ],
+    },
+  ];
+  state.detail.duplicates = [
+    {
+      id: "44600000-0000-4000-8000-000000000001",
+      receiptId: "44100000-0000-4000-8000-000000000002",
+      score: 100,
+      status: "pending",
+      reasons: [{ code: "exact_image_hash", message: "All receipt image checksums match." }],
+    },
+    {
+      id: "44600000-0000-4000-8000-000000000002",
+      receiptId: "44100000-0000-4000-8000-000000000003",
+      score: 75,
+      status: "pending",
+      reasons: [{ code: "ticket", message: "Vendor and ticket number match." }],
+    },
+  ];
+  let dismissed: unknown = null;
+  await page.route(`**/api/manager/receipts/${id}/duplicates`, async (route) => {
+    dismissed = route.request().postDataJSON();
+    await route.fulfill({ json: { status: "dismissed" } });
+  });
+  await page.reload();
+  await expect(page.getByRole("combobox", { name: "Category *" })).toHaveValue("materials");
+  await page.getByText("Source evidence for this extraction", { exact: true }).click();
+  await page.getByRole("button", { name: "Load source evidence", exact: true }).click();
+  await expect(page.locator("blockquote", { hasText: "COPPERFIELD SUPPLY" })).toBeVisible();
+  await expect(
+    page.getByText("Printed total differs from calculated material costs plus tax."),
+  ).toBeVisible();
+  await page.getByText("Printed job reference matches.", { exact: true }).click();
+  await expect(page.getByText("PO TEST-1042", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Use for this line", exact: true }).click();
+  await expect(page.getByLabel("Housecall job", { exact: true }).nth(1)).toHaveValue("job-a");
+  await page.getByRole("button", { name: "Save for later", exact: true }).click();
+  await expect(page.getByText("Draft saved.", { exact: true })).toBeVisible();
+  expect(state.requests[0]).toMatchObject({
+    decision: "save_draft",
+    draft: {
+      category: "materials",
+      lines: [{}, { jobId: "job-a", suggestionId: "44500000-0000-4000-8000-000000000002" }],
+    },
+  });
+  await page.getByRole("button", { name: "Dismiss candidate", exact: true }).first().click();
+  await expect(
+    page.getByText("Candidate dismissed; approval is not blocked by this candidate."),
+  ).toBeVisible();
+  expect(dismissed).toEqual({
+    decision: "dismiss",
+    candidateId: "44600000-0000-4000-8000-000000000001",
+  });
+  await page.getByRole("button", { name: "Review as duplicate", exact: true }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByLabel("Canonical receipt ID *")).toHaveValue(
+    "44100000-0000-4000-8000-000000000003",
+  );
+  expect(state.requests).toHaveLength(1);
+  await dialog.getByLabel("Reason *", { exact: true }).fill("Verified the same original ticket.");
+  await dialog.getByRole("button", { name: "Confirm decision", exact: true }).click();
+  expect(state.requests[1]).toMatchObject({
+    decision: "mark_duplicate",
+    canonicalReceiptId: "44100000-0000-4000-8000-000000000003",
+  });
+  expect(state.requests.some((r) => r.decision === "approve")).toBe(false);
+  await page.screenshot({
+    path: testInfo.outputPath("ra5-intelligence-review.png"),
+    fullPage: true,
+  });
+});
+
+test("RA5 administrator configures stable category IDs and preserves deactivated history", async ({
+  page,
+}, testInfo) => {
+  await page.context().addCookies([fixtureCookie("admin")]);
+  const categories: Array<{
+    id: string;
+    label: string;
+    active: boolean;
+    keywords: string[];
+    version: number;
+  }> = [];
+  const requests: Array<Record<string, unknown>> = [];
+  await page.route("**/api/manager/categories", (route) => route.fulfill({ json: { categories } }));
+  await page.route("**/api/admin/categories", async (route) => {
+    const body = route.request().postDataJSON();
+    requests.push(body);
+    const existing = categories.findIndex((category) => category.id === body.id);
+    const updated = { ...body, version: existing < 0 ? 1 : categories[existing].version + 1 };
+    if (existing < 0) categories.push(updated);
+    else categories[existing] = updated;
+    await route.fulfill({ json: updated });
+  });
+  await page.goto("/settings");
+  await expect(page.getByText("No categories configured.")).toBeVisible();
+  await page.getByLabel("Stable category ID", { exact: true }).fill("materials");
+  await page.getByLabel("Display name", { exact: true }).fill("Materials");
+  await page
+    .getByLabel("Suggestion keywords (comma separated)", { exact: true })
+    .fill("pipe, gravel");
+  await page.getByRole("button", { name: "Save category", exact: true }).click();
+  await expect(page.getByText("Category configuration saved.")).toBeVisible();
+  expect(requests[0]).toEqual({
+    id: "materials",
+    label: "Materials",
+    active: true,
+    keywords: ["pipe", "gravel"],
+  });
+  await page.getByRole("button", { name: "Materials", exact: true }).click();
+  await page.getByLabel("Active for new approvals", { exact: true }).uncheck();
+  await page.getByRole("button", { name: "Save category", exact: true }).click();
+  await expect(
+    page.getByText("· Inactive · materials · version 2", { exact: false }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "Download sanitized evaluation JSON" }),
+  ).toHaveAttribute("href", "/api/admin/intelligence/evaluation");
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1),
+  ).toBe(true);
+  await page.screenshot({ path: testInfo.outputPath("ra5-category-settings.png"), fullPage: true });
+});

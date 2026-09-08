@@ -12,19 +12,30 @@ export function extractionDraft(row: Row | null): ReviewDraft {
     purchaseDate: textValue(row.purchase_date),
     invoiceNumber: textValue(row.invoice_number),
     ticketNumber: textValue(row.ticket_number),
-    category: "",
+    category: textValue(
+      (row.normalized as Row | undefined)?.category_suggestion &&
+        ((row.normalized as Row).category_suggestion as Row).categoryId,
+    ),
     referenceTotal: amount(row.receipt_total_cents),
     managerNotes: "",
     lines: (Array.isArray(row.lines) ? row.lines.slice(0, 100) : []).map(
-      (line: Row, sourceIndex: number) => ({
-        id: `${row.id}:${sourceIndex}`,
-        sourceIndex,
-        description: textValue(line.description),
-        qty: typeof line.qty === "number" ? String(line.qty) : "",
-        uom: textValue(line.uom),
-        unitCost: amount(line.unit_cost_cents),
-        jobId: "",
-      }),
+      (line: Row, index: number) => {
+        const sourceIndex =
+          Number.isInteger(line.source_index) &&
+          Number(line.source_index) >= 0 &&
+          Number(line.source_index) < 100
+            ? Number(line.source_index)
+            : index;
+        return {
+          id: `${row.id}:${sourceIndex}`,
+          sourceIndex,
+          description: textValue(line.description),
+          qty: typeof line.qty === "number" ? String(line.qty) : "",
+          uom: textValue(line.uom),
+          unitCost: amount(line.unit_cost_cents),
+          jobId: "",
+        };
+      },
     ),
   };
 }
@@ -41,6 +52,10 @@ export function managerJob(row: Row): ManagerJob {
       : [],
     active: row.active !== false,
     source: textValue(row.source) || null,
+    ...(typeof row.score === "number" ? { score: row.score } : {}),
+    ...(Array.isArray(row.reasons) ? { reasons: row.reasons } : {}),
+    ...(typeof row.source_index === "number" ? { sourceIndex: row.source_index } : {}),
+    ...(typeof row.scoring_version === "string" ? { scoringVersion: row.scoring_version } : {}),
     ...(row.housecall_job_id ? { suggestionId: textValue(row.id) } : {}),
   };
 }

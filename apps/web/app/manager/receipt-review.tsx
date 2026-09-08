@@ -14,6 +14,7 @@ import type {
   ReceiptDetail,
   ReviewEvent,
 } from "@/lib/manager/review-contract";
+import { ExtractionEvidence } from "./extraction-evidence";
 import { money } from "./queue-view";
 import styles from "./receipt-review.module.css";
 import { ManagerShell } from "./shell";
@@ -51,6 +52,16 @@ const emptyLine = (): ReviewLine => ({
   jobId: "",
 });
 const nice = (text: string) => text.replaceAll("_", " ");
+function sourceLineText(detail: ReceiptDetail, line: ReviewLine) {
+  const original =
+    (line.id ? detail.lineEvidence?.[line.id] : undefined) ??
+    (line.sourceIndex === undefined
+      ? undefined
+      : detail.original.lines.find((item) => item.sourceIndex === line.sourceIndex));
+  return original
+    ? `${original.description} · ${original.qty} × ${original.unitCost}`
+    : "No line mapping to this extraction";
+}
 export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manager" | "admin" }) {
   const [detail, setDetail] = useState<ReceiptDetail | null>(null);
   const [draft, setDraft] = useState<ReviewDraft | null>(null);
@@ -62,6 +73,7 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
   const [action, setAction] = useState<string | null>(null);
   const [reason, setReason] = useState("");
   const [canonical, setCanonical] = useState("");
+  const proposedCanonical = useRef("");
   const [tax, setTax] = useState(false);
   const [correction, setCorrection] = useState(false);
   const [jobs, setJobs] = useState<ManagerJob[]>([]);
@@ -139,7 +151,8 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
     if (action) {
       dialog.current?.showModal();
       setReason("");
-      setCanonical("");
+      setCanonical(proposedCanonical.current);
+      proposedCanonical.current = "";
       setTax(false);
     } else dialog.current?.close();
   }, [action]);
@@ -175,6 +188,49 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
       controller.abort();
     };
   }, [jobSearch, olderJobs]);
+  async function intelligenceAction(path: string, payload?: Record<string, unknown>) {
+    if (actionLock.current) return;
+    actionLock.current = true;
+    setBusy(true);
+    setError("");
+    try {
+      const response = await fetch(`/api/manager/receipts/${id}/${path}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        ...(payload ? { body: JSON.stringify(payload) } : {}),
+      });
+      if (!response.ok)
+        throw new Error(
+          path === "reextract"
+            ? "Could not queue extraction. The receipt may already be processing or approved."
+            : "Could not dismiss this candidate.",
+        );
+      if (path === "duplicates")
+        setDetail((current) =>
+          current
+            ? {
+                ...current,
+                duplicates: current.duplicates?.map((candidate) =>
+                  candidate.id === payload?.candidateId
+                    ? { ...candidate, status: "dismissed" }
+                    : candidate,
+                ),
+              }
+            : current,
+        );
+      else await load();
+      setMessage(
+        path === "reextract"
+          ? "A new extraction was queued. Saved manager edits remain in review history."
+          : "Candidate dismissed; approval is not blocked by this candidate.",
+      );
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Could not apply action.");
+    } finally {
+      actionLock.current = false;
+      setBusy(false);
+    }
+  }
   function updateLine(index: number, patch: Partial<ReviewLine>) {
     setDraft((d) =>
       d
@@ -394,6 +450,91 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
                 }}
               >
                 <h2>Receipt details</h2>
+                {detail.reprocessed && (
+                  <p className={styles.notice}>
+                    A newer extraction is available. Your saved edits and original line evidence are
+                    retained; job suggestions from prior extraction versions have been cleared.
+                  </p>
+                )}
+                {detail.extractionId && (
+                  <ExtractionEvidence
+                    key={detail.extractionId}
+                    receiptId={id}
+                    extractionId={detail.extractionId}
+                  />
+                )}
+                {!!detail.warnings?.length && (
+                  <section className={styles.intelligencePanel} aria-label="Extraction warnings">
+                    <strong>Check before approval</strong>
+                    <ul>
+                      {detail.warnings.map((warning) => (
+                        <li key={`${warning.field}-${warning.code}-${warning.message}`}>
+                          {warning.message} <small>({warning.field})</small>
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+                )}
+                {!!detail.duplicates?.length && (
+                  <section className={styles.intelligencePanel} aria-label="Duplicate candidates">
+                    <h3>Possible duplicates</h3>
+                    <p>
+                      Confirm only after checking the original. Dismissing a candidate does not
+                      block approval.
+                    </p>
+                    {detail.duplicates.map((candidate) => (
+                      <div key={candidate.id}>
+                        <Link href={`/receipts/${candidate.receiptId}`}>{candidate.receiptId}</Link>{" "}
+                        · Evidence score {candidate.score} · {candidate.status}
+                        <ul>
+                          {candidate.reasons.map((reason) => (
+                            <li key={reason.code}>{reason.message}</li>
+                          ))}
+                        </ul>
+                        {candidate.status === "pending" && detail.editable && (
+                          <>
+                            <button
+                              type="button"
+                              disabled={busy}
+                              onClick={() => {
+                                proposedCanonical.current = candidate.receiptId;
+                                prepare("mark_duplicate");
+                              }}
+                            >
+                              Review as duplicate
+                            </button>{" "}
+                            <button
+                              type="button"
+                              disabled={busy}
+                              onClick={() =>
+                                void intelligenceAction("duplicates", {
+                                  decision: "dismiss",
+                                  candidateId: candidate.id,
+                                })
+                              }
+                            >
+                              Dismiss candidate
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    ))}
+                  </section>
+                )}
+                {(detail.status === "needs_review" || detail.status === "failed") && (
+                  <p>
+                    <button
+                      type="button"
+                      disabled={busy || dirty}
+                      onClick={() => void intelligenceAction("reextract")}
+                    >
+                      Run extraction again
+                    </button>{" "}
+                    {dirty
+                      ? "Save your edits before reprocessing."
+                      : "Creates a new extraction version; saved manager edits stay authoritative."}
+                  </p>
+                )}
                 <div className={styles.fields}>
                   {(Object.keys(labels) as Array<keyof typeof labels>).map((key) => (
                     <div key={key} className={key === "managerNotes" ? styles.full : undefined}>
@@ -401,17 +542,59 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
                         {labels[key]}
                         {["vendor", "purchaseDate", "category"].includes(key) && " *"}
                       </label>
-                      <input
-                        id={key}
-                        type={key === "purchaseDate" ? "date" : "text"}
-                        inputMode={key === "referenceTotal" ? "decimal" : undefined}
-                        value={draft[key]}
-                        disabled={!editable || busy}
-                        maxLength={key === "managerNotes" ? 2000 : 200}
-                        aria-invalid={!!errors[key]}
-                        aria-describedby={errors[key] ? `${key}-error` : undefined}
-                        onChange={(e) => setDraft({ ...draft, [key]: e.target.value })}
-                      />
+                      {key === "category" && detail.categories ? (
+                        <select
+                          id={key}
+                          value={draft.category}
+                          disabled={!editable || busy}
+                          aria-invalid={!!errors[key]}
+                          onChange={(event) => setDraft({ ...draft, category: event.target.value })}
+                        >
+                          <option value="">Select an approved category</option>
+                          {draft.category &&
+                            !detail.categories.some(
+                              (category) => category.id === draft.category,
+                            ) && (
+                              <option value={draft.category}>{draft.category} (historical)</option>
+                            )}
+                          {detail.categories
+                            .filter((category) => category.active || category.id === draft.category)
+                            .map((category) => (
+                              <option
+                                key={category.id}
+                                value={category.id}
+                                disabled={!category.active}
+                              >
+                                {category.label}
+                                {category.active ? "" : " (inactive)"}
+                              </option>
+                            ))}
+                        </select>
+                      ) : (
+                        <input
+                          id={key}
+                          type={key === "purchaseDate" ? "date" : "text"}
+                          inputMode={key === "referenceTotal" ? "decimal" : undefined}
+                          value={draft[key]}
+                          disabled={!editable || busy}
+                          maxLength={key === "managerNotes" ? 2000 : 200}
+                          aria-invalid={!!errors[key]}
+                          aria-describedby={errors[key] ? `${key}-error` : undefined}
+                          onChange={(e) => setDraft({ ...draft, [key]: e.target.value })}
+                        />
+                      )}
+                      {key === "category" &&
+                        detail.categories &&
+                        !detail.categories.some((category) => category.active) && (
+                          <small>
+                            No approved active categories are configured. Ask an administrator to
+                            configure them.
+                          </small>
+                        )}
+                      {key === "category" &&
+                        detail.categorySuggestion?.reasons.map((reason) => (
+                          <small key={reason.code}>{reason.message}</small>
+                        ))}
                       {errors[key] && (
                         <small id={`${key}-error`} className={styles.fieldError}>
                           {errors[key]}
@@ -468,20 +651,32 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
                     {detail.suggestions.length > 0 && (
                       <div>
                         <strong>Suggested jobs</strong>
-                        {detail.suggestions.slice(0, 5).map((job) => (
-                          <div key={job.suggestionId}>
-                            <span>
-                              {job.label} · {job.id} · {job.source || "Stored suggestion"}
-                            </span>{" "}
-                            <button
-                              type="button"
-                              disabled={busy || !draft.lines.length}
-                              onClick={() => applyJob(job)}
-                            >
-                              Apply to all
-                            </button>
-                          </div>
-                        ))}
+                        {detail.suggestions
+                          .filter((job) => job.sourceIndex === undefined)
+                          .slice(0, 5)
+                          .map((job) => (
+                            <div key={job.suggestionId}>
+                              <span>
+                                {job.label} · {job.id} · {job.source || "Stored suggestion"}
+                                {job.score !== undefined && ` · Evidence score ${job.score}`}
+                              </span>{" "}
+                              {job.reasons?.map((reason) => (
+                                <details key={reason.code}>
+                                  <summary>{reason.message}</summary>
+                                  {reason.evidence?.map((evidence) => (
+                                    <p key={`${reason.code}-${evidence}`}>{evidence}</p>
+                                  ))}
+                                </details>
+                              ))}
+                              <button
+                                type="button"
+                                disabled={busy || !draft.lines.length}
+                                onClick={() => applyJob(job)}
+                              >
+                                Apply to all
+                              </button>
+                            </div>
+                          ))}
                       </div>
                     )}
                     {!jobs.length && !detail.suggestions.length && !jobError && (
@@ -500,6 +695,35 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
                       disabled={!editable || busy}
                     >
                       <legend>Material {index + 1}</legend>
+                      {detail.suggestions
+                        .filter(
+                          (job) =>
+                            job.sourceIndex !== undefined && job.sourceIndex === line.sourceIndex,
+                        )
+                        .map((job) => (
+                          <div key={job.suggestionId}>
+                            <strong>Suggested for this line: {job.label}</strong>
+                            <ul>
+                              {job.reasons?.map((reason) => (
+                                <li key={reason.code}>
+                                  {reason.message}
+                                  {reason.evidence?.length
+                                    ? ` Evidence: ${reason.evidence.join("; ")}`
+                                    : ""}
+                                </li>
+                              ))}
+                            </ul>
+                            <button
+                              type="button"
+                              disabled={!editable || busy}
+                              onClick={() =>
+                                updateLine(index, { jobId: job.id, suggestionId: job.suggestionId })
+                              }
+                            >
+                              Use for this line
+                            </button>
+                          </div>
+                        ))}
                       <div className={styles.lineFields}>
                         {(Object.keys(lineLabels) as Array<keyof typeof lineLabels>).map((key) => (
                           <div key={key}>
@@ -610,11 +834,7 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
                       </div>
                       <details>
                         <summary>Original line evidence</summary>
-                        <p>
-                          {detail.original.lines[line.sourceIndex ?? -1]
-                            ? `${detail.original.lines[line.sourceIndex ?? -1].description} · ${detail.original.lines[line.sourceIndex ?? -1].qty} × ${detail.original.lines[line.sourceIndex ?? -1].unitCost}`
-                            : "Manually added line"}
-                        </p>
+                        <p>{sourceLineText(detail, line)}</p>
                       </details>
                     </fieldset>
                   ))}

@@ -5,6 +5,7 @@ import { getActorFromCookies } from "@/lib/auth/guards";
 import { Icon } from "../manager/icons";
 import styles from "../manager/manager.module.css";
 import { ManagerShell } from "../manager/shell";
+import { CategorySettings } from "./categories";
 
 export const dynamic = "force-dynamic";
 
@@ -39,13 +40,13 @@ export default async function SettingsPage() {
             </div>
           </dl>
           <p className={styles.settingsNote}>
-            User and integration settings are managed by your workspace administrator. They cannot
-            be changed from this page.
+            User and integration settings are managed by your workspace administrator.
           </p>
           <Link href="/" className={styles.primaryButton}>
             Return to inbox <Icon name="arrow" size={16} />
           </Link>
         </section>
+        <CategorySettings />
       </main>
     </ManagerShell>
   );

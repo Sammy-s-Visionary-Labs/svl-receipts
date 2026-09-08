@@ -519,8 +519,16 @@ test("real server auth admits managers and admins and protects settings", async 
   await context.clearCookies();
   await context.addCookies([fixtureCookie("admin")]);
   await page.goto("/");
+  const categoriesResponse = page.waitForResponse(
+    (response) => new URL(response.url()).pathname === "/api/manager/categories",
+  );
   await page.getByRole("link", { name: "Settings", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Workspace settings" })).toBeVisible();
+  const loadedCategories = await categoriesResponse;
+  expect(loadedCategories.status()).toBe(200);
+  expect(await loadedCategories.json()).toEqual({ categories: [] });
+  await expect(page.getByText("No categories configured.")).toBeVisible();
+  await expect(page.getByText("Could not load category configuration.")).toHaveCount(0);
   expect((await page.request.get("/api/manager/queue")).status()).toBe(200);
 });
 

@@ -29,6 +29,13 @@ const server = createServer((request, response) => {
     if (selectedId && selectedId !== `eq.${profile.id}`) return send(200, null);
     return send(200, profile);
   }
+  if (url.pathname === "/rest/v1/receipt_categories" && request.method === "GET") {
+    if (profile.disabled || !["manager", "admin"].includes(profile.role)) {
+      return send(403, { code: "42501", message: "Fixture manager role required" });
+    }
+    // Production starts with no approved categories; use the real read route in Settings tests.
+    return send(200, []);
+  }
   if (url.pathname === "/rest/v1/rpc/manager_review_queue") {
     if (profile.disabled || !["manager", "admin"].includes(profile.role)) {
       return send(403, { code: "42501", message: "Fixture manager role required" });

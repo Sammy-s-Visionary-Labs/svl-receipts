@@ -12,6 +12,8 @@ insert into public.receipts(id,owner_user_id,status,submitted_at)
 select ('44100000-0000-4000-8000-'||lpad(n::text,12,'0'))::uuid,'44000000-0000-4000-8000-000000000001','needs_review',now() from generate_series(1,6)n;
 insert into public.manager_job_catalog(id,label,customer,job_number) values ('ra4-job-a','Same display name','Riverside customer','1042'),('ra4-job-b','Same display name','Orchard customer','1043');
 insert into public.extractions(id,receipt_id,provider,vendor) values ('44200000-0000-4000-8000-000000000001','44100000-0000-4000-8000-000000000001','gemini','Original vendor');
+-- RA-5 requires a configured category ID; this is rollback-only test configuration.
+insert into public.receipt_categories(id,label,active) values('Materials','Materials',true);
 set local role service_role;
 do $$
 declare

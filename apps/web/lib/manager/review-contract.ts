@@ -1,4 +1,11 @@
-import type { ReviewDraft } from "@svl/domain";
+import type {
+  CategorySuggestion,
+  IntelligenceReason,
+  ReceiptCategory,
+  ReceiptWarning,
+  ReviewDraft,
+  ReviewLine,
+} from "@svl/domain";
 export type ManagerJob = {
   id: string;
   label: string;
@@ -10,6 +17,10 @@ export type ManagerJob = {
   source: string | null;
   suggestionId?: string;
   active: boolean;
+  score?: number;
+  reasons?: IntelligenceReason[];
+  sourceIndex?: number;
+  scoringVersion?: string;
 };
 export type ReviewEvent = {
   id: string;
@@ -41,6 +52,8 @@ export type ReceiptDetail = {
   extractionId: string | null;
   draft: ReviewDraft;
   original: ReviewDraft;
+  lineEvidence?: Record<string, ReviewLine>;
+  reprocessed?: boolean;
   confidence: Record<string, number>;
   gps: { lat: number; lng: number } | null;
   pageCount: number;
@@ -52,4 +65,14 @@ export type ReceiptDetail = {
   correctionPending: boolean;
   clarification: string | null;
   canonicalReceiptId: string | null;
+  categories?: ReceiptCategory[];
+  categorySuggestion?: CategorySuggestion | null;
+  warnings?: ReceiptWarning[];
+  duplicates?: Array<{
+    id: string;
+    receiptId: string;
+    score: number;
+    reasons: IntelligenceReason[];
+    status: string;
+  }>;
 };
