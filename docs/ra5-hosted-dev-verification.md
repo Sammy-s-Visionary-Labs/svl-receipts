@@ -10,7 +10,7 @@ Use the development configuration at `/Users/kinghill/Documents/svl-receipts/app
 
 ## Route execution budget
 
-The cron worker, upload-confirmation readability kick, and manager re-extraction route each export a literal `maxDuration = 180`. Next.js `after()` shares that route deadline; it does not receive a second budget. Extraction has a 90-second provider deadline, leaving time for image orientation, storage reads, scoring, and persistence inside the five-minute work lease. The manager approval route currently calls an unhandled export kind and performs no provider work; its eventual export budget belongs to RA-6.
+The cron worker, upload-confirmation readability kick, and manager re-extraction route each export a literal `maxDuration = 180`. Next.js `after()` shares that route deadline; it does not receive a second budget. Readability has at most 45 seconds and extraction at most 90 seconds within a shared 160-second provider-start budget with a 15-second reserved margin. That budget does not impose a hard deadline on Storage, Sharp, catalog reads, or persistence; the platform still bounds the invocation and expired leases reject late results. Upload confirmation and re-extraction use service-only receipt-scoped claims. Accepted readability continues into extraction immediately, without waiting for other queued receipts. The daily 08:30 UTC cron remains a recovery path. Exhausted pre-inference budgets release the exact stage without changing its due time or consuming an attempt. The manager approval route currently calls an unhandled export kind and performs no provider work; its eventual export budget belongs to RA-6.
 
 Verify the deployed platform honors the generated 180-second function settings. Next.js documents these semantics in the installed `maxDuration.md` and `after.md` API guides. The discovery-based `route-budget.test.ts` fails if any route that runs AI work lacks adequate static configuration.
 
@@ -28,7 +28,7 @@ Replace `VERIFIED_DEV_REF` only with the confirmed development project reference
 
 ## Applied SQL verification
 
-Run all seven suites in `scripts/run-applied-sql.mjs` using an authorized development SQL connection. Each suite creates only namespaced synthetic fixtures and finishes with `ROLLBACK`; do not remove the transaction boundaries. If a direct development connection is available, set `SVL_APPLIED_DATABASE_URL` securely and run `npm run test:applied`. Otherwise execute the SQL suites through the development SQL connector. Do not run any schema reset or seed operation.
+Run all eight suites in `scripts/run-applied-sql.mjs` using an authorized development SQL connection. Each suite creates only namespaced synthetic fixtures and finishes with `ROLLBACK`; do not remove the transaction boundaries. If a direct development connection is available, set `SVL_APPLIED_DATABASE_URL` securely and run `npm run test:applied`. Otherwise execute the SQL suites through the development SQL connector. Do not run any schema reset or seed operation.
 
 The RA-5 suite verifies lease ownership/expiry, extraction generations/replay, missing-field review, tax exclusion, private evidence, category activation, canonical duplicates, correction provenance, sparse source indexes, reordered re-extraction, manual lines, and retention cleanup. Run development security/performance advisors afterward and compare findings with the existing baseline.
 
@@ -45,3 +45,7 @@ Use an isolated development test user and explicitly marked synthetic RA-5 image
 7. After recording results, purge only the explicitly recorded synthetic receipt IDs through the retention workflow or delete rollback fixtures inside their original transaction. Verify private evidence, feedback, and reverse duplicate candidates no longer appear. Deactivate test-only configuration through its supported admin control; preserve historical configuration references.
 
 Failures, timeouts, and competing leases are already exercised without provider spending by the applied SQL/unit suites. A real timeout should not be induced across the whole development queue. The two deferred limits remain unchanged: real vendor accuracy and live Housecall synchronization are not established by these synthetic checks.
+
+The forward migration `20260908212303_ra5_scoped_receipt_work.sql` supplies `claim_receipt_work` and `release_receipt_work`. It passed the local rollback suite and is applied locally. Deploy the application only after this forward migration is applied to the same development database; verify `supabase/tests/ra5_scoped_work_applied.sql` there before the positive upload/confirmation smoke.
+
+The coordinating task subsequently applied the additive `20260908212303_ra5_scoped_receipt_work.sql` migration on development and executed `ra5_scoped_work_applied.sql` successfully through the SQL connector. Together with the earlier seven suites, all eight suites have passed on development. The entire eight-suite run also passed locally. No production database was changed.

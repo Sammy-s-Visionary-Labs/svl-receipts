@@ -11,6 +11,12 @@ import type { createServiceRoleClient } from "@/lib/supabase/service";
 import type { WorkRow } from "./runner";
 
 export const EXTRACTION_PROVIDER_TIMEOUT_MS = 90_000;
+export class ExtractionDeferredError extends Error {
+  constructor() {
+    super("deferred");
+    this.name = "ExtractionDeferredError";
+  }
+}
 
 type ExtractionPage = {
   page_index: number;
@@ -37,6 +43,7 @@ export async function runExtraction(
   supabase: ReturnType<typeof createServiceRoleClient>,
   row: WorkRow,
   workerId: string,
+  deadlineAt?: number,
 ): Promise<void> {
   const generation = row.generation ?? 1;
   const { data: existing, error: existingError } = await supabase
@@ -67,6 +74,8 @@ export async function runExtraction(
   ) {
     throw new GeminiReceiptError("permanent", "invalid_page_set");
   }
+  if (deadlineAt !== undefined && deadlineAt - Date.now() < 25_000)
+    throw new ExtractionDeferredError();
   const providerPages = [];
   for (const page of pages) {
     const object = await readReceiptObject(page.storage_key);
@@ -86,10 +95,16 @@ export async function runExtraction(
   const provider = (process.env.AI_PROVIDER || "gemini").trim().toLowerCase();
   if (provider !== "gemini" && provider !== "google_gemini")
     throw new GeminiReceiptError("permanent", "provider_not_configured");
+  // Leave time for file cleanup, scoring and atomic persistence in this route.
+  const providerBudget =
+    deadlineAt === undefined
+      ? EXTRACTION_PROVIDER_TIMEOUT_MS
+      : Math.min(EXTRACTION_PROVIDER_TIMEOUT_MS, deadlineAt - Date.now() - 15_000);
+  if (providerBudget < 10_000) throw new ExtractionDeferredError();
   const adapter = createGeminiReceiptAdapter({
     apiKey: process.env.GEMINI_API_KEY || process.env.AI_API_KEY || "",
     model: process.env.GEMINI_EXTRACTION_MODEL || GEMINI_RECEIPT_MODEL,
-    timeoutMs: EXTRACTION_PROVIDER_TIMEOUT_MS,
+    timeoutMs: providerBudget,
   });
   const result = await adapter.parseReceipt(providerPages);
   const intelligence = await buildReceiptIntelligence(supabase, row.receipt_id, result.receipt);

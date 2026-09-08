@@ -2,7 +2,7 @@
 
 Verified on 2026-09-08 against the existing **local** Supabase PostgreSQL 17 database on port 54322. No production or hosted database was modified, no existing local receipt data was reset, and no Housecall requests were made.
 
-The CLI-created migration `20260908200420_ra5_receipt_intelligence.sql` extends the verified RA-4 schema. It is applied locally. During implementation, function refinements were tested directly and folded into this uncommitted migration; the final file represents the final verified schema.
+The CLI-created migration `20260908200420_ra5_receipt_intelligence.sql` extends the verified RA-4 schema. The forward migration `20260908212303_ra5_scoped_receipt_work.sql` adds immediate receipt-scoped work claims and budget releases. Both are applied locally; the second migration preserves the already-applied first migration unchanged.
 
 ## Implemented behavior
 
@@ -17,8 +17,10 @@ The CLI-created migration `20260908200420_ra5_receipt_intelligence.sql` extends 
 
 ## Checks completed
 
-- `npm run test:applied` passed all seven rollback-only suites: RA-2, RA-23, RA-25, RA-209, RA-27, RA-4, and RA-5.
+- `npm run test:applied` passed all eight rollback-only suites: RA-2, RA-23, RA-25, RA-209, RA-27, RA-4, RA-5, and RA-5 scoped work.
 - New SQL assertions cover lease theft/expiry, evidence-free completion refusal, replay, deterministic latest generations, incomplete line preservation, integer-cent cost projection, raw evidence restrictions, manager correction provenance, sparse source indexes, reprocessing with reordered lines, manual additions, inactive categories, duplicate decisions, Unicode/punctuation vendor matching, permanent provider failure visibility, and retention purge.
+- Receipt-scoped SQL assertions verify backlog isolation, accepted readability continuation, live/expired leases, retry backoff, owner-checked budget release with original due time and attempt count, and public RPC denial.
+- Eight runner tests pass, including scoped continuation, no claim after exhausted budget, shared readability timeout, immediate per-row continuation beside unrelated slow work, and isolation of extraction failures from completed readability.
 - Five extraction worker tests passed: EXIF orientation/metadata removal, generation replay, invalid page sets, ordered pages/provenance, and no result persistence after provider timeout.
 - Web TypeScript check passed. Targeted queue/domain regression tests passed (15 tests).
 - Supabase local advisors reported **zero errors and no warnings on new RA-5 objects**. Existing warnings concern older helper function search paths and the earlier profiles/receipts RLS initialization plans; these were not introduced by RA-5.
@@ -39,4 +41,4 @@ SVL_RA5_GEMINI_ENV_FILE='/Users/kinghill/Documents/svl-receipts/apps/web/.env.lo
 
 The harness obtains local Supabase connection values in-process and rejects nonlocal hosts. It imports only Gemini configuration from the supplied application environment and never copies or prints its secrets. This command consumes Gemini usage; it is deliberately excluded from ordinary unit tests.
 
-The route budget regression also passes: all routes that run extraction/readability work have a statically exported 180-second `maxDuration`, leaving preparation and persistence time around the 90-second provider timeout inside the 300-second lease.
+The route budget regression also passes: all routes that run extraction/readability work export a literal 180-second `maxDuration`. Upload confirmation and re-extraction claim only their own receipt; accepted readability immediately continues into extraction. Each receipt in a cron batch continues independently of slower unrelated rows. Readability (at most 45 seconds) and extraction (at most 90 seconds) share a 160-second provider-start budget, including a 15-second reserved margin. This is not a hard end-to-end deadline for Storage, Sharp, catalog reads, or database persistence; the platform bounds the whole invocation, and expired leases fence late persistence. Exhausted pre-inference budgets leave due work claimable without provider backoff or an added attempt. The daily 08:30 UTC work cron remains the recovery path.

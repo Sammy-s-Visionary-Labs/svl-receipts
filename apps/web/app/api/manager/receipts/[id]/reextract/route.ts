@@ -4,11 +4,12 @@ import { rpcHttpError } from "@/lib/db/errors";
 import { HttpError, httpErrorResponse } from "@/lib/http";
 import { validId } from "@/lib/manager/review-request";
 import { createServiceRoleClient } from "@/lib/supabase/service";
-import { kickWork } from "@/lib/work/runner";
+import { runReceiptWork, WORK_REQUEST_BUDGET_MS } from "@/lib/work/runner";
 // Includes after() work: provider timeout plus image preparation and persistence.
 export const maxDuration = 180;
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
+  const deadlineAt = Date.now() + WORK_REQUEST_BUDGET_MS;
   try {
     const { id } = await context.params;
     validId(id);
@@ -20,7 +21,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     if (error) throw rpcHttpError(error);
     after(async () => {
       try {
-        await kickWork("extract");
+        await runReceiptWork(id, "extract", { deadlineAt });
       } catch {
         console.error("[receipt-extraction] kick failed; durable work remains queued");
       }

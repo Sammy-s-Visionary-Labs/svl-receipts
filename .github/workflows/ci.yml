@@ -17,6 +17,8 @@ jobs:
       - run: npm run typecheck
       - run: npm run lint
       - run: npm test
+      - name: Check retained RA-5 synthetic fixture evidence without provider calls
+        run: npm run test:ra5:fixtures
       - run: npm run build:web
 
   browser:

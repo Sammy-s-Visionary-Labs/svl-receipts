@@ -2,6 +2,12 @@
 
 RA-39 duplicate detection, RA-40 local job ranking, and RA-41 categories/feedback run after receipt normalization, within the extraction worker. The worker reads the saved Housecall catalog. These modules make no Housecall API calls and never approve receipts or create export intents themselves.
 
+## Immediate processing and recovery
+
+Upload confirmation claims readability for that exact receipt. Accepted readability immediately continues to extraction in the same background invocation, so older queued receipts do not delay the new receipt. Manager re-extraction similarly targets only its receipt. The daily 08:30 UTC work cron recovers due retries; accepted readability rows in its bounded batch each continue immediately without waiting for unrelated slow extraction rows.
+
+The routes allow 180 seconds. Readability and extraction share a 160-second provider-start budget with 15 seconds reserved around inference, and cap provider calls at 45 and 90 seconds respectively. The budget is not a hard end-to-end timeout for storage, image processing, enrichment, or persistence. If too little budget remains before inference, the worker leaves or releases its exact stage as due without consuming a provider attempt. Active leases, generation checks, and immutable results protect retries and late completions.
+
 ## Duplicate review
 
 Exact duplicate candidates compare the complete set of confirmed page checksums. A matching single page in a longer document is insufficient. The worker records exact candidates before calling Gemini, so duplicate evidence remains available during provider failures.
@@ -20,7 +26,7 @@ The manager sees reasons and can assign all lines or a specific line. All assign
 
 ## Categories
 
-No production categories are seeded. An administrator configures Sam’s approved list in Settings, including stable lowercase IDs, display labels, keywords, and active state. Approval requires an active configured ID; unknown values remain review drafts. Deactivated categories stay readable in historical reviews. The configuration has a 500-category bound and records its actor/version. Ambiguous keyword matches return no category. Synthetic test categories are fixtures, not a production approval.
+No production categories are seeded. An administrator configures Sam’s approved list in Settings, including stable lowercase IDs, display labels, keywords, and active state. Approval requires an active configured ID; unknown values remain review drafts. Deactivated categories stay readable in historical reviews. The configuration has a 500-category bound and records its actor/version. Ambiguous keyword matches return no category. Synthetic test categories are fixtures. On 2026-09-08 the user separately approved Materials, Fuel, Dump and Misc; all four are configured and verified active on development. See [configuration evidence](ra5-approved-categories.json). Production was not changed.
 
 ## Feedback and controlled evaluation
 

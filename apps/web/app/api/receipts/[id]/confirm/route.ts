@@ -2,7 +2,7 @@ import { after } from "next/server";
 import { authErrorResponse } from "@/lib/auth/guards";
 import { HttpError, httpErrorResponse } from "@/lib/http";
 import { confirmReceiptUpload } from "@/lib/upload/confirmation";
-import { kickWork } from "@/lib/work/runner";
+import { runReceiptWork, WORK_REQUEST_BUDGET_MS } from "@/lib/work/runner";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -10,12 +10,13 @@ type RouteContext = { params: Promise<{ id: string }> };
 export const maxDuration = 180;
 
 export async function POST(request: Request, context: RouteContext) {
+  const deadlineAt = Date.now() + WORK_REQUEST_BUDGET_MS;
   try {
     const { id } = await context.params;
     const result = await confirmReceiptUpload(request, id);
     after(async () => {
       try {
-        await kickWork("readability");
+        await runReceiptWork(id, "readability", { deadlineAt });
       } catch (cause) {
         console.error("[upload-confirm] kick readability", {
           receiptId: id,
