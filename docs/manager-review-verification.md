@@ -1,5 +1,7 @@
 # RA-4 verification — 2026-09-07
 
+For hosted development and Preview verification performed on September 8, including real test-account permissions, persistent review decisions and SQL test portability fixes, see [the development acceptance record](manager-review-acceptance-2026-09-08.md). Marci's acceptance remains pending.
+
 ## Executed checks
 
 - Full automated suite: **362 tests** across storage capacity (6), mobile (111), web (98), domain (139), and integrations (8).

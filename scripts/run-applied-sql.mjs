@@ -25,6 +25,9 @@ const sql = postgres(url, {
 });
 
 try {
+  // Hosted monitoring deliberately enables LOGIN (see storage-capacity-runbook.md).
+  // Fresh migration replay still requires the default NOLOGIN role.
+  await sql`select set_config('svl.test_allow_monitor_login', ${process.env.SVL_APPLIED_ALLOW_MONITOR_LOGIN === "true" ? "true" : "false"}, false)`;
   // Each suite intentionally contains BEGIN, multiple DO blocks, and ROLLBACK.
   // Simple-query mode executes each file as one rollback-only database session.
   for (const sqlFile of sqlFiles) {

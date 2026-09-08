@@ -9,12 +9,13 @@ begin
   if not exists (
     select 1 from pg_roles
     where rolname = 'svl_storage_monitor'
-      and not rolcanlogin
+      and (not rolcanlogin or current_setting('svl.test_allow_monitor_login', true) = 'true')
       and not rolsuper
+      and not rolbypassrls
       and not rolcreatedb
       and not rolcreaterole
   ) then
-    raise exception 'svl_storage_monitor must be a restricted NOLOGIN role by default';
+    raise exception 'svl_storage_monitor must be restricted, with NOLOGIN unless hosted monitor login is explicitly allowed';
   end if;
 
   if not exists (

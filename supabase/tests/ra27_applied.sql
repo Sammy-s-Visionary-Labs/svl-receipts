@@ -1,5 +1,6 @@
 -- RA-27 queue filtering, provenance, pagination and active-staff security.
--- Fixture writes only use the local database test role and are rolled back.
+-- Fixture writes use the database test role and are rolled back.
+-- Scope count assertions to the fixture owner so existing development receipts cannot interfere.
 begin;
 set local session_replication_role = replica;
 insert into auth.users (id, aud, role, email) values
@@ -76,46 +77,46 @@ begin
   if cardinality(rows) <> 1 or rows[1]->>'id' <> '27100000-0000-4000-8000-000000000002' then raise exception 'equal timestamp cursor skipped/duplicated a row'; end if;
   select array_agg(q) into rows from public.manager_review_queue(p_submitter=>'27000000-0000-4000-8000-000000000001',p_sort=>'newest',p_cursor_at=>'2026-08-01T12:00:00.123457Z',p_cursor_id=>'27100000-0000-4000-8000-000000000003') q;
   if cardinality(rows) <> 2 or rows[1]->>'id' <> '27100000-0000-4000-8000-000000000002' then raise exception 'descending microsecond cursor incorrect'; end if;
-  if (select count(*) from public.manager_review_queue(p_vendor=>'100%',p_search=>'supplier_',p_confidence=>'high')) <> 1
-    or (select count(*) from public.manager_review_queue(p_search=>'FINAL-REF')) <> 1
-    or (select count(*) from public.manager_review_queue(p_confidence=>'low')) <> 1
-    or (select count(*) from public.manager_review_queue(p_confidence=>'unknown')) <> 1
-    or (select count(*) from public.manager_review_queue(p_vendor=>'Stale vendor')) <> 0
-    or (select count(*) from public.manager_review_queue(p_search=>'job-27')) <> 1
+  if (select count(*) from public.manager_review_queue(p_submitter=>'27000000-0000-4000-8000-000000000001',p_vendor=>'100%',p_search=>'supplier_',p_confidence=>'high')) <> 1
+    or (select count(*) from public.manager_review_queue(p_submitter=>'27000000-0000-4000-8000-000000000001',p_search=>'FINAL-REF')) <> 1
+    or (select count(*) from public.manager_review_queue(p_submitter=>'27000000-0000-4000-8000-000000000001',p_confidence=>'low')) <> 1
+    or (select count(*) from public.manager_review_queue(p_submitter=>'27000000-0000-4000-8000-000000000001',p_confidence=>'unknown')) <> 1
+    or (select count(*) from public.manager_review_queue(p_submitter=>'27000000-0000-4000-8000-000000000001',p_vendor=>'Stale vendor')) <> 0
+    or (select count(*) from public.manager_review_queue(p_submitter=>'27000000-0000-4000-8000-000000000001',p_search=>'job-27')) <> 1
     or (select count(*) from public.manager_review_queue(p_submitter=>'27000000-0000-4000-8000-000000000004')) <> 0
     then raise exception 'server filters do not apply before pagination or use stale values'; end if;
-  if (select count(*) from public.manager_review_queue(p_age=>'over-30d',p_as_of=>'2026-09-07T12:00Z')) <> 3
-    or (select count(*) from public.manager_review_queue(p_age=>'over-30d',p_as_of=>'2026-08-15T12:00Z')) <> 0
-    or (select count(*) from public.manager_review_queue(p_from=>'2026-08-01',p_to=>'2026-08-01')) <> 3
-    or (select count(*) from public.manager_review_queue(p_from=>'2026-08-02')) <> 0 then raise exception 'age/date UTC boundaries incorrect'; end if;
-  if (select count(*) from public.manager_review_queue(p_tab=>'processing')) <> 4
-    or (select count(*) from public.manager_review_queue(p_tab=>'completed')) <> 1
-    or (select count(*) from public.manager_review_queue(p_tab=>'failed')) <> 1
-    or (select count(*) from public.manager_review_queue(p_tab=>'partial-success')) <> 1
-    or (select count(*) from public.manager_review_queue(p_tab=>'rejected-duplicate')) <> 3
-    or (select count(*) from public.manager_review_queue(p_tab=>'processing',p_status=>'submitted')) <> 1
-    or (select count(*) from public.manager_review_queue(p_tab=>'rejected-duplicate',p_duplicate=>'marked')) <> 1
-    or (select count(*) from public.manager_review_queue(p_tab=>'rejected-duplicate',p_duplicate=>'unmarked')) <> 2 then raise exception 'tab/state/duplicate grouping incorrect'; end if;
-  if (select count(*) from public.manager_review_queue(p_tab=>'processing',p_housecall=>'failed')) <> 0
-    or (select count(*) from public.manager_review_queue(p_tab=>'processing',p_housecall=>'in_progress')) <> 1
-    or (select count(*) from public.manager_review_queue(p_tab=>'rejected-duplicate',p_housecall=>'cancelled')) <> 1
-    or (select count(*) from public.manager_review_queue(p_tab=>'completed',p_housecall=>'succeeded')) <> 1 then raise exception 'Housecall status included stale intent or superseded attempt'; end if;
-  begin perform public.manager_review_queue(p_limit=>52); raise exception 'unbounded limit accepted'; exception when invalid_parameter_value then null; end;
-  begin perform public.manager_review_queue(p_tab=>'all'); raise exception 'bad tab accepted'; exception when invalid_parameter_value then null; end;
-  begin perform public.manager_review_queue(p_cursor_id=>'27100000-0000-4000-8000-000000000001'); raise exception 'partial cursor accepted'; exception when invalid_parameter_value then null; end;
+  if (select count(*) from public.manager_review_queue(p_submitter=>'27000000-0000-4000-8000-000000000001',p_age=>'over-30d',p_as_of=>'2026-09-07T12:00Z')) <> 3
+    or (select count(*) from public.manager_review_queue(p_submitter=>'27000000-0000-4000-8000-000000000001',p_age=>'over-30d',p_as_of=>'2026-08-15T12:00Z')) <> 0
+    or (select count(*) from public.manager_review_queue(p_submitter=>'27000000-0000-4000-8000-000000000001',p_from=>'2026-08-01',p_to=>'2026-08-01')) <> 3
+    or (select count(*) from public.manager_review_queue(p_submitter=>'27000000-0000-4000-8000-000000000001',p_from=>'2026-08-02')) <> 0 then raise exception 'age/date UTC boundaries incorrect'; end if;
+  if (select count(*) from public.manager_review_queue(p_submitter=>'27000000-0000-4000-8000-000000000001',p_tab=>'processing')) <> 4
+    or (select count(*) from public.manager_review_queue(p_submitter=>'27000000-0000-4000-8000-000000000001',p_tab=>'completed')) <> 1
+    or (select count(*) from public.manager_review_queue(p_submitter=>'27000000-0000-4000-8000-000000000001',p_tab=>'failed')) <> 1
+    or (select count(*) from public.manager_review_queue(p_submitter=>'27000000-0000-4000-8000-000000000001',p_tab=>'partial-success')) <> 1
+    or (select count(*) from public.manager_review_queue(p_submitter=>'27000000-0000-4000-8000-000000000001',p_tab=>'rejected-duplicate')) <> 3
+    or (select count(*) from public.manager_review_queue(p_submitter=>'27000000-0000-4000-8000-000000000001',p_tab=>'processing',p_status=>'submitted')) <> 1
+    or (select count(*) from public.manager_review_queue(p_submitter=>'27000000-0000-4000-8000-000000000001',p_tab=>'rejected-duplicate',p_duplicate=>'marked')) <> 1
+    or (select count(*) from public.manager_review_queue(p_submitter=>'27000000-0000-4000-8000-000000000001',p_tab=>'rejected-duplicate',p_duplicate=>'unmarked')) <> 2 then raise exception 'tab/state/duplicate grouping incorrect'; end if;
+  if (select count(*) from public.manager_review_queue(p_submitter=>'27000000-0000-4000-8000-000000000001',p_tab=>'processing',p_housecall=>'failed')) <> 0
+    or (select count(*) from public.manager_review_queue(p_submitter=>'27000000-0000-4000-8000-000000000001',p_tab=>'processing',p_housecall=>'in_progress')) <> 1
+    or (select count(*) from public.manager_review_queue(p_submitter=>'27000000-0000-4000-8000-000000000001',p_tab=>'rejected-duplicate',p_housecall=>'cancelled')) <> 1
+    or (select count(*) from public.manager_review_queue(p_submitter=>'27000000-0000-4000-8000-000000000001',p_tab=>'completed',p_housecall=>'succeeded')) <> 1 then raise exception 'Housecall status included stale intent or superseded attempt'; end if;
+  begin perform public.manager_review_queue(p_submitter=>'27000000-0000-4000-8000-000000000001',p_limit=>52); raise exception 'unbounded limit accepted'; exception when invalid_parameter_value then null; end;
+  begin perform public.manager_review_queue(p_submitter=>'27000000-0000-4000-8000-000000000001',p_tab=>'all'); raise exception 'bad tab accepted'; exception when invalid_parameter_value then null; end;
+  begin perform public.manager_review_queue(p_submitter=>'27000000-0000-4000-8000-000000000001',p_cursor_id=>'27100000-0000-4000-8000-000000000001'); raise exception 'partial cursor accepted'; exception when invalid_parameter_value then null; end;
 end;
 $$;
 select set_config('request.jwt.claim.sub','27000000-0000-4000-8000-000000000001',true);
 do $$ begin
-  begin perform public.manager_review_queue(); raise exception 'worker accessed manager queue'; exception when insufficient_privilege then null; end;
+  begin perform public.manager_review_queue(p_submitter=>'27000000-0000-4000-8000-000000000001'); raise exception 'worker accessed manager queue'; exception when insufficient_privilege then null; end;
 end $$;
 select set_config('request.jwt.claim.sub','27000000-0000-4000-8000-000000000003',true);
 do $$ begin
-  begin perform public.manager_review_queue(); raise exception 'disabled manager accessed queue'; exception when insufficient_privilege then null; end;
+  begin perform public.manager_review_queue(p_submitter=>'27000000-0000-4000-8000-000000000001'); raise exception 'disabled manager accessed queue'; exception when insufficient_privilege then null; end;
 end $$;
 select set_config('request.jwt.claim.sub','27000000-0000-4000-8000-000000000004',true);
 do $$ begin
-  if (select count(*) from public.manager_review_queue()) <> 3 then raise exception 'admin cannot access queue'; end if;
+  if (select count(*) from public.manager_review_queue(p_submitter=>'27000000-0000-4000-8000-000000000001')) <> 3 then raise exception 'admin cannot access queue'; end if;
 end $$;
 reset role;
 do $$
