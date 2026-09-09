@@ -9,6 +9,7 @@ import {
   scoreDuplicateReceipts,
   suggestReceiptCategory,
 } from "@svl/domain";
+import { housecallCatalogJobIsStale } from "../housecall/catalog-policy";
 import { textValue } from "./detail";
 
 type Row = Record<string, unknown>;
@@ -88,18 +89,21 @@ export async function buildReceiptIntelligence(
   if (duplicateResult.error) throw duplicateResult.error;
   if (categoryResult.error) throw categoryResult.error;
   const catalog: JobCatalogEntry[] = [];
+  const catalogReadAt = Date.now();
   // Page through the saved catalog; a truncated catalog must never silently produce a confident match.
   for (let offset = 0; ; offset += 1000) {
     if (offset >= 50000) throw new Error("job_catalog_exceeds_supported_limit");
     const { data, error } = await supabase
       .from("manager_job_catalog")
       .select(
-        "id,label,customer,job_number,status,scheduled_at,active,po_references,service_address,lat,lng,assigned_worker_ids,vendor_history",
+        "id,label,customer,job_number,status,scheduled_at,active,po_references,service_address,lat,lng,assigned_worker_ids,vendor_history,source,synced_at,unavailable",
       )
       .order("id")
       .range(offset, offset + 999);
     if (error) throw error;
-    for (const row of data ?? [])
+    for (const row of data ?? []) {
+      // A saved name/reference match cannot revive a missing or unverified provider job.
+      if (row.unavailable === true || housecallCatalogJobIsStale(row, catalogReadAt)) continue;
       catalog.push({
         id: row.id,
         label: row.label,
@@ -115,6 +119,7 @@ export async function buildReceiptIntelligence(
         assignedWorkerIds: strings(row.assigned_worker_ids),
         vendorHistory: strings(row.vendor_history),
       });
+    }
     if ((data?.length ?? 0) < 1000) break;
   }
   const rows: Row[] = duplicateResult.data ?? [];

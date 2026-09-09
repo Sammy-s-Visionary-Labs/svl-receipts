@@ -8,6 +8,13 @@ export function rpcHttpError(error: { message?: string } | null | undefined): Ht
   if (message.includes("forbidden")) {
     return new HttpError(403, "forbidden", "Receipt access denied");
   }
+  if (message === "invalid_request_job_unavailable") {
+    return new HttpError(
+      400,
+      "invalid_request",
+      "The selected Housecall job is unavailable. Refresh jobs and choose another destination.",
+    );
+  }
   if (message.includes("invalid_request")) {
     return new HttpError(400, "invalid_request", "Invalid request");
   }

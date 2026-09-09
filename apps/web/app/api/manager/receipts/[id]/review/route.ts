@@ -2,10 +2,12 @@ import { validateReview } from "@svl/domain";
 import { after } from "next/server";
 import { authErrorResponse, requireManager } from "@/lib/auth/guards";
 import { rpcHttpError } from "@/lib/db/errors";
+import { runReceiptHousecallExport } from "@/lib/housecall/export";
 import { HttpError, httpErrorResponse } from "@/lib/http";
 import { parseDraft, readReviewBody, UUID, validId } from "@/lib/manager/review-request";
 import { createServiceRoleClient } from "@/lib/supabase/service";
-import { kickWork } from "@/lib/work/runner";
+
+export const maxDuration = 180;
 
 type Context = { params: Promise<{ id: string }> };
 export async function POST(request: Request, context: Context) {
@@ -63,7 +65,7 @@ export async function POST(request: Request, context: Context) {
     if (body.decision === "approve")
       after(async () => {
         try {
-          await kickWork("export");
+          await runReceiptHousecallExport(id);
         } catch {
           console.error("[manager-review] export kick failed; durable work remains queued");
         }

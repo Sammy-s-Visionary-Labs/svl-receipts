@@ -1,0 +1,514 @@
+{
+  "schemaVersion": 1,
+  "synthetic": true,
+  "kind": "offline-export-contract-fixtures",
+  "liveWritesApproved": false,
+  "resultStatus": "expected-outcomes-only",
+  "currency": "USD",
+  "moneyConvention": "integer cents; quantity to three decimal places; half-up rounding",
+  "imageGenerationStatus": "generated",
+  "generatedImagesManifest": "generated-images.json",
+  "destinations": [
+    {
+      "key": "test-customer-2",
+      "label": "RA6 Test Customer 2",
+      "originalReference": "Benner",
+      "housecallJobId": null
+    },
+    {
+      "key": "test-customer-3",
+      "label": "RA6 Test Customer 3",
+      "originalReference": "Sophia",
+      "housecallJobId": null
+    },
+    {
+      "key": "test-customer-4",
+      "label": "RA6 Test Customer 4",
+      "originalReference": "Snyder",
+      "housecallJobId": null
+    }
+  ],
+  "originalPhotoReferences": [
+    {
+      "fileName": "PXL_20260723_182022236.jpg",
+      "documentKey": "source-select-order",
+      "role": "first-photo"
+    },
+    {
+      "fileName": "PXL_20260723_182023357.jpg",
+      "documentKey": "source-select-order",
+      "role": "second-photo-of-same-document"
+    },
+    {
+      "fileName": "PXL_20260723_182030731.jpg",
+      "documentKey": "source-klumm-multi-job",
+      "role": "layout-and-scenario-reference"
+    },
+    {
+      "fileName": "PXL_20260723_182035167.jpg",
+      "documentKey": "source-sandman-handwritten",
+      "role": "layout-and-scenario-reference"
+    },
+    {
+      "fileName": "PXL_20260723_182024923.jpg",
+      "documentKey": "source-sandman-consolidated",
+      "role": "layout-and-scenario-reference"
+    }
+  ],
+  "existingImageControls": [
+    {
+      "id": "ra5-multijob",
+      "paths": ["../ra5/images/select-multijob.png"],
+      "expectedFieldsManifest": "../ra5/manifest.json",
+      "fixtureId": "select-multijob"
+    },
+    {
+      "id": "ra5-duplicate-pair",
+      "paths": [
+        "../ra5/images/home-depot-base.png",
+        "../ra5/images/home-depot-rephotographed.png",
+        "../ra5/images/home-depot-exact-copy.png"
+      ],
+      "expectedFieldsManifest": "../ra5/manifest.json",
+      "fixtureId": "home-depot-base"
+    },
+    {
+      "id": "ra5-distinct-purchase",
+      "paths": ["../ra5/images/home-depot-separate-purchase.png"],
+      "expectedFieldsManifest": "../ra5/manifest.json",
+      "fixtureId": "home-depot-separate-purchase"
+    },
+    {
+      "id": "ra5-multipage",
+      "paths": ["../ra5/images/perrysburg-page-1.png", "../ra5/images/perrysburg-page-2.png"],
+      "expectedFieldsManifest": "../ra5/manifest.json",
+      "fixtureId": "perrysburg-multipage"
+    },
+    {
+      "id": "ra5-unresolved",
+      "paths": ["../ra5/images/lowes-ambiguous-missing.png"],
+      "expectedFieldsManifest": "../ra5/manifest.json",
+      "fixtureId": "lowes-ambiguous-missing"
+    }
+  ],
+  "receipts": [
+    {
+      "id": "select-fractional-base",
+      "documentKey": "RA6-SYN-SELECT-001",
+      "sourceDocumentKey": "source-select-order",
+      "syntheticVendor": "RA6 Test Stone Supplier",
+      "purchaseDate": "2026-09-01",
+      "pageCount": 1,
+      "intendedPhotoVariant": "base",
+      "referenceTaxCents": 163,
+      "referenceReceiptTotalCents": 2263,
+      "lines": [
+        {
+          "lineKey": "select-limestone",
+          "description": "SYNTHETIC TEST #8 limestone bulk",
+          "qty": 0.5,
+          "uom": "ton",
+          "unitCostCents": 4200,
+          "extendedCostCents": 2100,
+          "jobHint": "RA6 Test Customer 2",
+          "destinationKey": "test-customer-2"
+        }
+      ],
+      "expected": {
+        "approvalAllowed": true,
+        "blockedReasons": [],
+        "materialTotalCents": 2100,
+        "assignedMaterialTotalCents": 2100,
+        "unresolvedMaterialTotalCents": 0,
+        "destinationMaterialTotalsCents": {
+          "test-customer-2": 2100
+        },
+        "materialLineCountsByDestination": {
+          "test-customer-2": 1
+        },
+        "requiredPageIndexesByDestination": {
+          "test-customer-2": [0]
+        },
+        "taxIncludedInMaterialCosts": false
+      }
+    },
+    {
+      "id": "klumm-two-jobs",
+      "documentKey": "RA6-SYN-KLUMM-002",
+      "sourceDocumentKey": "source-klumm-multi-job",
+      "syntheticVendor": "RA6 Test Landscape Supplier",
+      "purchaseDate": "2026-09-02",
+      "pageCount": 1,
+      "referenceTaxCents": 0,
+      "referenceReceiptTotalCents": 14400,
+      "lines": [
+        {
+          "lineKey": "klumm-aggregate",
+          "description": "SYNTHETIC TEST recycled aggregate",
+          "qty": 6,
+          "uom": "ton",
+          "unitCostCents": 1650,
+          "extendedCostCents": 9900,
+          "jobHint": "RA6 Test Customer 4",
+          "destinationKey": "test-customer-4"
+        },
+        {
+          "lineKey": "klumm-disposal",
+          "description": "SYNTHETIC TEST dirt disposal fee",
+          "qty": 1,
+          "uom": "ea",
+          "unitCostCents": 4500,
+          "extendedCostCents": 4500,
+          "jobHint": "RA6 Test Customer 2",
+          "destinationKey": "test-customer-2"
+        }
+      ],
+      "expected": {
+        "approvalAllowed": true,
+        "blockedReasons": [],
+        "materialTotalCents": 14400,
+        "assignedMaterialTotalCents": 14400,
+        "unresolvedMaterialTotalCents": 0,
+        "destinationMaterialTotalsCents": {
+          "test-customer-4": 9900,
+          "test-customer-2": 4500
+        },
+        "materialLineCountsByDestination": {
+          "test-customer-4": 1,
+          "test-customer-2": 1
+        },
+        "requiredPageIndexesByDestination": {
+          "test-customer-4": [0],
+          "test-customer-2": [0]
+        },
+        "taxIncludedInMaterialCosts": false
+      }
+    },
+    {
+      "id": "sandman-handwritten",
+      "documentKey": "RA6-SYN-SANDMAN-003",
+      "sourceDocumentKey": "source-sandman-handwritten",
+      "syntheticVendor": "RA6 Test Yard Supplier",
+      "purchaseDate": "2026-09-03",
+      "pageCount": 1,
+      "referenceTaxCents": 0,
+      "referenceReceiptTotalCents": 8000,
+      "notes": "Purpose-defined synthetic input; the original handwritten photo's blank tax field is not evidence of zero tax.",
+      "lines": [
+        {
+          "lineKey": "sandman-mulch",
+          "description": "SYNTHETIC TEST dark mulch",
+          "qty": 2,
+          "uom": "yd3",
+          "unitCostCents": 4000,
+          "extendedCostCents": 8000,
+          "jobHint": "RA6 Test Customer 2",
+          "destinationKey": "test-customer-2"
+        }
+      ],
+      "expected": {
+        "approvalAllowed": true,
+        "blockedReasons": [],
+        "materialTotalCents": 8000,
+        "assignedMaterialTotalCents": 8000,
+        "unresolvedMaterialTotalCents": 0,
+        "destinationMaterialTotalsCents": {
+          "test-customer-2": 8000
+        },
+        "materialLineCountsByDestination": {
+          "test-customer-2": 1
+        },
+        "requiredPageIndexesByDestination": {
+          "test-customer-2": [0]
+        },
+        "taxIncludedInMaterialCosts": false
+      }
+    },
+    {
+      "id": "sandman-shop-and-missing-job",
+      "documentKey": "RA6-SYN-SANDMAN-004",
+      "sourceDocumentKey": "source-sandman-consolidated",
+      "syntheticVendor": "RA6 Test Yard Supplier",
+      "purchaseDate": "2026-09-04",
+      "pageCount": 1,
+      "referenceTaxCents": 0,
+      "referenceReceiptTotalCents": 132100,
+      "notes": "Synthetic arithmetic and routing case. Zero tax is chosen for this fixture, not inferred from the source invoice. No live overhead treatment is assumed.",
+      "lines": [
+        {
+          "lineKey": "consolidated-granite",
+          "description": "SYNTHETIC TEST gray granite groundcover stone",
+          "qty": 1.5,
+          "uom": "ton",
+          "unitCostCents": 15000,
+          "extendedCostCents": 22500,
+          "jobHint": null,
+          "destinationKey": null,
+          "unresolvedReason": "missing_job_hint"
+        },
+        {
+          "lineKey": "consolidated-polysand",
+          "description": "SYNTHETIC TEST polymeric sand",
+          "qty": 7,
+          "uom": "ea",
+          "unitCostCents": 8000,
+          "extendedCostCents": 56000,
+          "jobHint": "RA6 Test Customer 2",
+          "destinationKey": "test-customer-2"
+        },
+        {
+          "lineKey": "consolidated-topsoil",
+          "description": "SYNTHETIC TEST topsoil",
+          "qty": 2,
+          "uom": "yd3",
+          "unitCostCents": 4000,
+          "extendedCostCents": 8000,
+          "jobHint": "RA6 Test Customer 2",
+          "destinationKey": "test-customer-2"
+        },
+        {
+          "lineKey": "consolidated-limestone-customer",
+          "description": "SYNTHETIC TEST #6 limestone",
+          "qty": 6,
+          "uom": "ton",
+          "unitCostCents": 3300,
+          "extendedCostCents": 19800,
+          "jobHint": "RA6 Test Customer 3",
+          "destinationKey": "test-customer-3"
+        },
+        {
+          "lineKey": "consolidated-limestone-shop",
+          "description": "SYNTHETIC TEST #8 limestone (Shop)",
+          "qty": 1,
+          "uom": "ton",
+          "unitCostCents": 3300,
+          "extendedCostCents": 3300,
+          "jobHint": "Shop",
+          "destinationKey": null,
+          "unresolvedReason": "shop_policy_unconfirmed"
+        },
+        {
+          "lineKey": "consolidated-fabric-shop",
+          "description": "SYNTHETIC TEST landscape fabric (Shop)",
+          "qty": 1,
+          "uom": "ea",
+          "unitCostCents": 22500,
+          "extendedCostCents": 22500,
+          "jobHint": "Shop",
+          "destinationKey": null,
+          "unresolvedReason": "shop_policy_unconfirmed"
+        }
+      ],
+      "expected": {
+        "approvalAllowed": false,
+        "blockedReasons": ["missing_job_hint", "shop_policy_unconfirmed"],
+        "materialTotalCents": 132100,
+        "assignedMaterialTotalCents": 83800,
+        "unresolvedMaterialTotalCents": 48300,
+        "destinationMaterialTotalsCents": {
+          "test-customer-2": 64000,
+          "test-customer-3": 19800
+        },
+        "materialLineCountsByDestination": {
+          "test-customer-2": 2,
+          "test-customer-3": 1
+        },
+        "requiredPageIndexesByDestination": {},
+        "taxIncludedInMaterialCosts": false,
+        "expectedExportIntentCount": 0,
+        "expectedProviderWriteCount": 0
+      }
+    },
+    {
+      "id": "half-up-two-pages",
+      "documentKey": "RA6-SYN-ROUNDING-005",
+      "sourceDocumentKey": null,
+      "syntheticVendor": "RA6 Test Precision Supplier",
+      "purchaseDate": "2026-09-05",
+      "pageCount": 2,
+      "referenceTaxCents": 0,
+      "referenceReceiptTotalCents": 3949,
+      "lines": [
+        {
+          "lineKey": "rounding-page-one",
+          "pageIndex": 0,
+          "description": "SYNTHETIC TEST fractional material A",
+          "qty": 1.005,
+          "uom": "ton",
+          "unitCostCents": 100,
+          "extendedCostCents": 101,
+          "jobHint": "RA6 Test Customer 2",
+          "destinationKey": "test-customer-2"
+        },
+        {
+          "lineKey": "rounding-page-two",
+          "pageIndex": 1,
+          "description": "SYNTHETIC TEST fractional material B",
+          "qty": 10.125,
+          "uom": "gal",
+          "unitCostCents": 380,
+          "extendedCostCents": 3848,
+          "jobHint": "RA6 Test Customer 3",
+          "destinationKey": "test-customer-3"
+        }
+      ],
+      "expected": {
+        "approvalAllowed": true,
+        "blockedReasons": [],
+        "materialTotalCents": 3949,
+        "assignedMaterialTotalCents": 3949,
+        "unresolvedMaterialTotalCents": 0,
+        "destinationMaterialTotalsCents": {
+          "test-customer-2": 101,
+          "test-customer-3": 3848
+        },
+        "materialLineCountsByDestination": {
+          "test-customer-2": 1,
+          "test-customer-3": 1
+        },
+        "requiredPageIndexesByDestination": {
+          "test-customer-2": [0, 1],
+          "test-customer-3": [0, 1]
+        },
+        "taxIncludedInMaterialCosts": false
+      }
+    }
+  ],
+  "documentVariants": [
+    {
+      "id": "select-fractional-exact-copy",
+      "baseReceiptId": "select-fractional-base",
+      "documentKey": "RA6-SYN-SELECT-001",
+      "imageRelationship": "planned-byte-identical",
+      "expectedDuplicateCandidate": true,
+      "expectedNewMaterialWritesAfterConfirmedDuplicate": 0
+    },
+    {
+      "id": "select-fractional-rephotographed",
+      "baseReceiptId": "select-fractional-base",
+      "documentKey": "RA6-SYN-SELECT-001",
+      "imageRelationship": "planned-different-pixels-same-document",
+      "expectedDuplicateCandidate": true,
+      "expectedNewMaterialWritesAfterConfirmedDuplicate": 0
+    },
+    {
+      "id": "select-fractional-separate-purchase",
+      "baseReceiptId": "select-fractional-base",
+      "documentKey": "RA6-SYN-SELECT-006",
+      "purchaseDate": "2026-09-06",
+      "imageRelationship": "planned-new-document-same-lines-and-total",
+      "expectedDuplicateCandidate": false,
+      "expectedMaterialTotalCents": 2100
+    }
+  ],
+  "exportScenarios": [
+    {
+      "id": "writes-disabled-default",
+      "fixtureId": "select-fractional-base",
+      "setup": "Approved immutable intent exists; live write setting is absent or disabled.",
+      "expected": "No provider mutation is attempted; receipt remains unexported with an actionable blocked state.",
+      "expectedProviderWriteCount": 0
+    },
+    {
+      "id": "dry-run-preview",
+      "fixtureId": "klumm-two-jobs",
+      "setup": "Manager-approved input is previewed using mock destination bindings.",
+      "expected": "Preview shows two exact destination bindings, complete image set per destination, quantity and unit cost per line, and $99.00/$45.00 destination totals excluding tax.",
+      "expectedProviderWriteCount": 0
+    },
+    {
+      "id": "destination-outside-allowlist",
+      "fixtureId": "klumm-two-jobs",
+      "setup": "One destination fails the approved exact-ID allowlist before the first mutation.",
+      "expected": "Preflight rejects the entire run before any attachment or material write, including to the otherwise allowed job.",
+      "expectedProviderWriteCount": 0
+    },
+    {
+      "id": "duplicate-label-ambiguity",
+      "fixtureId": "select-fractional-base",
+      "setup": "Mock catalog contains two distinct immutable IDs with the same Test Customer 2 label; no exact selection exists.",
+      "expected": "Name matching requires manager resolution; no arbitrary candidate is selected and no approval intent is created.",
+      "expectedProviderWriteCount": 0
+    },
+    {
+      "id": "shop-or-missing-job",
+      "fixtureId": "sandman-shop-and-missing-job",
+      "setup": "Shop treatment is unconfirmed and the first line has no selected job.",
+      "expected": "All six lines remain visible; the whole receipt stays in review; known-job lines do not leak into a partial export.",
+      "expectedProviderWriteCount": 0
+    },
+    {
+      "id": "complete-two-job-export",
+      "fixtureId": "klumm-two-jobs",
+      "setup": "All mock writes return success and verification reads confirm their exact destination and content.",
+      "expected": "Each job gets the receipt image, each material line is written only to its assigned job, and exported status requires every target to be verified."
+    },
+    {
+      "id": "write-response-wrong-job",
+      "fixtureId": "select-fractional-base",
+      "setup": "Mock write returns an external ID but the verification read associates it with a different job.",
+      "expected": "Target does not succeed; no follow-up write is sent to the wrong job; receipt remains unexported pending investigation."
+    },
+    {
+      "id": "attachment-timeout-after-save",
+      "fixtureId": "select-fractional-base",
+      "setup": "Mock saves the attachment and then times out; reconciliation finds exactly one matching attachment on the exact job.",
+      "expected": "Existing external attachment ID is recorded as verified success; its upload is not repeated.",
+      "expectedAttachmentCreationCount": 1
+    },
+    {
+      "id": "material-timeout-after-save",
+      "fixtureId": "select-fractional-base",
+      "setup": "Mock saves material and then times out; reconciliation finds exactly one matching receipt-line marker with matching job, quantity, unit cost and description.",
+      "expected": "Existing external material ID is recorded as verified success; its material POST is not repeated.",
+      "expectedMaterialCreationCount": 1
+    },
+    {
+      "id": "uncertain-write-not-yet-visible",
+      "fixtureId": "select-fractional-base",
+      "setup": "A write times out; the first verification read has no match but does not establish that the write was rejected.",
+      "expected": "No blind repeat POST; retain the uncertain state and reconcile again or request operator resolution.",
+      "expectedRepeatWriteCount": 0
+    },
+    {
+      "id": "ambiguous-external-match",
+      "fixtureId": "select-fractional-base",
+      "setup": "A timeout is followed by two externally matching records or a marker/content mismatch.",
+      "expected": "No candidate is silently chosen, no automatic removal or corrective write occurs, and the target needs reconciliation.",
+      "expectedRepeatWriteCount": 0
+    },
+    {
+      "id": "retry-one-failed-target",
+      "fixtureId": "klumm-two-jobs",
+      "setup": "Both attachments and Customer 4 material succeeded; Customer 2 material was conclusively rejected before creation by the mock.",
+      "expected": "Receipt is partial; retry preserves all successes and creates only the unresolved Customer 2 material. Completion follows its verification.",
+      "expectedRetryMaterialCreationCount": 1,
+      "expectedRetryAttachmentCreationCount": 0
+    },
+    {
+      "id": "duplicate-queue-delivery",
+      "fixtureId": "klumm-two-jobs",
+      "setup": "The same intent is delivered twice, including a simulated concurrent worker attempt.",
+      "expected": "A lease/idempotency guard and persisted evidence prevent additional attachments or materials; the same intent and receipt-line identity are retained."
+    },
+    {
+      "id": "snapshot-immutability",
+      "fixtureId": "klumm-two-jobs",
+      "setup": "After approval, an unapproved draft changes the job or price while the original export is queued.",
+      "expected": "The queued export uses only the frozen approved intent; changed mutable draft values do not reach HCP."
+    },
+    {
+      "id": "multi-page-verification",
+      "fixtureId": "half-up-two-pages",
+      "setup": "Two receipt pages and two target jobs are required; one page is initially missing from one job.",
+      "expected": "Missing page prevents that job's attachment completion and whole-receipt exported status; retry does not recreate verified pages."
+    },
+    {
+      "id": "post-export-correction",
+      "fixtureId": "select-fractional-base",
+      "setup": "An administrator proposes a different destination or cost after successful export.",
+      "expected": "Record a separate correction proposal; do not reuse the retry path, silently edit the approved snapshot, or issue replacement/reversal writes.",
+      "expectedAutomaticCorrectionWriteCount": 0
+    }
+  ]
+}

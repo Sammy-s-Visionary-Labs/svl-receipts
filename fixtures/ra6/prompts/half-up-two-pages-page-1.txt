@@ -1,0 +1,21 @@
+Use case: photorealistic-natural
+Asset type: synthetic receipt photo for local RA-6 receipt extraction and safe export tests, page 1 of a two-page receipt.
+Primary request: Generate one realistic smartphone photograph of a fictional printed white paper receipt on a plain light gray tabletop. Show the entire single page, nearly overhead with a tiny natural skew, soft daylight, fine paper texture and slight realistic edge shadow. Text must be sharply legible, not stylized. Portrait framing. This is expressly a synthetic test document, not a real receipt.
+Layout: Simple black typography, large bold supplier header, an obvious prominent top banner reading "SYNTHETIC — RA6 TEST", clear receipt identifier and date under the header, one clean line-item table across the page, generous blank white area below, page number in footer. The paper fills most of the photograph. No other documents or objects.
+Exact printed text (verbatim):
+SYNTHETIC — RA6 TEST
+RA6 Test Precision Supplier
+FICTIONAL TEST BUSINESS
+Receipt: RA6-SYN-ROUNDING-005
+Date: 09/05/2026
+Page 1 of 2
+
+Item description | Job / Customer | Qty | Unit | Unit cost | Line total
+SYNTHETIC TEST fractional material A | RA6 Test Customer 2 | 1.005 | ton | $1.00 | $1.01
+
+Page subtotal: $1.01
+Continued on page 2
+SYNTHETIC — RA6 TEST
+Page 1 of 2
+
+Constraints: Only the ONE specified line item appears on this page. The quantity must be exactly 1.005, unit cost exactly $1.00, and displayed line total exactly $1.01. This explicitly tests half-up cent rounding. Do not add whole-receipt totals to page 1. Every word and digit above must render accurately. Customer 2 is the only job/customer on this page. Keep the document simple and believable. Do not add logos, addresses, phone numbers, websites, emails, signatures, payment links, account numbers, barcodes, QR codes, extra financial values, or real people/business names.

@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "templateOnly": true,
+  "liveWritesApproved": false,
+  "approvedRunReference": null,
+  "bindings": [
+    {
+      "destinationKey": "test-customer-2",
+      "expectedLabel": "RA6 Test Customer 2",
+      "housecallJobId": null
+    },
+    {
+      "destinationKey": "test-customer-3",
+      "expectedLabel": "RA6 Test Customer 3",
+      "housecallJobId": null
+    },
+    {
+      "destinationKey": "test-customer-4",
+      "expectedLabel": "RA6 Test Customer 4",
+      "housecallJobId": null
+    }
+  ],
+  "notes": [
+    "Names are proposed labels, not verified HCP records or routing authority.",
+    "Do not add Shop until the user confirms its business treatment and destination.",
+    "Real bindings must be read-verified and separately approved before any live write.",
+    "Approval to implement RA-6 is not approval to post to these or any other live jobs."
+  ]
+}

@@ -1,0 +1,71 @@
+Use case: text-localization / synthetic QA receipt fixture. Edit the supplied reference photograph into ONE clearly synthetic printed supplier invoice photograph. Keep the original white invoice paper on a dark tabletop, subtle realistic paper texture, soft indoor lighting and slight overhead-photo perspective. REMOVE all surrounding documents completely. Remove ALL original names, brands, logos, addresses, contacts, URLs, signatures, payment terms, original ticket IDs, original invoice ID, original dates and handwritten marks. Replace the entire printed document contents with exactly the synthetic data below.
+
+Prominent top banner: "SYNTHETIC — RA6 TEST".
+Vendor title EXACTLY: "RA6 Test Yard Supplier".
+Heading: "Invoice".
+Invoice ID: "RA6-SYN-SANDMAN-004".
+Date: "2026-09-04".
+Do NOT put any overall customer name, bill-to or job name in the header. This is a consolidated multi-job invoice; only row-specific Job hint cells identify jobs. Do not add any address, phone, email, barcode, payment information, logo or other identifiers.
+
+Use a generously sized, very clear printed table with exactly SIX rows and these columns:
+Description | Qty | UOM | Unit cost | Amount | Job hint
+Make the description column wide, wrap longer descriptions across lines naturally, and allow the row height needed for all exact text. Customer labels may wrap but must remain complete and legible. Do not shorten or misspell descriptions.
+
+Exact rows in order:
+ROW 1
+Description: SYNTHETIC TEST gray granite groundcover stone
+Qty: 1.5
+UOM: ton
+Unit cost: $150.00
+Amount: $225.00
+Job hint: LEAVE THIS CELL COMPLETELY EMPTY. Do not print the words "empty", "unknown", "missing", a dash, or any customer name there.
+
+ROW 2
+Description: SYNTHETIC TEST polymeric sand
+Qty: 7
+UOM: ea
+Unit cost: $80.00
+Amount: $560.00
+Job hint: RA6 Test Customer 2
+
+ROW 3
+Description: SYNTHETIC TEST topsoil
+Qty: 2
+UOM: yd3
+Unit cost: $40.00
+Amount: $80.00
+Job hint: RA6 Test Customer 2
+
+ROW 4
+Description: SYNTHETIC TEST #6 limestone
+Qty: 6
+UOM: ton
+Unit cost: $33.00
+Amount: $198.00
+Job hint: RA6 Test Customer 3
+
+ROW 5
+Description: SYNTHETIC TEST #8 limestone (Shop)
+Qty: 1
+UOM: ton
+Unit cost: $33.00
+Amount: $33.00
+Job hint: Shop
+
+ROW 6
+Description: SYNTHETIC TEST landscape fabric (Shop)
+Qty: 1
+UOM: ea
+Unit cost: $225.00
+Amount: $225.00
+Job hint: Shop
+
+Below the table, exact summary:
+Subtotal $1,321.00
+Tax $0.00
+Total $1,321.00
+
+Small bottom note: "Synthetic test data — zero tax chosen for this fixture."
+Then repeat "SYNTHETIC — RA6 TEST".
+
+Do not assign the blank first row to a customer. Do not replace Shop with a customer name or imply a confirmed overhead allocation. Do not add other item rows. Preserve every stated quantity, unit cost, amount, job hint, subtotal, tax and total exactly. Clean black text and thin gray table borders on white paper; no graphic watermarks obscuring data. Portrait image, full page visible including edges, high resolution and enough font size to verify every character.

@@ -74,7 +74,7 @@ export function isDeferablePurgeReason(reason: unknown): boolean {
 
 export const WORK_LEASE_SECONDS = 5 * 60;
 
-/** Kinds the current runner may claim and complete. Export stays queued until the RA-6 provider exists. */
+/** Generic queue handlers. RA-6 exports use separate per-step leases and explicit write approvals. */
 export const WORK_HANDLED_KINDS = [
   "readability",
   "extract",

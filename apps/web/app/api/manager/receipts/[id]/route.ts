@@ -1,6 +1,12 @@
 import { authErrorResponse, requireManager } from "@/lib/auth/guards";
 import { HttpError, httpErrorResponse } from "@/lib/http";
-import { buildSteps, extractionDraft, legacyReviewDraft, managerJob } from "@/lib/manager/detail";
+import {
+  buildFrozenSteps,
+  buildSteps,
+  extractionDraft,
+  legacyReviewDraft,
+  managerJob,
+} from "@/lib/manager/detail";
 import { categoryRow } from "@/lib/manager/intelligence";
 import type { ReceiptDetail } from "@/lib/manager/review-contract";
 import { UUID, validId } from "@/lib/manager/review-request";
@@ -88,11 +94,12 @@ export async function GET(request: Request, context: Context) {
     let intent = null;
     let attempts: Record<string, unknown>[] = [];
     let links: Record<string, unknown>[] = [];
+    let frozenSteps: Record<string, unknown>[] | null = null;
     if (outbox.data?.intent_id) {
       const exportResults = await Promise.all([
         supabase
           .from("housecall_intents")
-          .select("id,attachment_job_ids,job_cost_lines")
+          .select("id,payload_hash,attachment_job_ids,job_cost_lines")
           .eq("id", outbox.data.intent_id)
           .single(),
         supabase.rpc("manager_current_export_attempts", {
@@ -109,6 +116,22 @@ export async function GET(request: Request, context: Context) {
       intent = exportResults[0].data;
       attempts = exportResults[1].data ?? [];
       links = exportResults[2].data ?? [];
+      if (intent?.payload_hash) {
+        const { data: currentSteps, error: currentStepsError } = await supabase
+          .from("housecall_export_steps")
+          .select(
+            "id,housecall_job_id,step,status,receipt_page_id,receipt_line_id,external_id,last_error,updated_at,payload",
+          )
+          .eq("receipt_id", id)
+          .eq("intent_id", intent.id)
+          .order("created_at")
+          .order("id")
+          .limit(601);
+        if (currentStepsError) throw currentStepsError;
+        if ((currentSteps?.length ?? 0) > 600)
+          throw new HttpError(422, "review_limit", "The export plan exceeds the review limit.");
+        frozenSteps = currentSteps ?? [];
+      }
     }
     const original = extractionDraft(extraction);
     if (Array.isArray(extraction?.lines) && extraction.lines.length > 100)
@@ -140,6 +163,30 @@ export async function GET(request: Request, context: Context) {
     }
     const reprocessed =
       !!review?.snapshot && !!extraction?.id && review.extraction_id !== extraction.id;
+    const currentSuggestions = (suggestions.data ?? []).filter(
+      (row) =>
+        row.extraction_id === extraction?.id || (!extraction?.work_item_id && !row.extraction_id),
+    );
+    const assignedIds = new Set<string>(
+      (savedDraft.lines ?? [])
+        .map((line: { jobId?: string }) => line.jobId)
+        .filter((jobId: unknown): jobId is string => typeof jobId === "string" && jobId.length > 0),
+    );
+    const catalogIds = [
+      ...new Set([...assignedIds, ...currentSuggestions.map((row) => row.housecall_job_id)]),
+    ];
+    const currentJobs = new Map<string, Record<string, unknown>>();
+    if (catalogIds.length) {
+      const { data: catalog, error: catalogError } = await supabase
+        .from("manager_job_catalog")
+        .select(
+          "id,label,customer,job_number,status,scheduled_at,technicians,active,source,synced_at,unavailable",
+        )
+        .in("id", catalogIds)
+        .limit(605);
+      if (catalogError) throw catalogError;
+      for (const job of catalog ?? []) currentJobs.set(job.id, job);
+    }
     const sourceIds = [
       ...new Set(
         (savedDraft.lines ?? [])
@@ -196,19 +243,30 @@ export async function GET(request: Request, context: Context) {
       gps: receipt.gps_lat === null ? null : { lat: receipt.gps_lat, lng: receipt.gps_lng },
       pageCount: pages.data?.length ?? 0,
       editable: receipt.status === "needs_review",
-      steps: buildSteps(intent, attempts, links, commands.data ?? []),
+      steps:
+        frozenSteps === null
+          ? buildSteps(intent, attempts, links, commands.data ?? [])
+          : buildFrozenSteps(intent?.id ?? "", frozenSteps, attempts, commands.data ?? []),
       events: eventPage,
       nextEventCursor:
         eventRows.length > 50 && last
           ? Buffer.from(JSON.stringify({ at: last.createdAt, id: last.id })).toString("base64url")
           : null,
-      suggestions: (suggestions.data ?? [])
-        .filter(
-          (row) =>
-            row.extraction_id === extraction?.id ||
-            (!extraction?.work_item_id && !row.extraction_id),
-        )
-        .map(managerJob)
+      assignedJobs: [...currentJobs.values()]
+        .filter((row) => assignedIds.has(String(row.id)))
+        .map(managerJob),
+      suggestions: currentSuggestions
+        .map((row) => {
+          const currentJob = currentJobs.get(row.housecall_job_id);
+          return currentJob
+            ? managerJob({
+                ...row,
+                ...currentJob,
+                id: row.id,
+                housecall_job_id: row.housecall_job_id,
+              })
+            : { ...managerJob(row), stale: true };
+        })
         .sort(
           (a, b) =>
             (a.sourceIndex ?? -1) - (b.sourceIndex ?? -1) ||

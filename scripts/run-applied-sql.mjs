@@ -13,6 +13,9 @@ const sqlFiles = [
   "ra4_applied.sql",
   "ra5_applied.sql",
   "ra5_scoped_work_applied.sql",
+  "ra6_applied.sql",
+  "ra6_jobs_applied.sql",
+  "ra6_job_selection_applied.sql",
 ].map((name) => join(root, "supabase", "tests", name));
 const url = process.env.SVL_APPLIED_DATABASE_URL;
 

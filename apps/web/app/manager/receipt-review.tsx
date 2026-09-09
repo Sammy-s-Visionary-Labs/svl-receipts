@@ -15,6 +15,7 @@ import type {
   ReviewEvent,
 } from "@/lib/manager/review-contract";
 import { ExtractionEvidence } from "./extraction-evidence";
+import { HousecallPreview } from "./housecall-preview";
 import { money } from "./queue-view";
 import styles from "./receipt-review.module.css";
 import { ManagerShell } from "./shell";
@@ -241,6 +242,12 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
   function prepare(decision: string) {
     if (!draft) return;
     const next = validateReview(draft, decision === "approve");
+    if (decision === "approve")
+      draft.lines.forEach((line, index) => {
+        if (allJobs.find((job) => job.id === line.jobId)?.unavailable)
+          next[`lines.${index}.jobId`] =
+            "This Housecall job is unavailable. Choose an available job.";
+      });
     setErrors(next);
     if (Object.keys(next).length) {
       setError("Resolve the highlighted fields.");
@@ -300,7 +307,7 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
           (decision === "save_draft"
             ? "Draft saved."
             : decision === "approve"
-              ? "Approved. Housecall export is queued."
+              ? "Receipt approved. Export is prepared; live Housecall writes require separate explicit approval."
               : decision === "request_clarification"
                 ? "Clarification recorded. Contact the worker using your agreed channel."
                 : "Decision recorded."),
@@ -313,7 +320,7 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
     }
   }
   function applyJob(job: ManagerJob) {
-    if (!draft) return;
+    if (!draft || job.unavailable) return;
     if (
       draft.lines.some((l) => l.jobId && l.jobId !== job.id) &&
       !window.confirm("Replace the existing job assignments on every line?")
@@ -349,11 +356,12 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
   const allJobs = [
     ...(detail?.suggestions ?? []).map((suggestion) => ({
       ...suggestion,
+      ...detail?.assignedJobs?.find((job) => job.id === suggestion.id),
       ...jobs.find((job) => job.id === suggestion.id),
       suggestionId: suggestion.suggestionId,
-      source: suggestion.source,
     })),
     ...jobs,
+    ...(detail?.assignedJobs ?? []),
   ].filter((j, i, rows) => rows.findIndex((x) => x.id === j.id) === i);
   return (
     <ManagerShell actorRole={actorRole} active={detail?.editable ? "inbox" : "history"}>
@@ -645,7 +653,7 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
                         checked={olderJobs}
                         onChange={(e) => setOlderJobs(e.target.checked)}
                       />{" "}
-                      Include older and unscheduled jobs
+                      Include all older jobs
                     </label>
                     {jobError && <p role="alert">{jobError}</p>}
                     {detail.suggestions.length > 0 && (
@@ -659,6 +667,11 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
                               <span>
                                 {job.label} · {job.id} · {job.source || "Stored suggestion"}
                                 {job.score !== undefined && ` · Evidence score ${job.score}`}
+                                {allJobs.find((current) => current.id === job.id)?.unavailable
+                                  ? " · Unavailable"
+                                  : allJobs.find((current) => current.id === job.id)?.stale
+                                    ? " · Refresh needed"
+                                    : ""}
                               </span>{" "}
                               {job.reasons?.map((reason) => (
                                 <details key={reason.code}>
@@ -670,7 +683,12 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
                               ))}
                               <button
                                 type="button"
-                                disabled={busy || !draft.lines.length}
+                                disabled={
+                                  busy ||
+                                  !draft.lines.length ||
+                                  allJobs.find((current) => current.id === job.id)?.unavailable ||
+                                  allJobs.find((current) => current.id === job.id)?.stale
+                                }
                                 onClick={() => applyJob(job)}
                               >
                                 Apply to all
@@ -703,6 +721,11 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
                         .map((job) => (
                           <div key={job.suggestionId}>
                             <strong>Suggested for this line: {job.label}</strong>
+                            {allJobs.find((current) => current.id === job.id)?.unavailable ? (
+                              <p>This job is unavailable.</p>
+                            ) : allJobs.find((current) => current.id === job.id)?.stale ? (
+                              <p>Refresh job details before using this suggestion.</p>
+                            ) : null}
                             <ul>
                               {job.reasons?.map((reason) => (
                                 <li key={reason.code}>
@@ -715,7 +738,12 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
                             </ul>
                             <button
                               type="button"
-                              disabled={!editable || busy}
+                              disabled={
+                                !editable ||
+                                busy ||
+                                allJobs.find((current) => current.id === job.id)?.unavailable ||
+                                allJobs.find((current) => current.id === job.id)?.stale
+                              }
                               onClick={() =>
                                 updateLine(index, { jobId: job.id, suggestionId: job.suggestionId })
                               }
@@ -759,6 +787,7 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
                         aria-invalid={!!errors[`lines.${index}.jobId`]}
                         onChange={(e) => {
                           const chosen = allJobs.find((j) => j.id === e.target.value);
+                          if (chosen?.unavailable) return;
                           updateLine(index, {
                             jobId: e.target.value,
                             suggestionId: chosen?.suggestionId ?? line.suggestionId,
@@ -773,19 +802,29 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
                           {allJobs
                             .filter((j) => j.suggestionId)
                             .map((j) => (
-                              <option key={j.id} value={j.id}>
+                              <option key={j.id} value={j.id} disabled={j.unavailable}>
                                 {j.label} · {j.number || j.id} ·{" "}
                                 {j.customer || "Customer unavailable"}
+                                {j.unavailable
+                                  ? " · Unavailable"
+                                  : j.stale
+                                    ? " · Refresh needed"
+                                    : ""}
                               </option>
                             ))}
                         </optgroup>
-                        <optgroup label={olderJobs ? "Search results" : "Active jobs"}>
+                        <optgroup label={olderJobs ? "Search results" : "Active and recent jobs"}>
                           {allJobs
                             .filter((j) => !j.suggestionId)
                             .map((j) => (
-                              <option key={j.id} value={j.id}>
+                              <option key={j.id} value={j.id} disabled={j.unavailable}>
                                 {j.label} · {j.number || j.id} ·{" "}
                                 {j.customer || "Customer unavailable"}
+                                {j.unavailable
+                                  ? " · Unavailable"
+                                  : j.stale
+                                    ? " · Refresh needed"
+                                    : ""}
                               </option>
                             ))}
                         </optgroup>
@@ -803,6 +842,17 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
                           {allJobs.find((j) => j.id === line.jobId)?.technicians.join(", ") ||
                             "Technicians unavailable"}{" "}
                           · ID {line.jobId}
+                          {allJobs.find((j) => j.id === line.jobId)?.syncedAt && (
+                            <>
+                              {" "}
+                              · Last checked {allJobs.find((j) => j.id === line.jobId)?.syncedAt}
+                            </>
+                          )}
+                          {allJobs.find((j) => j.id === line.jobId)?.unavailable
+                            ? " · This job is unavailable. Choose another destination."
+                            : allJobs.find((j) => j.id === line.jobId)?.stale
+                              ? " · Job details need refreshing. Ask an administrator to refresh Housecall jobs before export."
+                              : ""}
                         </p>
                       )}
                       <div className={styles.lineFooter}>
@@ -868,8 +918,13 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
                 )}
               </form>
             </div>
+            <HousecallPreview key={`${id}:${detail.version}`} receiptId={id} />
             <section className={styles.section}>
               <h2>Housecall progress</h2>
+              <p>
+                For the current frozen plan, the export preview above shows each receipt page and
+                material line separately.
+              </p>
               {!detail.steps.length && (
                 <p>No export intent. Only approval queues Housecall work.</p>
               )}
@@ -880,10 +935,11 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
               )}
               <div className={styles.steps}>
                 {detail.steps.map((step) => (
-                  <article key={`${step.step}:${step.jobId}:${step.lineId}`}>
+                  <article key={step.exportStepId ?? `${step.step}:${step.jobId}:${step.lineId}`}>
                     <h3>
                       {step.step === "attachment" ? "Receipt attachment" : "Job cost"} ·{" "}
                       {step.jobId}
+                      {step.pageIndex !== undefined ? ` · Page ${step.pageIndex + 1}` : ""}
                     </h3>
                     <p>
                       {nice(step.status)}
@@ -1022,7 +1078,7 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
                       disabled={busy}
                       onClick={() => prepare("approve")}
                     >
-                      Approve &amp; send to Housecall
+                      Approve receipt
                     </button>
                   </>
                 )}
@@ -1053,6 +1109,12 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
                     {summary?.lineCount} lines to {summary?.jobCount} jobs ·{" "}
                     {money(summary?.totalCents ?? 0)}
                   </p>
+                  {action === "approve" && (
+                    <p>
+                      Approval freezes this receipt's export plan. Live Housecall writes require
+                      separate explicit approval before any data is sent.
+                    </p>
+                  )}
                   <ul>
                     {summary?.jobs.map((job) => (
                       <li key={job.id}>
@@ -1149,7 +1211,7 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
                   {busy
                     ? "Saving…"
                     : action === "approve"
-                      ? "Approve & send to Housecall"
+                      ? "Approve receipt"
                       : action === "correction"
                         ? "Record correction request"
                         : action === "retry"

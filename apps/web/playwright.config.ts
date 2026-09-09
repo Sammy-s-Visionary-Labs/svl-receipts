@@ -43,6 +43,10 @@ export default defineConfig({
         NEXT_PUBLIC_SUPABASE_ANON_KEY: "sb_publishable_ra27_browser_fixture_only",
         // The local suite must never inherit a real privileged credential.
         SUPABASE_SERVICE_ROLE_KEY: "sb_secret_ra27_browser_fixture_only",
+        HOUSECALL_API_KEY: "ra6_fixture_only_never_live",
+        HOUSECALL_READS_ENABLED: "false",
+        HOUSECALL_EXPORT_MODE: "disabled",
+        HOUSECALL_TEST_JOB_IDS: "",
         NEXT_TELEMETRY_DISABLED: "1",
       },
     },

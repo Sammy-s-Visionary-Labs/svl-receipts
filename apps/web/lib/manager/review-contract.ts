@@ -15,6 +15,9 @@ export type ManagerJob = {
   scheduledAt: string | null;
   technicians: string[];
   source: string | null;
+  syncedAt?: string | null;
+  stale?: boolean;
+  unavailable?: boolean;
   suggestionId?: string;
   active: boolean;
   score?: number;
@@ -37,6 +40,9 @@ export type ExportStep = {
   intentId: string;
   jobId: string;
   lineId: string | null;
+  exportStepId?: string;
+  pageId?: string | null;
+  pageIndex?: number;
   step: string;
   status: string;
   externalId: string | null;
@@ -62,6 +68,7 @@ export type ReceiptDetail = {
   events: ReviewEvent[];
   nextEventCursor: string | null;
   suggestions: ManagerJob[];
+  assignedJobs?: ManagerJob[];
   correctionPending: boolean;
   clarification: string | null;
   canonicalReceiptId: string | null;

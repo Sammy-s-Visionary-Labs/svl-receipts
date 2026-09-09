@@ -32,6 +32,7 @@ beforeEach(() => {
     housecall_outbox: null,
     manager_recovery_commands: [],
     receipt_lines: [],
+    manager_job_catalog: [],
   };
   from = vi.fn((table: string) => {
     const result = () => ({ data: rows[table], error: null });
@@ -54,6 +55,95 @@ beforeEach(() => {
   } as never);
 });
 describe("manager receipt detail API", () => {
+  it("hydrates historical suggestions and saved assignments using current exact catalog IDs", async () => {
+    rows.reviews = [{ snapshot: { vendor: "Saved", lines: [{ jobId: "saved-only" }] } }];
+    rows.job_candidates = [
+      {
+        id: "suggestion",
+        housecall_job_id: "job",
+        label: "Old label",
+        source: "receipt_intelligence",
+        score: 999,
+      },
+    ];
+    rows.manager_job_catalog = [
+      {
+        id: "job",
+        label: "Current label",
+        source: "housecall",
+        active: false,
+        unavailable: true,
+        synced_at: "2020-01-01T00:00:00Z",
+        customer: "Current customer",
+      },
+      {
+        id: "saved-only",
+        label: "Saved job",
+        source: "housecall",
+        active: true,
+        synced_at: new Date().toISOString(),
+      },
+    ];
+    const body = await (await run()).json();
+    expect(body.suggestions[0]).toMatchObject({
+      id: "job",
+      label: "Current label",
+      suggestionId: "suggestion",
+      score: 999,
+      active: false,
+      unavailable: true,
+      stale: true,
+      customer: "Current customer",
+    });
+    expect(body.assignedJobs).toHaveLength(1);
+    expect(body.assignedJobs[0]).toMatchObject({ id: "saved-only", stale: false });
+  });
+  it("shows each frozen page separately instead of reusing one successful attachment for the job", async () => {
+    rows.housecall_outbox = { intent_id: "current-intent", status: "pending" };
+    rows.housecall_intents = {
+      id: "current-intent",
+      payload_hash: "a".repeat(64),
+      attachment_job_ids: ["job"],
+      job_cost_lines: [],
+    };
+    rows.housecall_export_steps = [
+      {
+        id: "step-0",
+        housecall_job_id: "job",
+        step: "attachment",
+        receipt_page_id: "page-0",
+        status: "succeeded",
+        external_id: "external-page-0",
+        payload: { image: { page_index: 0, storage_key: "private-object-0" } },
+      },
+      {
+        id: "step-1",
+        housecall_job_id: "job",
+        step: "attachment",
+        receipt_page_id: "page-1",
+        status: "reconcile_required",
+        payload: { image: { page_index: 1, storage_key: "private-object-1" } },
+      },
+    ];
+    rows.housecall_links = [
+      { housecall_job_id: "job", step: "attachment", external_id: "legacy-image" },
+    ];
+    const response = await run();
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.steps).toHaveLength(2);
+    expect(body.steps[0]).toMatchObject({
+      pageIndex: 0,
+      status: "succeeded",
+      externalId: "external-page-0",
+    });
+    expect(body.steps[1]).toMatchObject({
+      pageIndex: 1,
+      status: "reconcile_required",
+      externalId: null,
+    });
+    expect(JSON.stringify(body)).not.toMatch(/private-object|legacy-image/);
+  });
   it("uses authenticated reads and excludes storage/provider payloads", async () => {
     const res = await run();
     expect(res.status).toBe(200);

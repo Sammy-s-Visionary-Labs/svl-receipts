@@ -17,6 +17,7 @@ import {
   GeminiReceiptError,
   sendReceiptNeedsRetakePush,
 } from "@svl/integrations";
+import { runApprovedHousecallExports } from "@/lib/housecall/export";
 import {
   ReceiptObjectSetRemovalError,
   readReceiptObject,
@@ -56,6 +57,15 @@ export async function kickWork(kind: WorkKind): Promise<{
   failed: number;
   skipped?: string;
 }> {
+  if (kind === "export") {
+    const result = await runApprovedHousecallExports();
+    return {
+      claimed: result.completed + result.unresolved,
+      completed: result.completed,
+      failed: result.unresolved,
+      ...(result.skipped ? { skipped: result.skipped } : {}),
+    };
+  }
   if (!isHandledWorkKind(kind)) {
     return { claimed: 0, completed: 0, failed: 0, skipped: `${kind}_unimplemented` };
   }
