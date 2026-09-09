@@ -106,11 +106,11 @@ describe("work leases and retries", () => {
     ).toBe("dead_letter");
   });
 
-  it("handles readability and purge while extract/export providers remain deferred", () => {
-    expect(WORK_HANDLED_KINDS).toEqual(["readability", "purge"]);
+  it("handles readability, extraction and purge while exports remain deferred", () => {
+    expect(WORK_HANDLED_KINDS).toEqual(["readability", "extract", "purge"]);
     expect(isHandledWorkKind("readability")).toBe(true);
     expect(isHandledWorkKind("purge")).toBe(true);
-    expect(isHandledWorkKind("extract")).toBe(false);
+    expect(isHandledWorkKind("extract")).toBe(true);
     expect(isHandledWorkKind("export")).toBe(false);
   });
 

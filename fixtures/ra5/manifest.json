@@ -1,0 +1,308 @@
+{
+  "schemaVersion": 1,
+  "synthetic": true,
+  "reviewedBy": "Codex visual inspection against rendered images; not human vendor-accuracy signoff",
+  "scope": "RA-35/37/38/39/40/41 software behavior",
+  "deferred": [
+    "Representative real-vendor extraction accuracy",
+    "Live Housecall catalog/synchronization and job verification"
+  ],
+  "fixtures": [
+    {
+      "id": "select-multijob",
+      "images": ["select-multijob.png"],
+      "cohorts": ["Select", "handwriting", "multijob", "decimal_quantity"],
+      "expected": {
+        "vendorIncludes": "Select Stone",
+        "purchase_date": "2026-08-18",
+        "identifier": "TEST-SEL-001",
+        "receipt_total_cents": 18769,
+        "tax_cents": 1269,
+        "material_total_cents": 17500,
+        "lines": [
+          {
+            "qty": 2.5,
+            "uom": "ton",
+            "unit_cost_cents": 4000,
+            "extended_cost_cents": 10000,
+            "jobHintIncludes": "TEST-1042"
+          },
+          {
+            "qty": 3,
+            "uom": "yd3",
+            "unit_cost_cents": 2500,
+            "extended_cost_cents": 7500,
+            "jobHintIncludes": "TEST-2048"
+          }
+        ]
+      },
+      "jobs": ["ra5-test-job-sullivan", "ra5-test-job-oak"]
+    },
+    {
+      "id": "sandman-decimal-mismatch",
+      "images": ["sandman-decimal-mismatch.png"],
+      "cohorts": ["Sandman", "arithmetic_mismatch", "decimal_quantity"],
+      "expected": {
+        "vendorIncludes": "Sandman",
+        "purchase_date": "2026-08-19",
+        "identifier": "TEST-SAN-002",
+        "receipt_total_cents": 16315,
+        "tax_cents": 1173,
+        "material_total_cents": 15042,
+        "lines": [
+          {
+            "qty": 6.09,
+            "uom": "ton",
+            "unit_cost_cents": 2470,
+            "extended_cost_cents": 15042,
+            "printed_extended_cost_cents": 15142
+          }
+        ],
+        "warningCodes": ["line_total_mismatch", "subtotal_mismatch", "receipt_total_mismatch"]
+      },
+      "jobs": ["ra5-test-job-sullivan"]
+    },
+    {
+      "id": "klumm-disposal",
+      "images": ["klumm-disposal.png"],
+      "cohorts": ["Klumm", "disposal", "conflicting_handwriting"],
+      "expected": {
+        "vendorIncludes": "Klumm",
+        "purchase_date": "2026-08-20",
+        "identifier": "TEST-KLU-003",
+        "receipt_total_cents": 10500,
+        "tax_cents": 0,
+        "material_total_cents": 10500,
+        "lines": [
+          {
+            "qty": 1.75,
+            "uom": "ton",
+            "unit_cost_cents": 6000,
+            "extended_cost_cents": 10500
+          }
+        ]
+      },
+      "jobs": ["ra5-test-job-oak"]
+    },
+    {
+      "id": "lowes-ambiguous-missing",
+      "images": ["lowes-ambiguous-missing.png"],
+      "cohorts": ["Lowes", "ambiguous_date", "missing_cost", "faint_handwriting"],
+      "expected": {
+        "vendorIncludes": "Lowe",
+        "purchase_date": null,
+        "identifier": "TEST-LOW-004",
+        "receipt_total_cents": null,
+        "tax_cents": null,
+        "material_total_cents": null,
+        "lines": [
+          {
+            "qty": 2,
+            "uom": "box",
+            "unit_cost_cents": 850,
+            "extended_cost_cents": 1700
+          },
+          {
+            "qty": 3,
+            "uom": "bag",
+            "unit_cost_cents": null,
+            "extended_cost_cents": null
+          }
+        ],
+        "warningCodes": ["ambiguous_date", "missing_field"]
+      },
+      "jobs": []
+    },
+    {
+      "id": "perrysburg-multipage",
+      "images": ["perrysburg-page-1.png", "perrysburg-page-2.png"],
+      "cohorts": ["Perrysburg Pipe", "multipage", "carried_forward_summary"],
+      "expected": {
+        "vendorIncludes": "Perrysburg Pipe",
+        "purchase_date": "2026-08-21",
+        "identifier": "TEST-PER-005",
+        "receipt_total_cents": 7812,
+        "tax_cents": 562,
+        "material_total_cents": 7250,
+        "lines": [
+          {
+            "qty": 4,
+            "uom": "ea",
+            "unit_cost_cents": 1250,
+            "extended_cost_cents": 5000,
+            "page_index": 0
+          },
+          {
+            "qty": 2,
+            "uom": "ea",
+            "unit_cost_cents": 725,
+            "extended_cost_cents": 1450,
+            "page_index": 0
+          },
+          {
+            "qty": 1,
+            "uom": "can",
+            "unit_cost_cents": 800,
+            "extended_cost_cents": 800,
+            "page_index": 1
+          }
+        ]
+      },
+      "jobs": ["ra5-test-job-oak"]
+    },
+    {
+      "id": "menards-purchase",
+      "images": ["menards-purchase.png"],
+      "cohorts": ["Menards", "sale_format"],
+      "expected": {
+        "vendorIncludes": "Menards",
+        "purchase_date": "2026-08-22",
+        "identifier": "TEST-MEN-006",
+        "receipt_total_cents": 5654,
+        "tax_cents": 407,
+        "material_total_cents": 5247,
+        "lines": [
+          {
+            "qty": 3,
+            "uom": "ea",
+            "unit_cost_cents": 1749,
+            "extended_cost_cents": 5247
+          }
+        ]
+      },
+      "jobs": ["ra5-test-job-sullivan"]
+    },
+    {
+      "id": "home-depot-base",
+      "images": ["home-depot-base.png"],
+      "cohorts": ["Home Depot", "repeated_items"],
+      "expected": {
+        "vendorIncludes": "Home Depot",
+        "purchase_date": "2026-08-23",
+        "identifier": "TEST-HD-007",
+        "receipt_total_cents": 10180,
+        "tax_cents": 732,
+        "material_total_cents": 9448,
+        "lines": [
+          {
+            "qty": 2,
+            "uom": "ea",
+            "unit_cost_cents": 4600,
+            "extended_cost_cents": 9200
+          },
+          {
+            "qty": 1,
+            "uom": "ea",
+            "unit_cost_cents": 248,
+            "extended_cost_cents": 248
+          }
+        ]
+      },
+      "jobs": ["ra5-test-job-sullivan"]
+    },
+    {
+      "id": "fuel-category",
+      "images": ["fuel-category.png"],
+      "cohorts": ["fuel", "half_up_rounding"],
+      "expected": {
+        "vendorIncludes": "Test Fuel Stop",
+        "purchase_date": "2026-08-24",
+        "identifier": "TEST-FUEL-010",
+        "receipt_total_cents": 3848,
+        "tax_cents": 0,
+        "material_total_cents": 3848,
+        "lines": [
+          {
+            "qty": 10.125,
+            "uom": "gal",
+            "unit_cost_cents": 380,
+            "extended_cost_cents": 3848
+          }
+        ]
+      },
+      "jobs": ["ra5-test-job-oak"]
+    },
+    {
+      "id": "home-depot-rephotographed",
+      "images": ["home-depot-rephotographed.png"],
+      "cohorts": ["Home Depot", "near_duplicate"],
+      "expected": {
+        "vendorIncludes": "Home Depot",
+        "purchase_date": "2026-08-23",
+        "identifier": "TEST-HD-007",
+        "receipt_total_cents": 10180,
+        "tax_cents": 732,
+        "material_total_cents": 9448,
+        "lines": [
+          {
+            "qty": 2,
+            "uom": "ea",
+            "unit_cost_cents": 4600,
+            "extended_cost_cents": 9200
+          },
+          {
+            "qty": 1,
+            "uom": "ea",
+            "unit_cost_cents": 248,
+            "extended_cost_cents": 248
+          }
+        ]
+      },
+      "jobs": ["ra5-test-job-sullivan"],
+      "duplicateOf": "home-depot-base"
+    },
+    {
+      "id": "home-depot-separate-purchase",
+      "images": ["home-depot-separate-purchase.png"],
+      "cohorts": ["Home Depot", "duplicate_negative"],
+      "expected": {
+        "vendorIncludes": "Home Depot",
+        "purchase_date": "2026-08-24",
+        "identifier": "TEST-HD-009",
+        "receipt_total_cents": 10180,
+        "tax_cents": 732,
+        "material_total_cents": 9448,
+        "lines": [
+          {
+            "qty": 2,
+            "uom": "ea",
+            "unit_cost_cents": 4600,
+            "extended_cost_cents": 9200
+          },
+          {
+            "qty": 1,
+            "uom": "ea",
+            "unit_cost_cents": 248,
+            "extended_cost_cents": 248
+          }
+        ]
+      },
+      "jobs": ["ra5-test-job-sullivan"]
+    },
+    {
+      "id": "menards-picking-list",
+      "images": ["menards-picking-list.png"],
+      "cohorts": ["Menards", "picking_list", "missing_cost"],
+      "expected": {
+        "vendorIncludes": "Menards",
+        "document_kind": "picking_list",
+        "material_total_cents": null,
+        "lines": [
+          {
+            "qty": 3,
+            "uom": "ea",
+            "unit_cost_cents": null,
+            "extended_cost_cents": null
+          }
+        ],
+        "warningCodes": ["document_requires_review", "missing_field"]
+      },
+      "jobs": ["ra5-test-job-sullivan"]
+    }
+  ],
+  "exactDuplicate": {
+    "source": "images/home-depot-base.png",
+    "copy": "images/home-depot-exact-copy.png",
+    "expected": "byte-identical exact duplicate; resubmit both for checksum test"
+  }
+}

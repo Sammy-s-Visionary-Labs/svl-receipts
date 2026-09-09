@@ -46,6 +46,7 @@ describe("money", () => {
   it("computes extended cost in integer cents", () => {
     expect(extendedCostCents(2, 1995)).toBe(3990);
     expect(extendedCostCents(1.5, 100)).toBe(150);
+    expect(extendedCostCents(1.005, 100)).toBe(101);
   });
 
   it("rejects non-integer unit costs", () => {

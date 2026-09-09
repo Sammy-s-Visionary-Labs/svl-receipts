@@ -14,6 +14,7 @@ import {
   GEMINI_READABILITY_MODEL,
   GeminiReadabilityError,
   type GeminiReadabilityPage,
+  GeminiReceiptError,
   sendReceiptNeedsRetakePush,
 } from "@svl/integrations";
 import {
@@ -22,11 +23,17 @@ import {
   removeReceiptObjectSet,
 } from "@/lib/storage/receipts";
 import { createServiceRoleClient } from "@/lib/supabase/service";
+import { ExtractionDeferredError, runExtraction } from "./extraction";
+
+export const READABILITY_PROVIDER_TIMEOUT_MS = 45_000;
+export const WORK_REQUEST_BUDGET_MS = 160_000;
+type WorkSummary = { claimed: number; completed: number; failed: number };
 
 export type WorkRow = {
   id: string;
   receipt_id: string;
   kind: string;
+  generation?: number;
 };
 
 function newWorkerId(): string {
@@ -55,15 +62,20 @@ export async function kickWork(kind: WorkKind): Promise<{
   return runWorkBatch({ kinds: [kind], limit: 4 });
 }
 
-export async function runWorkBatch(input?: { limit?: number; kinds?: WorkKind[] }): Promise<{
+export async function runWorkBatch(input?: {
+  limit?: number;
+  kinds?: WorkKind[];
+  deadlineAt?: number;
+}): Promise<{
   claimed: number;
   completed: number;
   failed: number;
 }> {
   const kinds = input?.kinds ?? [...WORK_HANDLED_KINDS];
+  const deadlineAt = input?.deadlineAt ?? Date.now() + WORK_REQUEST_BUDGET_MS;
   // A serverless invocation must never fan out an unbounded provider batch.
-  // Four concurrent checks fit within the route's duration while the cron
-  // drains additional work on its next minute tick.
+  // Four concurrent stages fit inside the route budget. Accepted readability
+  // results immediately continue for those same receipts; the daily cron is recovery.
   const limit = Math.min(Math.max(Math.trunc(input?.limit ?? 4), 1), 4);
   const workerId = newWorkerId();
   const supabase = createServiceRoleClient();
@@ -87,18 +99,93 @@ export async function runWorkBatch(input?: { limit?: number; kinds?: WorkKind[] 
   }
 
   const rows = (data ?? []) as WorkRow[];
-  const outcomes = await Promise.all(rows.map((row) => processWorkRow(supabase, row, workerId)));
+  const summaries = await Promise.all(
+    rows.map(async (row) => {
+      const outcome = await processWorkRow(supabase, row, workerId, deadlineAt);
+      const initial = summarize([row], [outcome]);
+      if (row.kind !== "readability" || outcome !== "completed") return initial;
+      try {
+        // Continue this receipt before slow unrelated initial rows finish.
+        const next = await runScopedStage(
+          supabase,
+          row.receipt_id,
+          "extract",
+          workerId,
+          deadlineAt,
+        );
+        return totalWork([initial, next]);
+      } catch {
+        console.error("[work-runner] receipt extraction remains queued", {
+          receiptId: row.receipt_id,
+        });
+        return initial;
+      }
+    }),
+  );
+  return totalWork(summaries);
+}
+
+function summarize(rows: WorkRow[], outcomes: Array<"completed" | "failed">): WorkSummary {
   return {
     claimed: rows.length,
     completed: outcomes.filter((outcome) => outcome === "completed").length,
     failed: outcomes.filter((outcome) => outcome === "failed").length,
   };
 }
+function totalWork(summaries: WorkSummary[]): WorkSummary {
+  return summaries.reduce(
+    (total, item) => ({
+      claimed: total.claimed + item.claimed,
+      completed: total.completed + item.completed,
+      failed: total.failed + item.failed,
+    }),
+    { claimed: 0, completed: 0, failed: 0 },
+  );
+}
+async function runScopedStage(
+  supabase: ReturnType<typeof createServiceRoleClient>,
+  receiptId: string,
+  kind: "readability" | "extract",
+  workerId: string,
+  deadlineAt: number,
+): Promise<WorkSummary> {
+  if (deadlineAt - Date.now() < 25_000) return { claimed: 0, completed: 0, failed: 0 };
+  const { data, error } = await supabase.rpc("claim_receipt_work", {
+    p_receipt_id: receiptId,
+    p_worker_id: workerId,
+    p_kind: kind,
+    p_lease_seconds: WORK_LEASE_SECONDS,
+  });
+  if (error) throw error;
+  const rows = (data ?? []) as WorkRow[];
+  const outcomes = await Promise.all(
+    rows.map((row) => processWorkRow(supabase, row, workerId, deadlineAt)),
+  );
+  return summarize(rows, outcomes);
+}
+/** Upload/re-extract kicks claim only the requested receipt. An accepted upload
+ * proceeds to extraction in the same after() invocation, independent of backlog. */
+export async function runReceiptWork(
+  receiptId: string,
+  kind: "readability" | "extract",
+  input?: { deadlineAt?: number },
+): Promise<WorkSummary> {
+  const supabase = createServiceRoleClient();
+  const workerId = newWorkerId();
+  const deadlineAt = input?.deadlineAt ?? Date.now() + WORK_REQUEST_BUDGET_MS;
+  const initial = await runScopedStage(supabase, receiptId, kind, workerId, deadlineAt);
+  if (kind !== "readability" || initial.failed) return initial;
+  // The scoped SQL claim requires retained accepted readability evidence. An
+  // unreadable result or another live worker's unfinished stage returns no row.
+  const extraction = await runScopedStage(supabase, receiptId, "extract", workerId, deadlineAt);
+  return totalWork([initial, extraction]);
+}
 
 async function processWorkRow(
   supabase: ReturnType<typeof createServiceRoleClient>,
   row: WorkRow,
   workerId: string,
+  deadlineAt: number,
 ): Promise<"completed" | "failed"> {
   try {
     if (!isHandledWorkKind(row.kind)) {
@@ -115,8 +202,10 @@ async function processWorkRow(
 
     if (row.kind === "purge") {
       await runPurge(supabase, row, workerId);
+    } else if (row.kind === "extract") {
+      await runExtraction(supabase, row, workerId, deadlineAt);
     } else if (row.kind === "readability") {
-      await runReadability(supabase, row, workerId);
+      await runReadability(supabase, row, workerId, deadlineAt);
     }
 
     const { error: completeError } = await supabase.rpc("complete_work", {
@@ -128,22 +217,32 @@ async function processWorkRow(
     }
     return "completed";
   } catch (cause) {
+    if (cause instanceof ExtractionDeferredError) {
+      const { error: releaseError } = await supabase.rpc("release_receipt_work", {
+        p_work_id: row.id,
+        p_worker_id: workerId,
+      });
+      if (!releaseError) return "failed";
+    }
     if (cause instanceof PurgeNotEligibleError) {
       const { error: deferError } = await supabase.rpc("defer_work", {
         p_work_id: row.id,
         p_worker_id: workerId,
         p_reason: cause.code,
       });
-      if (!deferError) {
-        return "failed";
-      }
+      if (!deferError) return "failed";
     }
-    console.error("[work-runner] job failed", row.id, cause);
+    console.error("[work-runner] job failed", {
+      workId: row.id,
+      reason: persistableWorkReason(cause),
+    });
     const { error: failError } = await supabase.rpc("fail_work", {
       p_work_id: row.id,
       p_worker_id: workerId,
       p_reason: persistableWorkReason(cause),
-      p_retryable: !(cause instanceof GeminiReadabilityError) || cause.kind === "retryable",
+      p_retryable:
+        !(cause instanceof GeminiReadabilityError || cause instanceof GeminiReceiptError) ||
+        cause.kind === "retryable",
     });
     if (failError) {
       console.error("[work-runner] fail_work", failError);
@@ -156,6 +255,7 @@ async function runReadability(
   supabase: ReturnType<typeof createServiceRoleClient>,
   row: WorkRow,
   workerId: string,
+  deadlineAt: number,
 ) {
   const { data: existing, error: existingError } = await supabase
     .from("readability_checks")
@@ -190,6 +290,7 @@ async function runReadability(
     throw new GeminiReadabilityError("permanent", "invalid_page_set");
   }
 
+  if (deadlineAt - Date.now() < 25_000) throw new ExtractionDeferredError();
   const providerPages: GeminiReadabilityPage[] = [];
   for (const page of confirmedPages) {
     const object = await readReceiptObject(page.storage_key);
@@ -216,9 +317,15 @@ async function runReadability(
   if (provider !== "gemini" && provider !== "google_gemini") {
     throw new GeminiReadabilityError("permanent", "provider_not_configured");
   }
+  const providerBudget = Math.min(
+    READABILITY_PROVIDER_TIMEOUT_MS,
+    deadlineAt - Date.now() - 15_000,
+  );
+  if (providerBudget < 10_000) throw new ExtractionDeferredError();
   const adapter = createGeminiReadabilityAdapter({
     apiKey: process.env.GEMINI_API_KEY || process.env.AI_API_KEY || "",
     model: process.env.GEMINI_MODEL || GEMINI_READABILITY_MODEL,
+    timeoutMs: providerBudget,
   });
   const result = await adapter.checkReadable(providerPages);
 

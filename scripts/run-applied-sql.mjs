@@ -9,6 +9,10 @@ const sqlFiles = [
   "ra23_applied.sql",
   "ra25_applied.sql",
   "ra209_applied.sql",
+  "ra27_applied.sql",
+  "ra4_applied.sql",
+  "ra5_applied.sql",
+  "ra5_scoped_work_applied.sql",
 ].map((name) => join(root, "supabase", "tests", name));
 const url = process.env.SVL_APPLIED_DATABASE_URL;
 
@@ -23,6 +27,9 @@ const sql = postgres(url, {
 });
 
 try {
+  // Hosted monitoring deliberately enables LOGIN (see storage-capacity-runbook.md).
+  // Fresh migration replay still requires the default NOLOGIN role.
+  await sql`select set_config('svl.test_allow_monitor_login', ${process.env.SVL_APPLIED_ALLOW_MONITOR_LOGIN === "true" ? "true" : "false"}, false)`;
   // Each suite intentionally contains BEGIN, multiple DO blocks, and ROLLBACK.
   // Simple-query mode executes each file as one rollback-only database session.
   for (const sqlFile of sqlFiles) {

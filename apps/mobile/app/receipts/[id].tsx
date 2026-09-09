@@ -89,6 +89,16 @@ export default function ReceiptDetailScreen() {
             <Text style={styles.readOnlyNote}>Read-only submission record</Text>
           </View>
 
+          {detail.clarification ? (
+            <View lightColor="#fff7ed" darkColor="#2b1708" style={styles.guidanceCard}>
+              <Text accessibilityRole="header" style={styles.cardTitle}>
+                Message from your reviewer
+              </Text>
+              <Text style={styles.body}>{detail.clarification}</Text>
+              <Text style={styles.body}>Contact your manager to clarify this receipt.</Text>
+            </View>
+          ) : null}
+
           {detail.readability?.readable === false ? (
             <View lightColor="#fff7ed" darkColor="#2b1708" style={styles.guidanceCard}>
               <Text style={styles.cardTitle}>Needs retake</Text>

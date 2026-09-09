@@ -8,6 +8,8 @@ type RouteContext = { params: Promise<{ id: string }> };
 type ReceiptRow = {
   storage_key: string | null;
   status: string;
+  content_deleted_at: string | null;
+  purge_claimed_at: string | null;
 };
 
 export async function GET(request: Request, context: RouteContext) {
@@ -21,7 +23,7 @@ export async function GET(request: Request, context: RouteContext) {
 
     const { data, error } = await supabase
       .from("receipts")
-      .select("storage_key, status")
+      .select("storage_key, status, content_deleted_at, purge_claimed_at")
       .eq("id", id)
       .maybeSingle();
 
@@ -30,14 +32,19 @@ export async function GET(request: Request, context: RouteContext) {
     }
 
     const row = data as ReceiptRow;
-    if (!row.storage_key || row.status === "upload_pending") {
+    if (
+      !row.storage_key ||
+      row.status === "upload_pending" ||
+      row.content_deleted_at ||
+      row.purge_claimed_at
+    ) {
       throw new HttpError(404, "not_found", "Receipt image is not available");
     }
 
     const url = await createReceiptReadUrl(row.storage_key);
     const expiresAt = new Date(Date.now() + SIGNED_READ_TTL_SECONDS * 1000).toISOString();
     console.info("[receipt-image-access]", { userId: actor.userId, receiptId: id });
-    return Response.json({ url, expiresAt });
+    return Response.json({ url, expiresAt }, { headers: { "cache-control": "private, no-store" } });
   } catch (error) {
     if (error instanceof HttpError) {
       return httpErrorResponse(error);

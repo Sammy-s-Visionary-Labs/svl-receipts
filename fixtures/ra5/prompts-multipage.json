@@ -1,0 +1,17 @@
+{
+  "generator": "built-in image_gen",
+  "prompts": [
+    {
+      "id": "lowes-ambiguous-missing",
+      "prompt": "Generate one high-resolution portrait phone photo of a fictional Lowe's-style thermal receipt on dark desk, readable print with a slightly faded line. Must have clearly legible top and bottom 'SYNTHETIC TEST FIXTURE — NOT VALID FOR PURCHASE'. Simulated layout, no authentic logo or personal data or barcode. Exact text: 'Lowe’s (SIMULATED)'; 'Receipt TEST-LOW-004'; 'Date 03/04/26'; 'PO / JOB: [blank]'; 'Description | Qty | Unit | Unit price | Amount'; 'Fence screws | 2 | box | 8.50 | 17.00'; 'Concrete mix | 3 | bag | [illegible] | [illegible]'; 'Subtotal [illegible]'; 'Tax [illegible]'; 'Total [illegible]'. For [blank] display an empty line, and for each [illegible] render a pale worn-out smudge with NO recoverable digits, not the literal bracket words. Date intentionally ambiguous, retain exact03/04/26 and no other date/locale clue. Small natural handwritten 'Sulliv...?' in margin should be uncertain and not supply a PO number. No extra items or numbers. One whole receipt in photo."
+    },
+    {
+      "id": "perrysburg-page-1",
+      "prompt": "Generate a sharp portrait smartphone photograph of a fictional Perrysburg Pipe-style sales invoice PAGE 1 OF 2 on white office paper at slight angle on light wood. Exact header and footer 'SYNTHETIC TEST FIXTURE — NOT VALID FOR PURCHASE'. No real logo/address/phone/card/barcode/signature. Exact text: 'Perrysburg Pipe (SIMULATED)'; 'Invoice TEST-PER-005'; 'Purchase date 08/21/2026'; 'PAGE 1 OF 2'; 'Customer TEST LANDSCAPE'; 'PO TEST-2048'; 'Line | Description | Qty | Unit | Unit price | Amount'; '1 | PVC pipe 4 inch | 4 | each | 12.50 | 50.00'; '2 | PVC elbow 4 inch | 2 | each | 7.25 | 14.50'; 'PAGE SUBTOTAL 64.50'; 'CONTINUED ON PAGE 2 — FINAL TOTAL ON PAGE 2'. Blue natural handwritten note 'Oak Demo'. All exact values, one complete sheet only."
+    },
+    {
+      "id": "perrysburg-page-2",
+      "prompt": "Generate a sharp portrait smartphone photograph of a fictional Perrysburg Pipe-style sales invoice PAGE 2 OF 2 on white office paper at slight angle on light wood. Exact header and footer 'SYNTHETIC TEST FIXTURE — NOT VALID FOR PURCHASE'. No real logo/address/phone/card/barcode/signature. Exact text: 'Perrysburg Pipe (SIMULATED)'; 'Invoice TEST-PER-005'; 'Purchase date 08/21/2026'; 'PAGE 2 OF 2'; 'Customer TEST LANDSCAPE'; 'PO TEST-2048'; 'BROUGHT FORWARD FROM PAGE 1: 64.50'; 'Line | Description | Qty | Unit | Unit price | Amount'; '3 | PVC cement | 1 | can | 8.00 | 8.00'; 'FINAL SUBTOTAL 72.50'; 'Tax 5.62'; 'FINAL TOTAL 78.12'; 'END OF INVOICE — 3 MATERIAL LINES TOTAL'. Blue natural handwritten note 'Oak Demo'. Brought forward is a summary and must not look like a fourth material line. One complete sheet only, correct exact amounts."
+    }
+  ]
+}

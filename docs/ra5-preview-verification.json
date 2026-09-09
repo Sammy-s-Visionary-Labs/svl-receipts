@@ -1,0 +1,238 @@
+{
+  "schemaVersion": 1,
+  "checkedAt": "2026-09-08T21:38:58.815Z",
+  "targetProjectRef": "vrtcbrowjnipbldoioyr",
+  "previewHost": "svl-receipts-web-git-codex-ra-5-receipt-intelligence-svl1.vercel.app",
+  "mode": "application-read-only",
+  "status": "passed",
+  "checks": [
+    {
+      "role": "admin",
+      "check": "admin_configuration_invalid",
+      "httpStatus": 400,
+      "passed": true
+    },
+    {
+      "role": "admin",
+      "check": "categories",
+      "httpStatus": 200,
+      "passed": true,
+      "count": 4,
+      "activeCount": 4,
+      "configurationVersions": [1]
+    },
+    {
+      "role": "admin",
+      "check": "duplicate_missing_candidate",
+      "httpStatus": 404,
+      "passed": true
+    },
+    {
+      "role": "admin",
+      "check": "evaluation",
+      "httpStatus": 200,
+      "passed": true,
+      "schemaVersion": 1,
+      "recordCount": 0,
+      "hasNextPage": false
+    },
+    {
+      "role": "admin",
+      "check": "evidence_missing_receipt",
+      "httpStatus": 403,
+      "passed": true
+    },
+    {
+      "role": "admin",
+      "check": "identity",
+      "httpStatus": 200,
+      "passed": true
+    },
+    {
+      "role": "admin",
+      "check": "nonexistent_receipt_precondition",
+      "httpStatus": 404,
+      "passed": true
+    },
+    {
+      "role": "admin",
+      "check": "reextract_missing_receipt",
+      "httpStatus": 409,
+      "passed": true
+    },
+    {
+      "role": "anonymous",
+      "check": "admin_configuration_invalid",
+      "httpStatus": 401,
+      "passed": true
+    },
+    {
+      "role": "anonymous",
+      "check": "categories",
+      "httpStatus": 401,
+      "passed": true
+    },
+    {
+      "role": "anonymous",
+      "check": "duplicate_missing_candidate",
+      "httpStatus": 401,
+      "passed": true
+    },
+    {
+      "role": "anonymous",
+      "check": "evaluation",
+      "httpStatus": 401,
+      "passed": true
+    },
+    {
+      "role": "anonymous",
+      "check": "evidence_missing_receipt",
+      "httpStatus": 401,
+      "passed": true
+    },
+    {
+      "role": "anonymous",
+      "check": "reextract_missing_receipt",
+      "httpStatus": 401,
+      "passed": true
+    },
+    {
+      "role": "disabled",
+      "check": "admin_configuration_invalid",
+      "httpStatus": 401,
+      "passed": true
+    },
+    {
+      "role": "disabled",
+      "check": "categories",
+      "httpStatus": 401,
+      "passed": true
+    },
+    {
+      "role": "disabled",
+      "check": "duplicate_missing_candidate",
+      "httpStatus": 401,
+      "passed": true
+    },
+    {
+      "role": "disabled",
+      "check": "evaluation",
+      "httpStatus": 401,
+      "passed": true
+    },
+    {
+      "role": "disabled",
+      "check": "evidence_missing_receipt",
+      "httpStatus": 401,
+      "passed": true
+    },
+    {
+      "role": "disabled",
+      "check": "identity",
+      "httpStatus": 401,
+      "passed": true
+    },
+    {
+      "role": "disabled",
+      "check": "reextract_missing_receipt",
+      "httpStatus": 401,
+      "passed": true
+    },
+    {
+      "role": "manager",
+      "check": "admin_configuration_invalid",
+      "httpStatus": 403,
+      "passed": true
+    },
+    {
+      "role": "manager",
+      "check": "categories",
+      "httpStatus": 200,
+      "passed": true,
+      "count": 4,
+      "activeCount": 4,
+      "configurationVersions": [1]
+    },
+    {
+      "role": "manager",
+      "check": "duplicate_missing_candidate",
+      "httpStatus": 404,
+      "passed": true
+    },
+    {
+      "role": "manager",
+      "check": "evaluation",
+      "httpStatus": 403,
+      "passed": true
+    },
+    {
+      "role": "manager",
+      "check": "evidence_missing_receipt",
+      "httpStatus": 403,
+      "passed": true
+    },
+    {
+      "role": "manager",
+      "check": "identity",
+      "httpStatus": 200,
+      "passed": true
+    },
+    {
+      "role": "manager",
+      "check": "nonexistent_receipt_precondition",
+      "httpStatus": 404,
+      "passed": true
+    },
+    {
+      "role": "manager",
+      "check": "reextract_missing_receipt",
+      "httpStatus": 409,
+      "passed": true
+    },
+    {
+      "role": "worker",
+      "check": "admin_configuration_invalid",
+      "httpStatus": 403,
+      "passed": true
+    },
+    {
+      "role": "worker",
+      "check": "categories",
+      "httpStatus": 403,
+      "passed": true
+    },
+    {
+      "role": "worker",
+      "check": "duplicate_missing_candidate",
+      "httpStatus": 403,
+      "passed": true
+    },
+    {
+      "role": "worker",
+      "check": "evaluation",
+      "httpStatus": 403,
+      "passed": true
+    },
+    {
+      "role": "worker",
+      "check": "evidence_missing_receipt",
+      "httpStatus": 403,
+      "passed": true
+    },
+    {
+      "role": "worker",
+      "check": "identity",
+      "httpStatus": 200,
+      "passed": true
+    },
+    {
+      "role": "worker",
+      "check": "reextract_missing_receipt",
+      "httpStatus": 403,
+      "passed": true
+    }
+  ],
+  "scope": "Preview API authorization, empty/missing-resource guards and sanitized response shape. Auth sign-in is the only hosted session operation; no receipt/category/work changes, exports, provider calls, browser changes or global sign-outs.",
+  "limitation": "Does not verify real-vendor accuracy, live Housecall synchronization or successful Preview processing. Existing evaluation contents are inspected only in memory; the report stores counts and versions, never records or credentials.",
+  "requestCount": 36
+}

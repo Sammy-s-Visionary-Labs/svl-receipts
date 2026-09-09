@@ -38,6 +38,7 @@ export type RecentReceiptsPage = {
 };
 
 export type WorkerReceiptDetail = ReceiptReadabilityStatus & {
+  clarification?: string;
   id: string;
   submittedAt: string | null;
   workerStatus: WorkerFacingStatus;
@@ -232,6 +233,9 @@ export function parseWorkerReceiptDetail(value: unknown): WorkerReceiptDetail | 
     submittedAt,
     workerStatus: candidate.workerStatus,
     pages: typedPages,
+    ...(typeof candidate.clarification === "string" && candidate.clarification.length <= 2000
+      ? { clarification: candidate.clarification }
+      : {}),
     status: (rawStatus ?? null) as ReceiptStatus | null,
     readability,
   } as WorkerReceiptDetail;

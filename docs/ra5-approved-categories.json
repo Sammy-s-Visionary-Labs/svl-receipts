@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "configuredAt": "2026-09-08T21:30:23.976Z",
+  "projectRef": "vrtcbrowjnipbldoioyr",
+  "approval": "User explicitly selected Materials, Fuel, Dump, Misc in the RA-5 task on 2026-09-08.",
+  "configurationMethod": "Authorized admin API; retained fixture-tested keywords; no production changes.",
+  "categories": [
+    {
+      "id": "dump",
+      "label": "Dump",
+      "active": true,
+      "version": 1,
+      "keywords": ["disposal", "debris"]
+    },
+    {
+      "id": "fuel",
+      "label": "Fuel",
+      "active": true,
+      "version": 1,
+      "keywords": ["diesel", "gasoline"]
+    },
+    {
+      "id": "materials",
+      "label": "Materials",
+      "active": true,
+      "version": 1,
+      "keywords": [
+        "limestone",
+        "topsoil",
+        "sand",
+        "pipe",
+        "elbow",
+        "cement",
+        "screws",
+        "concrete",
+        "cedar",
+        "tube",
+        "brush"
+      ]
+    },
+    {
+      "id": "misc",
+      "label": "Misc",
+      "active": true,
+      "version": 1,
+      "keywords": []
+    }
+  ]
+}

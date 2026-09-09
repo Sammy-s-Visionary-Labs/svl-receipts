@@ -1,0 +1,18 @@
+{
+  "generator": "built-in image_gen",
+  "purpose": "Synthetic receipt test fixtures; not representative real-vendor accuracy evidence",
+  "prompts": [
+    {
+      "id": "select-multijob",
+      "prompt": "Create one high-resolution portrait photograph of a fictional supplier receipt on a wooden desk for automated receipt OCR testing. Make it look like a realistic Select Stone-style sales ticket with ordinary black printed tables, mildly creased paper and natural blue-ink handwriting. This is a SIMULATED vendor layout, not an authentic vendor receipt. Put clear small header and footer 'SYNTHETIC TEST FIXTURE — NOT VALID FOR PURCHASE'. No real contact, card, tax IDs or barcodes. ALL TEXT VALUES MUST BE EXACT: vendor 'Select Stone (SIMULATED)'; 'Invoice TEST-SEL-001'; 'Purchase date 08/18/2026'; 'Customer TEST LANDSCAPE'; two table lines columns Description | Qty | Unit | Unit price | Amount: 'Limestone #57 | 2.500 | ton | 40.00 | 100.00'; 'Screened topsoil | 3.000 | yd3 | 25.00 | 75.00'. 'Subtotal 175.00'; 'Tax 12.69'; 'Total 187.69'. Handwrite beside first line 'Sullivan / PO TEST-1042' and beside second line 'Oak Demo / PO TEST-2048'. Footer 'Two jobs — split by line'. Preserve fully readable quantities/prices. Render one sheet only, no collage. Distinct handwritten words should be legible but natural, not typeset."
+    },
+    {
+      "id": "sandman-decimal-mismatch",
+      "prompt": "Create one high-resolution portrait phone photograph of a fictional Sandman-style aggregate weight ticket, lightly wrinkled white paper on gray workbench with clear black small table print and natural blue handwriting. Mark top and bottom 'SYNTHETIC TEST FIXTURE — NOT VALID FOR PURCHASE'. SIMULATED vendor layout with no authentic logo, contacts, card data or barcodes. Exact printed text: 'Sandman (SIMULATED)'; 'Ticket TEST-SAN-002'; 'Purchase date 08/19/2026'; 'PO TEST-1042'; 'Description | Quantity | Unit | Unit price | Printed amount'; 'Washed sand | 6.090 | ton | 24.70 | 151.42'; 'Subtotal 151.42'; 'Tax 11.73'; 'Total 163.15'. These deliberately inconsistent arithmetic values must appear exactly, do not correct: quantity 6.090 times 24.70 equals 150.42 but the printed amount is intentionally 151.42. Handwrite 'Sullivan' in blue on upper right. One complete sheet, mild shadow not covering text; clearly readable."
+    },
+    {
+      "id": "klumm-disposal",
+      "prompt": "Create one realistic high-resolution portrait photograph of a fictional Klumm Bros-style disposal scale ticket for OCR testing. Use a plain small black printed form on off-white creased paper, wood tabletop, natural handwritten blue ballpoint job note. Label top and bottom exactly 'SYNTHETIC TEST FIXTURE — NOT VALID FOR PURCHASE'. Simulated vendor layout, no authentic logo, contact info, payment card data, signatures or barcodes. Exact text: 'Klumm Bros (SIMULATED)'; 'Ticket TEST-KLU-003'; 'Purchase date 08/20/2026'; 'PO TEST-2048'; 'Material | Qty | Unit | Unit price | Amount'; 'Construction debris disposal | 1.750 | ton | 60.00 | 105.00'; 'Subtotal 105.00'; 'Tax 0.00'; 'Total 105.00'. Handwrite visibly 'Oak Demo' and below 'not Sullivan' as correction context without obscuring amounts. One complete page; text accurate, handwriting natural and fully legible."
+    }
+  ]
+}
