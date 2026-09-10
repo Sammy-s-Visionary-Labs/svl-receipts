@@ -39,7 +39,7 @@ The nine [synthetic PNG fixtures](../fixtures/ra6/README.md) were generated usin
 
 ## Remaining acceptance
 
-- Verify the actual account connection, MAX/API permissions, catalog shape and job/employee mappings through approved configuration. The only existing test label reported by the user is `Test Customer#1`; its job ID has not been verified. Proposed Customer 2/3/4 labels are logical fixtures with null HCP bindings.
+- Verify the actual API connection, MAX/API permissions, catalog shape and job/employee mappings through approved configuration. On 2026-09-10, all four test job IDs were verified through the signed-in Housecall browser UI and saved in the ignored local inventory. Customers #2–#4 have notifications off; #1 has notifications on. This browser verification does not establish API access or authorize writes. The committed fixture template deliberately retains null HCP bindings.
 - Run the new synthetic pack through the app's extraction/review flow. Numeric US dates may need explicit manager confirmation under the strict date policy. Confirm the exact destination IDs and final per-line/image preview before any live test.
 - Obtain explicit user approval for the exact test jobs, immutable payloads, write count and time window. A live test job remains a record in the real business account.
 - Verify attachment filename preservation and asynchronous visibility, material append behavior and preservation of existing rows, three-decimal quantity arithmetic, and returned external IDs. The documented attachment schema has no content hash, so filename/ID matching is not independent byte-identity proof.

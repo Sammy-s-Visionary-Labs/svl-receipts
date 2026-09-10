@@ -4,7 +4,9 @@
 
 The user's instruction for this work is: **"For our work on RA-6, I’ll treat live Housecall writes as requiring your explicit approval."** This applies to test jobs inside the live account as well as business jobs, and includes attachments, material costs, retries, cleanup, and job/customer creation.
 
-Implementation and local/mock testing do not authorize live writes. Ordinary receipt approval freezes export instructions; it does not create a Housecall write authorization. No approval or destination ID is seeded by these migrations. The only known existing test label is **Test Customer#1**, whose exact job ID has not yet been verified. Additional test jobs do not exist yet according to the user.
+Implementation and local/mock testing do not authorize live writes. Ordinary receipt approval freezes export instructions; it does not create a Housecall write authorization. No approval or destination ID is seeded by these migrations.
+
+On 2026-09-10, the user supplied links for Test Customer#1 through #4 and reiterated that every data write during testing requires their approval. Read-only inspection of the signed-in Housecall UI resolved all four exact job IDs. Customer links for #1–#3 were resolved through their Jobs tabs. The private inventory is `.local/ra6/test-jobs.json` (ignored by Git); it is not a runtime allowlist or authorization. Customers #2–#4 show notifications off and are the proposed initial test destinations. Customer #1 shows notifications on. No notification setting or business record was changed. API verification remains pending because no Housecall API key was configured in the workspace or current process at inspection time.
 
 ## Controls and execution
 

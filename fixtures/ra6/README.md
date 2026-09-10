@@ -5,6 +5,7 @@ This pack describes synthetic, deterministic test inputs and expected outcomes. 
 - `manifest.json` defines receipt lines, expected integer-cent costs, destination aliases, duplicate relationships, and export/recovery scenarios.
 - `generated-images.json` tracks nine planned image paths, actual byte hashes and dimensions once available, generation provenance, and separate visual-review/OCR status. Planned records contain no invented output metadata.
 - `live-bindings.template.json` deliberately contains no HCP IDs and no approval. A fixture alias must never be passed as an HCP job ID.
+- The four actual test jobs were verified in the signed-in Housecall browser on 2026-09-10. Their private inventory is `../../.local/ra6/test-jobs.json` (ignored by Git), with `liveWritesApproved: false` and API verification pending. Actual HCP names are `Test Customer#2`/`#3`/`#4`, while the photos use the planned `RA6 Test Customer 2`/`3`/`4` labels; review the exact ID mapping rather than renaming live records.
 - `verify.mjs` checks internal arithmetic, routing expectations, duplicate relationships, source availability, and the absence of live bindings. Run `node fixtures/ra6/verify.mjs` from any directory. It makes no network calls and loads no environment files.
 - `../../docs/ra6-test-plan.md` defines the staged test procedure and the live-write approval boundary.
 
