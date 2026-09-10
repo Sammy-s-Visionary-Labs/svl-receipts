@@ -333,21 +333,24 @@ describe("Explicit approval for every live write", () => {
       expect.objectContaining({ method: "PUT", body: JSON.stringify(write.body) }),
     ]);
   });
-  it("uses multipart image bytes and treats 202 as accepted, never verified", async () => {
-    const write = await attachment();
-    const transport = vi
-      .fn()
-      .mockResolvedValueOnce(json(job()))
-      .mockResolvedValueOnce(json({ job_url: "synthetic" }, 202));
-    expect(
-      await client(transport, [write.jobId]).executePreparedWrite(write, permit(write)),
-    ).toEqual({ status: "accepted", httpStatus: 202 });
-    const init = transport.mock.calls[1]?.[1] as RequestInit;
-    const file = (init.body as FormData).get("file") as File;
-    expect(file.name).toBe(write.fileName);
-    expect(Array.from(new Uint8Array(await file.arrayBuffer()))).toEqual([1, 2, 3, 4]);
-    expect(init.headers).not.toHaveProperty("Content-Type");
-  });
+  it.each([201, 202])(
+    "uses multipart image bytes and treats %s as accepted, never verified",
+    async (status) => {
+      const write = await attachment();
+      const transport = vi
+        .fn()
+        .mockResolvedValueOnce(json(job()))
+        .mockResolvedValueOnce(json({ job_url: "synthetic" }, status));
+      expect(
+        await client(transport, [write.jobId]).executePreparedWrite(write, permit(write)),
+      ).toEqual({ status: "accepted", httpStatus: status });
+      const init = transport.mock.calls[1]?.[1] as RequestInit;
+      const file = (init.body as FormData).get("file") as File;
+      expect(file.name).toBe(write.fileName);
+      expect(Array.from(new Uint8Array(await file.arrayBuffer()))).toEqual([1, 2, 3, 4]);
+      expect(init.headers).not.toHaveProperty("Content-Type");
+    },
+  );
   it.each([500, 502, 408])(
     "keeps ambiguous HTTP %s outcomes unknown with zero automatic retries",
     async (status) => {

@@ -1,6 +1,6 @@
 # RA-6 acceptance progress — September 10, 2026
 
-Live Housecall writes remain unapproved and disabled. This session made GET requests to verify the four user-created test jobs, sent only synthetic receipt images to Gemini, and used an isolated local Supabase runtime for review. It made no Housecall mutation or hosted database change.
+The first explicitly approved live test is complete: exactly one synthetic receipt attachment and one $21.00 internal material entry were created and verified on Test Customer#2, job #2000. The user approved those two frozen requests only; both local grants are now revoked and application exports remain disabled. No hosted database change was made. RA-6 remains in progress.
 
 ## Housecall reads and contract correction
 
@@ -40,6 +40,23 @@ Two browser checks against real local auth/storage/database passed:
 
 The preview builder then read the frozen database steps and actual private local image bytes through the production payload builders. It saved exact method/path/body, filename, image SHA-256, request fingerprints and intent hash in `.local/ra6/first-live-write-request.json` and a reviewable Markdown companion. Database verification found **zero write approvals, zero dispatched steps and zero Housecall result links**. Local receipt approval did not grant live permission.
 
+## First approved live export
+
+The user replied **“yes you have my approval”** to the concrete two-request preview. Approval was recorded at **17:26:23 UTC**, with the original fixed expiry **18:26:23 UTC**, a two-write total, no resends and no cleanup. The one-use runner verified the immutable intent and request hashes, exact destination/customer, notifications off, empty initial attachment/material collections, image bytes and exact material JSON. A private append-only journal reserved each operation before network dispatch. Global application environment files were never enabled for export.
+
+| Operation | Actual result | Readback verification |
+| --- | --- | --- |
+| One attachment POST, 17:32:08 UTC | HTTP 201 | Exactly one attachment, with the complete frozen filename and a stable provider attachment ID |
+| One material PUT, 17:34:29 UTC | HTTP 200 | Exactly one material, matching reference, description, name, quantity 0.5 and unit cost 4,200 cents |
+
+The upload exposed a real API difference: the published contract advertised HTTP 202, but the live request returned HTTP 201. The client conservatively stopped before the material request. A subsequent GET found the uploaded attachment; the recovery runner reconciled that existing result through the actual application worker with writes disabled, without another POST. The client now accepts both 201 and 202 as acknowledgments requiring separate readback; a parameterized regression test covers both.
+
+The initial local grant was revoked after the stop. The remaining operation used a new one-write local grant under the **same explicit user approval and unchanged expiry**, with the already-dispatched attachment hash permanently excluded by the transport journal. This was the material's first dispatch, not a retry. That grant was revoked immediately after completion.
+
+At **17:34:30 UTC**, both frozen export steps were `succeeded`, each with `dispatch_count=1` and a verified provider ID. The local receipt was `exported`. Final HCP reads found one attachment and one material; notifications were still off and the job still needed scheduling. The exported material cost was **$21.00**; the $1.63 receipt tax was excluded. There were **two live writes total and fourteen scoped GET requests** across the initial and recovery runs. No other Housecall destination or write endpoint was contacted.
+
+Private approval, dispatch and readback evidence is retained in `.local/ra6/first-live-write-approval.json`, `first-live-write-journal.jsonl`, `first-live-write-results.json`, `first-live-material-journal.jsonl` and `first-live-material-results.json`. The original failed runner result remains intact as evidence of the 201 mismatch; the later successful result documents resolution. These ignored records contain the actual destination and provider IDs and must not be committed. Attachment verification is by filename and provider ID, not an independent download of the uploaded bytes.
+
 ## Reproduction and remaining acceptance
 
 Final code validation passed: all 647 automated tests (111 mobile, 272 web, 170 domain, 88 integration and 6 monitoring), lint over 331 files, all workspace type checks, a separate strict type check for the new acceptance scripts, and fixture/hash/provenance verification. The two real-local browser checks and the frozen-request builder were rerun successfully after their final changes. These passing code checks do not erase the four explicitly failing Select supplier-accuracy cases.
@@ -54,4 +71,6 @@ RA5_LIVE_GEMINI=1 RA5_GEMINI_ENV_FILE=apps/web/.env.local RA5_GEMINI_RESULTS_FIL
 
 The first command requires the existing private inventory and keeps all HCP writes blocked. For a new local review seed, use `RA6_CAPTURE_MODEL_RESPONSE=1` with the synthetic evaluator to retain full synthetic observations privately. The local-review runner additionally requires privately saved runtime settings for the exact isolated ports. Run the seed before creating review intents; it does not reset an existing review environment. The browser runner uses `RA6_LOCAL_BROWSER=1`; the frozen-request builder uses `RA6_PREPARE_PREVIEW=1`. Both require the isolated app/state, and neither authorizes Housecall writes.
 
-The next proposed live scope is exactly one attachment POST and one internal-material PUT to Customer #2, with no automatic resend, deletion or cleanup, within one hour after explicit user approval. The destination and baseline must be rechecked before dispatch. Further jobs, fractional-rounding/multipage cases, preservation of preexisting material rows, retry/reconciliation behavior and cleanup require their own applicable approval and evidence. Supplier recognition remains a documented review requirement; Shop allocation is still unconfirmed. No deployment, remote push or epic completion is implied.
+After the live contract fix, all **89 integration tests** and the strict acceptance-script type check passed. The guarded remaining-material acceptance run passed after GET-only attachment reconciliation. The committed `ra6-approved-live` runner is skipped by default, requires a separate private human-approval record matching the exact proposal, and refuses an existing dispatch journal. Its remaining-material mode only permits the never-dispatched material after verifying the prior attachment-only attempt; it cannot repeat either completed run. Do not delete journals or renew expiry to rerun a live test.
+
+Further jobs, three-decimal fractional-rounding/multipage cases, preservation of preexisting material rows, broader failure/reconciliation behavior and cleanup still require applicable approval and evidence. The first test established material creation on an initially empty job, not append preservation on a populated job. Employee mappings/full-business catalog acceptance remain outstanding. Supplier recognition remains a documented review requirement; Shop allocation is still unconfirmed. No deployment, remote push or epic completion is implied.

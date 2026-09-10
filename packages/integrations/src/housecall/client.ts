@@ -421,7 +421,9 @@ export function createHousecallClient(options: HousecallClientOptions) {
         frozen.fileName,
       );
       result = await request(frozen.path, { method: frozen.method, body: form });
-      if (result.status !== 202)
+      // The approved live attachment test returned 201 rather than documented 202.
+      // Both responses still require exact filename reconciliation on the job.
+      if (result.status !== 201 && result.status !== 202)
         throw new HousecallError("invalid_response", result.status, null, true);
     } else {
       result = await request(frozen.path, {
