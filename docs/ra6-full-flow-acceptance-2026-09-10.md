@@ -7,8 +7,9 @@ acceptance, not unrestricted production rollout.
 
 ## Environment and implementation
 
-- Application commit: `2e5491c`, branch `epic/ra-6-housecall-integration-safe-export`.
-- [Manager preview](https://svl-receipts-z8sev1tei-svl1.vercel.app) uses hosted
+- Original full-flow commit: `2e5491c`, branch
+  `epic/ra-6-housecall-integration-safe-export`.
+- [Current manager test site](https://svl-receipts-ra6-test-svl1.vercel.app) uses hosted
   development Supabase. Six forward RA-6 migrations were applied to development;
   production was not changed.
 - A standalone Android release APK was built and installed as an update on the
@@ -62,6 +63,37 @@ phone's final Approved screen. `test-access.md` contains development logins and
 must not be committed or shared. Provider attachment URLs are temporary signed
 URLs; comparison uses stable IDs, filenames and object paths.
 
+## Security patch verification after the camera run
+
+Commit `17c797d` updates Next.js to 16.3.4, sharp to 0.35.4, the matching Next.js
+ESLint configuration and js-yaml to 4.3.2. The patched preview is
+`https://svl-receipts-cddxnecx3-svl1.vercel.app`; the stable test-site alias above
+points to it. Production deployment and production Supabase were not changed.
+
+All 698 unit checks, all 37 browser scenarios in one run, typechecks, lint and the
+web production build passed again. An authenticated read-only browser check on
+the stable hosted URL verified both existing receipts remain exported, both
+provider steps per receipt remain succeeded and both original images load. This
+check did not repeat an approval or create new HCP writes. The original physical
+camera execution remains evidence from `2e5491c`, not a new post-patch camera run.
+
+The Android release was rebuilt with the stable API URL. The compiled bundle was
+checked for that URL, development Supabase, absence of the previous API URL and
+production Supabase, and absence of the actual server API credentials. Gradle
+initially reused the previous bundle after the environment-file change; deleting
+the generated bundle and rebuilding corrected it before installation.
+
+The rebuilt APK was installed successfully at 20:38:53 UTC. The existing worker
+session survived the update; the phone's Recent screen displayed both receipts
+as Approved with passed readability. The superseded scoped preview deployment
+was removed after the stable site and updated phone were verified. This remains
+an internal test APK signed with the generated development signing configuration;
+production distribution signing has not been established by this run.
+
+The web production dependency audit is clear; the monorepo has sixteen moderate
+entries remaining and no critical/high findings. See the
+[patch report](ra6-security-patches-2026-09-10.md) for remaining dependency work.
+
 ## Remaining production acceptance
 
 This run used a phone photo of a synthetic document on a screen. It does not close
@@ -75,3 +107,11 @@ abandon/decline retention policies remain open. Vercel's immediate work path
 passed, but its documented fallback cron is daily; production recovery frequency,
 operations/security checks and backup/restore acceptance remain rollout gates.
 None of these should be marked complete from this successful camera-path test.
+
+A cleanup process-list command exposed server credential values in the private
+task tool transcript. They were not committed or bundled in the Android app.
+Rotate the affected credentials before production use or sharing the task.
+Coordinate the business HCP key rotation with other integrations; the existing
+test-customer authorization does not authorize changing business-wide settings.
+The deployment helper now supplies credential values through its child process
+environment instead of command-line arguments.
