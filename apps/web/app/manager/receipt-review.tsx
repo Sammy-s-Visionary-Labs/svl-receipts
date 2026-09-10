@@ -918,7 +918,11 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
                 )}
               </form>
             </div>
-            <HousecallPreview key={`${id}:${detail.version}`} receiptId={id} />
+            <HousecallPreview
+              key={`${id}:${detail.version}`}
+              receiptId={id}
+              isAdmin={actorRole === "admin"}
+            />
             <section className={styles.section}>
               <h2>Housecall progress</h2>
               <p>

@@ -5,6 +5,10 @@ import styles from "../manager/manager.module.css";
 export function HousecallSettings() {
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
+  const [health, setHealth] = useState<{
+    lastSuccessfulCheckAt?: string;
+    lastError?: string;
+  } | null>(null);
   async function run(action: "health" | "sync") {
     setBusy(true);
     setMessage("");
@@ -15,6 +19,7 @@ export function HousecallSettings() {
       });
       const data = await response.json();
       if (action === "health" && typeof data.readsEnabled === "boolean") {
+        setHealth(data);
         setMessage(
           !data.readsEnabled
             ? "Housecall access is disabled. Your administrator can configure read access."
@@ -59,6 +64,23 @@ export function HousecallSettings() {
         Refresh jobs
       </button>
       {message && <p role="status">{message}</p>}
+      {health && (
+        <p>
+          Last successful connection check:{" "}
+          {health.lastSuccessfulCheckAt
+            ? new Date(health.lastSuccessfulCheckAt).toLocaleString()
+            : "Not recorded"}
+          . {health.lastError && `Last error: ${health.lastError}.`}
+        </p>
+      )}
+      <details>
+        <summary>Update the connection credential</summary>
+        <p>
+          An administrator can rotate the Housecall key, update the server’s HOUSECALL_API_KEY
+          secret, restart the server, and check the connection again. Keep exports disabled during
+          rotation. Never enter the key in a receipt or browser form.
+        </p>
+      </details>
     </section>
   );
 }

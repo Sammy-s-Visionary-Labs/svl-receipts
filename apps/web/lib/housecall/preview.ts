@@ -19,6 +19,7 @@ export type HousecallExportPreview = {
   taxExcluded: true;
   totalMaterialCostCents: number;
   blockedReasons: string[];
+  closedForManualHandling?: boolean;
   jobs: Array<{
     id: string;
     label: string;

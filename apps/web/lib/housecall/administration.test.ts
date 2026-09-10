@@ -198,6 +198,9 @@ describe("Housecall administration authorization", () => {
     expect(createHousecallClient).toHaveBeenCalledWith({
       apiKey: "synthetic-private-key",
       timeoutMs: 10000,
+      allowedWriteJobIds: [],
+      allowedReadJobIds: [],
+      allowedReadCustomerIds: [],
     });
     expect(JSON.stringify(body)).not.toContain("synthetic-private-key");
   });
@@ -320,5 +323,24 @@ describe("Housecall scheduler authentication", () => {
     const exportInput = vi.mocked(runApprovedHousecallExports).mock.calls[0]?.[0];
     expect(syncInput?.deadlineAt).toEqual(expect.any(Number));
     expect((exportInput?.deadlineAt ?? 0) - (syncInput?.deadlineAt ?? 0)).toBe(55000);
+  });
+});
+
+it("retains safe health history and records classified failures", async () => {
+  vi.stubEnv("HOUSECALL_READS_ENABLED", "true");
+  vi.stubEnv("HOUSECALL_API_KEY", "synthetic-private-key");
+  rpc.mockResolvedValue({
+    data: { lastSuccessfulCheckAt: "2026-09-10T12:00:00Z", lastError: "authentication" },
+    error: null,
+  });
+  checkHealth.mockRejectedValue(new HousecallError("authentication", 401));
+  const response = await health(new Request("http://localhost/health"));
+  expect(await response.json()).toMatchObject({
+    lastSuccessfulCheckAt: "2026-09-10T12:00:00Z",
+    lastError: "authentication",
+  });
+  expect(rpc).toHaveBeenCalledWith("housecall_health_status", {
+    p_connected: false,
+    p_error: "authentication",
   });
 });

@@ -346,3 +346,52 @@ describe("Housecall unknown timestamp normalization", () => {
     ]);
   });
 });
+
+describe("test-customer synchronization boundaries", () => {
+  it("paginates each allowed customer separately and passes scope to the atomic commit", async () => {
+    vi.stubEnv("HOUSECALL_TEST_CUSTOMER_IDS", "customer_two,customer_one");
+    const db = database();
+    const listJobs = vi
+      .fn()
+      .mockResolvedValueOnce(
+        page([job("one", { customerId: "customer_one" })], { totalPages: 2, totalItems: 2 }),
+      )
+      .mockResolvedValueOnce(
+        page([job("two", { customerId: "customer_one" })], {
+          page: 2,
+          totalPages: 2,
+          totalItems: 2,
+        }),
+      )
+      .mockResolvedValueOnce(page([job("three", { customerId: "customer_two" })]));
+    expect(await run(db, listJobs)).toMatchObject({ count: 3, full: true });
+    expect(listJobs.mock.calls.map(([q]) => [q.customerId, q.page])).toEqual([
+      ["customer_one", 1],
+      ["customer_one", 2],
+      ["customer_two", 1],
+    ]);
+    expect(finishCall(db)?.p_customer_ids).toEqual(["customer_one", "customer_two"]);
+  });
+  it("rejects a response from another customer before caching any jobs", async () => {
+    vi.stubEnv("HOUSECALL_TEST_CUSTOMER_IDS", "customer_one");
+    const db = database();
+    await expect(run(db, vi.fn().mockResolvedValue(page([job()])))).rejects.toThrow(
+      "sync_wrong_customer",
+    );
+    expectFailedWithoutCommit(db);
+  });
+  it("forces a full refresh when the customer scope changes", async () => {
+    vi.stubEnv("HOUSECALL_TEST_CUSTOMER_IDS", "customer_test");
+    const db = database({
+      lease_token: "lease_test",
+      last_success_at: iso(-3600000),
+      last_full_sync_at: iso(-86400000),
+    });
+    expect(
+      await run(
+        db,
+        vi.fn().mockResolvedValue(page([job("old", { updatedAt: iso(-20 * 86400000) })])),
+      ),
+    ).toMatchObject({ count: 1, full: true });
+  });
+});

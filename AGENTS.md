@@ -28,3 +28,7 @@ The user originally instructed: **"For our work on RA-6, I’ll treat live House
 - Do not mark live Housecall acceptance complete based on mock or synthetic-only tests.
 
 Read the package-specific AGENTS.md instructions before editing those packages.
+
+## Quantity precision decision
+
+The user chose on 2026-09-10 to keep quantities beyond two decimal places blocked for manager review. Preserve original values; do not silently round or substitute a quantity-one total-only export.

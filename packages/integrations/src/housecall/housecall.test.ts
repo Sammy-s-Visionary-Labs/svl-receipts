@@ -181,7 +181,11 @@ describe("Housecall server read client", () => {
         redirect: "error",
         credentials: "omit",
         cache: "no-store",
-        headers: { Authorization: "Token synthetic-api-key", Accept: "application/json" },
+        headers: expect.objectContaining({
+          Authorization: "Token synthetic-api-key",
+          Accept: "application/json",
+          "X-Request-Id": expect.stringMatching(/^sync-/),
+        }),
       }),
     );
   });
@@ -626,4 +630,90 @@ describe("Material reconciliation with unrelated provider placeholders", () => {
       reason: "duplicate_reference",
     });
   });
+});
+
+describe("exact test customer read boundaries", () => {
+  const scoped = (transport: ReturnType<typeof vi.fn>) =>
+    createHousecallClient({
+      apiKey: "synthetic",
+      fetch: transport as typeof fetch,
+      allowedReadJobIds: ["job_test_2"],
+      allowedReadCustomerIds: ["cust_test_2"],
+    });
+  it("blocks unfiltered and out-of-scope reads before HTTP", async () => {
+    const transport = vi.fn();
+    const c = scoped(transport);
+    await expect(c.listJobs()).rejects.toBeDefined();
+    await expect(c.listJobs({ customerId: "cust_real" })).rejects.toBeDefined();
+    await expect(c.getJob("job_real")).rejects.toBeDefined();
+    await expect(c.listJobInputMaterials("job_real")).rejects.toBeDefined();
+    expect(transport).not.toHaveBeenCalled();
+  });
+  it("rejects a changed customer association", async () => {
+    const transport = vi
+      .fn()
+      .mockResolvedValue(json(job("job_test_2", { customer: { id: "cust_real" } })));
+    await expect(scoped(transport).getJob("job_test_2")).rejects.toMatchObject({
+      code: "unsafe_destination",
+    });
+  });
+  it("scopes health checks to an allowed customer", async () => {
+    const transport = vi
+      .fn()
+      .mockResolvedValue(json({ jobs: [], page: 1, page_size: 1, total_pages: 0, total_items: 0 }));
+    await scoped(transport).checkHealth();
+    const url = new URL(String(transport.mock.calls[0]?.[0]));
+    expect(url.searchParams.get("customer_id")).toBe("cust_test_2");
+  });
+  it("rejects a list containing another customer", async () => {
+    const transport = vi.fn().mockResolvedValue(
+      json({
+        jobs: [job("job_test_2", { customer: { id: "cust_real" } })],
+        page: 1,
+        page_size: 100,
+        total_pages: 1,
+        total_items: 1,
+      }),
+    );
+    await expect(scoped(transport).listJobs({ customerId: "cust_test_2" })).rejects.toMatchObject({
+      code: "unsafe_destination",
+    });
+  });
+});
+
+describe("Housecall operational correlation", () => {
+  it("carries one correlation reference with unique request suffixes", async () => {
+    const transport = vi.fn().mockImplementation(async () => json(job()));
+    const c = createHousecallClient({
+      apiKey: "synthetic",
+      fetch: transport as typeof fetch,
+      correlationId: "receipt-test",
+    });
+    await c.getJob("job_test_2");
+    await c.getJob("job_test_2");
+    expect(transport.mock.calls.map(([, init]) => init.headers["X-Request-Id"])).toEqual([
+      "receipt-test-1",
+      "receipt-test-2",
+    ]);
+  });
+  it("pauses further requests in the run after authorization failure", async () => {
+    const transport = vi.fn().mockResolvedValue(json({}, 401));
+    const c = client(transport);
+    await expect(c.getJob("job_test_2")).rejects.toMatchObject({ code: "authentication" });
+    await expect(c.getJob("job_test_2")).rejects.toMatchObject({ code: "authentication" });
+    expect(transport).toHaveBeenCalledTimes(1);
+  });
+});
+
+it("empty explicit read scopes deny all HTTP", async () => {
+  const transport = vi.fn();
+  const c = createHousecallClient({
+    apiKey: "synthetic",
+    fetch: transport as typeof fetch,
+    allowedReadJobIds: [],
+    allowedReadCustomerIds: [],
+  });
+  await expect(c.checkHealth()).rejects.toBeDefined();
+  await expect(c.getJob("job_test_2")).rejects.toBeDefined();
+  expect(transport).not.toHaveBeenCalled();
 });

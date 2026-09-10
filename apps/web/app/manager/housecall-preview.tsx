@@ -24,11 +24,19 @@ const blockedLabels: Record<string, string> = {
     "Housecall changed a three-decimal quantity during testing. Quantities with more than two decimal places are blocked; review the material quantity before export.",
 };
 
-export function HousecallPreview({ receiptId }: { receiptId: string }) {
+export function HousecallPreview({
+  receiptId,
+  isAdmin = false,
+}: {
+  receiptId: string;
+  isAdmin?: boolean;
+}) {
   const [preview, setPreview] = useState<HousecallExportPreview | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [resolutionReason, setResolutionReason] = useState("");
+  const [confirmStop, setConfirmStop] = useState(false);
   const sequence = useRef(0);
   useEffect(() => {
     return () => {
@@ -91,6 +99,37 @@ export function HousecallPreview({ receiptId }: { receiptId: string }) {
       if (current === sequence.current) setBusy(false);
     }
   }
+  async function closeForManualHandling() {
+    if (!preview?.intentId || !confirmStop || !resolutionReason.trim()) return;
+    setBusy(true);
+    setError("");
+    try {
+      const response = await fetch(`/api/admin/receipts/${receiptId}/close-export`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          intentId: preview.intentId,
+          payloadHash: preview.payloadHash,
+          reason: resolutionReason,
+          confirmStop,
+        }),
+      });
+      if (!response.ok)
+        throw new Error(
+          "The export could not be closed. Active or uncertain Housecall results must be resolved first.",
+        );
+      setMessage(
+        "Automatic export stopped. Existing Housecall records are unchanged; remaining work is assigned to manual handling.",
+      );
+      setConfirmStop(false);
+      setResolutionReason("");
+      await load();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not close export.");
+    } finally {
+      setBusy(false);
+    }
+  }
   return (
     <section className={styles.section} aria-labelledby="housecall-preview-title">
       <h2 id="housecall-preview-title">Housecall export preview</h2>
@@ -120,8 +159,18 @@ export function HousecallPreview({ receiptId }: { receiptId: string }) {
             Live writes require separate explicit approval for the exact destinations and frozen
             plan. This preview does not grant that approval.
           </p>
+          {preview.closedForManualHandling && (
+            <p role="status">
+              Automatic export stopped for manual handling. This receipt has not been marked
+              exported.
+            </p>
+          )}
           {preview.blockedReasons
-            .filter((reason) => reason !== "live_writes_disabled")
+            .filter(
+              (reason) =>
+                reason !== "live_writes_disabled" &&
+                !(preview.closedForManualHandling && reason === "no_current_intent"),
+            )
             .map((reason) => (
               <p className={styles.notice} key={reason}>
                 {blockedLabels[reason] ?? "This export needs administrator review."}
@@ -199,15 +248,54 @@ export function HousecallPreview({ receiptId }: { receiptId: string }) {
             </>
           )}
           {preview.intentId && (
-            <details>
-              <summary>Frozen plan reference for approval</summary>
-              <p className={styles.meta}>
-                Intent: <code>{preview.intentId}</code>
-              </p>
-              <p className={styles.meta}>
-                Payload hash: <code>{preview.payloadHash ?? "Unavailable"}</code>
-              </p>
-            </details>
+            <>
+              {isAdmin &&
+                preview.jobs.some((job) =>
+                  [...job.images, ...job.lines].some((step) => step.status !== "succeeded"),
+                ) && (
+                  <details>
+                    <summary>Stop this export for manual handling</summary>
+                    <p>
+                      This checks Housecall, records an audit trail, and stops all unfinished steps.
+                      Existing images and materials stay in Housecall. This does not mark the
+                      receipt exported.
+                    </p>
+                    <label>
+                      Manual handling reason
+                      <textarea
+                        value={resolutionReason}
+                        maxLength={2000}
+                        onChange={(event) => setResolutionReason(event.target.value)}
+                      />
+                    </label>
+                    <label>
+                      <input
+                        type="checkbox"
+                        checked={confirmStop}
+                        onChange={(event) => setConfirmStop(event.target.checked)}
+                      />
+                      I will handle remaining costs manually and understand this export will not
+                      retry.
+                    </label>
+                    <button
+                      type="button"
+                      disabled={busy || !confirmStop || !resolutionReason.trim()}
+                      onClick={() => void closeForManualHandling()}
+                    >
+                      Stop automatic export
+                    </button>
+                  </details>
+                )}
+              <details>
+                <summary>Frozen plan reference for approval</summary>
+                <p className={styles.meta}>
+                  Intent: <code>{preview.intentId}</code>
+                </p>
+                <p className={styles.meta}>
+                  Payload hash: <code>{preview.payloadHash ?? "Unavailable"}</code>
+                </p>
+              </details>
+            </>
           )}
         </div>
       )}

@@ -25,7 +25,9 @@ test.skipIf(process.env.RA6_EXPANDED_LIVE !== "1")(
   async () => {
     const directory = resolve(".local/ra6");
     const handwrittenOnly = process.env.RA6_HANDWRITTEN_ONLY === "1";
-    const writeBudget = handwrittenOnly ? 2 : 12;
+    const finalAcceptance = process.env.RA6_FINAL_ACCEPTANCE === "1";
+    assert(!(handwrittenOnly && finalAcceptance));
+    const writeBudget = finalAcceptance ? 9 : handwrittenOnly ? 2 : 12;
     const readJson = async (file: string) =>
       JSON.parse(await readFile(resolve(directory, file), "utf8"));
     const authorization = await readJson("test-customer-authorization.json");
@@ -79,7 +81,11 @@ test.skipIf(process.env.RA6_EXPANDED_LIVE !== "1")(
     let journalCreated = false;
     const journal = resolve(
       directory,
-      handwrittenOnly ? "handwritten-live-journal.jsonl" : "expanded-live-journal.jsonl",
+      finalAcceptance
+        ? "final-acceptance-journal.jsonl"
+        : handwrittenOnly
+          ? "handwritten-live-journal.jsonl"
+          : "expanded-live-journal.jsonl",
     );
     const record = (entry: Record<string, unknown>) =>
       appendFileSync(journal, `${JSON.stringify({ at: new Date().toISOString(), ...entry })}\n`, {
@@ -89,11 +95,14 @@ test.skipIf(process.env.RA6_EXPANDED_LIVE !== "1")(
       reads: process.env.HOUSECALL_READS_ENABLED,
       mode: process.env.HOUSECALL_EXPORT_MODE,
       jobs: process.env.HOUSECALL_TEST_JOB_IDS,
+      customers: process.env.HOUSECALL_TEST_CUSTOMER_IDS,
     };
     try {
-      for (const fixture of handwrittenOnly
-        ? ["sandman-handwritten"]
-        : ["klumm-two-jobs", "half-up-two-pages", "sandman-handwritten"]) {
+      for (const fixture of finalAcceptance
+        ? ["sandman-handwritten", "perrysburg-supported-two-pages"]
+        : handwrittenOnly
+          ? ["sandman-handwritten"]
+          : ["klumm-two-jobs", "half-up-two-pages", "sandman-handwritten"]) {
         const receiptId = state.receipts[fixture];
         const preview = await readJson(`${fixture}-preview.json`);
         const [intent] =
@@ -103,7 +112,13 @@ test.skipIf(process.env.RA6_EXPANDED_LIVE !== "1")(
           await sql`select * from public.housecall_export_steps where intent_id=${intent.id} order by step,id`;
         assert.equal(
           steps.length,
-          fixture === "klumm-two-jobs" ? 4 : fixture === "half-up-two-pages" ? 6 : 2,
+          fixture === "perrysburg-supported-two-pages"
+            ? 7
+            : fixture === "klumm-two-jobs"
+              ? 4
+              : fixture === "half-up-two-pages"
+                ? 6
+                : 2,
         );
         const requests: PreparedHousecallWrite[] = [];
         for (const step of steps) {
@@ -219,11 +234,16 @@ test.skipIf(process.env.RA6_EXPANDED_LIVE !== "1")(
         apiKey: env.HOUSECALL_API_KEY || "",
         fetch: transport,
         allowedWriteJobIds: allowedJobIds,
+        allowedReadJobIds: allowedJobIds,
+        allowedReadCustomerIds: bindings.map((binding) => binding.customerId),
         timeoutMs: 20_000,
       });
       process.env.HOUSECALL_READS_ENABLED = "true";
       process.env.HOUSECALL_EXPORT_MODE = "approved_test";
       process.env.HOUSECALL_TEST_JOB_IDS = allowedJobIds.join(",");
+      process.env.HOUSECALL_TEST_CUSTOMER_IDS = bindings
+        .map((binding) => binding.customerId)
+        .join(",");
       // Complete all baseline reads before the first mutation.
       for (const jobId of allowedJobIds) {
         const job = await client.getJob(jobId, { includeAttachments: true });
@@ -331,7 +351,11 @@ test.skipIf(process.env.RA6_EXPANDED_LIVE !== "1")(
         await writeFile(
           resolve(
             directory,
-            handwrittenOnly ? "handwritten-live-results.json" : "expanded-live-results.json",
+            finalAcceptance
+              ? "final-acceptance-results.json"
+              : handwrittenOnly
+                ? "handwritten-live-results.json"
+                : "expanded-live-results.json",
           ),
           `${JSON.stringify({ completedAt: new Date().toISOString(), writes, reads, results }, null, 2)}\n`,
           { mode: 0o600 },
@@ -352,6 +376,7 @@ test.skipIf(process.env.RA6_EXPANDED_LIVE !== "1")(
         HOUSECALL_READS_ENABLED: previous.reads,
         HOUSECALL_EXPORT_MODE: previous.mode,
         HOUSECALL_TEST_JOB_IDS: previous.jobs,
+        HOUSECALL_TEST_CUSTOMER_IDS: previous.customers,
       })) {
         if (value === undefined) delete process.env[key];
         else process.env[key] = value;

@@ -1,50 +1,38 @@
-# RA-6 local implementation and verification
+# RA-6 completion and verification
 
-Date: 2026-09-09. Branch: `epic/ra-6-housecall-integration-safe-export`, based on `ad5e578` (merged RA-4/RA-5). The epic remains in progress. No live Housecall account reads or writes, hosted database migrations, deployment, or remote branch push were performed during this implementation.
+Completed September 10, 2026 on `epic/ra-6-housecall-integration-safe-export`, based on `ad5e578` (merged RA-4/RA-5). Implementation and controlled test-customer acceptance are complete. Production rollout is separate; general Housecall access remains disabled. See the [live acceptance report](ra6-acceptance-2026-09-10.md).
 
-## Epic coverage and provider access
-
-| Story | Implemented local behavior | Housecall access when separately enabled |
-| --- | --- | --- |
-| RA-42 | Shared server-only client, fixed origin, normalized errors, timeouts, rate-limit metadata, admin health check | GET for health; the shared transport supports only explicitly permitted export writes |
-| RA-43 | Bounded job sync, atomic catalog commit, freshness, active/recent search window, exact IDs, employee mapping | GET job lists/details; manager search reads the local catalog |
-| RA-44 | Atomic approved snapshot, supplier reference, image manifest, intent/step hashes and per-destination work | Local database only; receipt approval does not grant live write authority |
-| RA-45 | Private image checksum check, one required upload per page per destination, asynchronous readback | POST attachment, then GET verification; explicit live approval required |
-| RA-46 | Approved quantity and integer-cent unit cost, tax exclusion, stable receipt-line reference | PUT Job Input Materials, then GET verification; explicit live approval required |
-| RA-47 | Receipt/destination leases, exact step projection, partial progress and complete-intent retention gate | Coordinates the approved attachment/material operations |
-| RA-48 | Durable write budgets, succeeded-step skip, read-before-retry, uncertain-outcome fencing, correction proposals | GET reconciliation; any permitted new dispatch remains subject to explicit live approval |
-| RA-49 | Injected provider contracts, timeout-after-commit cases, authorization/decimal/routing tests, real local concurrency test | Automated development tests make no Housecall requests; live acceptance remains pending |
-
-Job/customer creation, customer invoice items, payments, paid/unpaid fields, job status changes, and automatic deletion/reversal are not exposed by the receipt export adapter. Creating additional HCP test jobs is a separate live operation and is covered by the user's explicit-approval boundary.
-
-## Verification evidence
-
-| Check | Final local result |
+| Story / subtasks | Delivered behavior |
 | --- | --- |
-| `npm run lint` | Passed; 315 files checked |
-| `npm run typecheck` | Passed in all four workspaces |
-| `npm test` | 647 passed: 6 monitoring, 111 mobile, 272 web, 170 domain, 88 integration tests |
-| `npm run build:web` | Production build passed |
-| `npm run test:e2e` | 34 browser tests passed with fixture credentials and Housecall explicitly disabled |
-| `npm run test:ra6:fixtures` | All fixture arithmetic, file hashes, and image provenance checks passed; 9/9 images generated and visually accepted |
-| Isolated Supabase replay and `npm run test:applied` | All 26 migrations replayed; all 11 rollback-only SQL suites passed |
-| `npm run test:ra6:concurrency` | Actual two-session destination locking passed |
-| Supabase SQL lint at error level | No errors |
+| RA-42 / RA-160–162 | Shared server-only client, fixed origin, request correlation, classified errors/rate hints, per-run authorization-failure stop, admin health history and key-rotation guidance |
+| RA-43 / RA-163–165 | Bounded customer-scoped synchronization, atomic cache/freshness, active/recent/all search, exact-ID selection, explicit employee mapping, invalid-job guards |
+| RA-44 / RA-166–168 | Atomic immutable approval snapshot, page manifest, per-destination steps, supplier reference, version hashes and idempotency keys |
+| RA-45 / RA-169–171 | Private size/checksum validation, multipart page uploads, 201/202 readback, exact reference/ID verification, retained attempt history |
+| RA-46 / RA-172–174 | Internal Job Input Materials only, exact supported quantity/cents, tax exclusion, returned material IDs, unsupported precision blocked for review |
+| RA-47 / RA-175–177 | Receipt/destination serialization, all-page/all-line completion, partial-success projection, retention only on verified full export |
+| RA-48 / RA-178–180 | Read-before-retry, immutable successes, bounded attempts, uncertain-result fencing, separate correction proposals, audited admin manual handoff |
+| RA-49 / RA-181–183 | Contract/failure injection tests, exact amounts/routing checks, scoped live upload/material/replay/append verification |
 
-The local suites cover disabled credentials/configuration, receipt-wide destination rejection before dispatch, exact payload permissions, grant expiry/revocation/budgets, wrong-job readback, changed image bytes, asynchronous attachment acceptance, material timeout after provider commit, ambiguous/absent readback, multipage partial success, step-specific retries, correction fencing, and competing workers. These are controlled test results, not claims about actual HCP persistence.
+The database uses one immutable receipt approval envelope with distinct per-job/page/line steps. This preserves the requested per-destination behavior without duplicating the receipt's approval snapshot. An empty readback after an uncertain dispatch does **not** authorize retry: this is deliberately stricter than the early RA-178 shorthand. The unsupported-precision policy follows the user's explicit decision.
 
-Database verification used an isolated local Supabase project `svl-ra6-verification` on port 55322. The existing development stack on 54322 was not reset. Migrations were replayed from scratch, SQL suites rolled back, and cross-session concurrency fixtures were explicitly cleaned up. Users, receipts, write approvals, export steps, and leases were all empty after cleanup. The temporary project was stopped with its data preserved; the existing development database remained healthy.
+## Final checks
 
-The nine [synthetic PNG fixtures](../fixtures/ra6/README.md) were generated using the built-in imagegen tool and visually reviewed against the deterministic fixture manifest. Their actual file hashes, dimensions, exact prompts, and generation/edit provenance are retained in `fixtures/ra6/generated-images.json`. The verifier checks five receipt cases, three duplicate/separate-purchase variants, sixteen expected export scenarios, nine new images, and eight older RA-5 image references. Fixture consistency and visual review do not prove app-model extraction accuracy.
+| Check | Result |
+| --- | --- |
+| Workspace unit suites | 685 tests: 6 monitoring, 111 mobile, 295 web, 170 domain, 103 integration |
+| Type checks | All four workspaces and RA-6 acceptance scripts |
+| Repository lint | Passed, 345 files |
+| Web production build | Passed with local configuration and external credentials disabled |
+| Browser suite | 35 passed, including admin manual-handoff confirmation and closed-state messaging |
+| Retained local browser acceptance | Supported multipage approval and actual manual-handoff display passed |
+| Synthetic fixture verifier | All arithmetic, image hashes/provenance and blocked scenarios passed |
+| Database migrations | 28 migrations applied to the isolated clean verification database; retained test runtime upgraded without reset |
+| Applied SQL | All 12 rollback-only suites passed, including manual-resolution races/evidence/RLS and scoped synchronization |
+| Concurrency | Real overlapping database sessions cannot steal receipt/job destination leases |
+| Supabase security advisors | No error-level findings |
+| Live Housecall | Four successful synthetic receipts; 20 total writes including the retained precision mismatch, 19 exact verified steps, zero replay writes |
+| Final controls | Zero active grants, uncertain steps or locks; general reads/exports disabled |
 
-## Remaining acceptance
+The original verification database contains retained synthetic acceptance records. The additional clean database on port 55422 runs rollback-only suites; neither is the existing development database on 54322. Housecall reads used only customer-filtered lists and exact approved test-job paths. All writes used frozen payload/hash allowlists, one-dispatch transport journals and bounded local grants.
 
-September 10 update: [read-only API verification, synthetic extraction results and the local browser review](ra6-acceptance-2026-09-10.md) are now recorded. The first exact export request is prepared but unapproved. The initial dated verification above remains unchanged.
-
-- API connection, exact customer/job IDs, expanded attachments, materials and customer-filtered catalogs now pass read verification. Full-business synchronization, employee mappings and actual write capabilities remain to be verified. Customers #2–#4 have notifications off; #1 has notifications on. The committed fixture template deliberately retains null HCP bindings.
-- Extraction ran for all eight new cases. Four Select variants retain a supplier-name error; the first receipt's supplier and date were corrected through local browser review. The first frozen destination/line/image preview is ready. Broader review and real-vendor accuracy remain separate acceptance work.
-- Obtain explicit user approval for the exact test jobs, immutable payloads, write count and time window. A live test job remains a record in the real business account.
-- Verify attachment filename preservation and asynchronous visibility, material append behavior and preservation of existing rows, three-decimal quantity arithmetic, and returned external IDs. The documented attachment schema has no content hash, so filename/ID matching is not independent byte-identity proof.
-- Keep Shop and the unidentified consolidated line unresolved until the business allocation rule is confirmed. Confirmed corrections/reversals require a separate approved procedure; this implementation records proposals and blocks uncertain work rather than automatically changing existing costs.
-
-The application stays disabled for live writes until those requirements are met. A local commit or passing test suite does not complete live integration acceptance.
+No user input remains necessary for RA-6's implemented test scope. Full-business activation, hosted migrations/deployment, automatic replacement/deletion of existing costs, broader supplier accuracy work and an overhead allocation feature are separate decisions. None is silently enabled by closing this epic.

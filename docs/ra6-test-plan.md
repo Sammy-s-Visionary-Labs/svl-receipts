@@ -26,7 +26,7 @@ The machine-readable source is [`fixtures/ra6/manifest.json`](../fixtures/ra6/ma
 | Sandman consolidated | Assigned: Customer 2 $640.00, Customer 3 $198.00; unresolved $483.00; whole receipt $1,321.00 | Entire approval/export blocked while any line remains unresolved |
 | Two-page rounding | Customer 2: $1.01; Customer 3: $38.48; total $39.49 | Half-up cent rounding and every required image page at both jobs |
 
-**Observed September 10:** the two-page fixture exposed HCP changing quantity 1.005 to 1.01. Its expected totals remain the source contract, but live material acceptance failed. Future writes of quantities with more than two decimal places are blocked before any receipt upload, pending an explicit representation policy. Do not change the fixture to hide this failure. The Klumm multi-job and existing-row append checks passed; the handwritten receipt remains queued behind the unresolved fractional result on Customer #2.
+**Observed September 10:** HCP changed 1.005 to 1.01. The user chose to keep quantities beyond two decimal places blocked for manager review. The original fixture and failed readback remain evidence, and its export was closed by audited manual handoff. The handwritten case subsequently passed. A separate supported-quantity Perrysburg case verified both pages on #3/#4 and $72.50 in materials; see the acceptance report.
 
 In the consolidated case, the $483.00 unresolved amount consists of $225.00 with no reliable job reference and $258.00 of Shop lines. Their quantities and amounts remain visible. The known $838.00 is an assignment preview, not an instruction to partially approve or export the receipt. The current manager contract requires a selected known job for every approved line. Do not invent an overhead destination or delete the Shop lines to make approval pass.
 
@@ -61,17 +61,13 @@ Rate-limit/authentication/transport failures also need the API-client tests. A r
 
 ## Bounded live test prerequisites
 
-The following information remains unavailable or unapproved; none should be invented:
+The four test-customer identities, standing authorization, concrete payloads, customer associations and attachment/material readback have now been verified. General app access remains disabled. Exact private bindings and per-run journals must be used for any future scoped test; names alone are not authorization.
 
-- Exact IDs for all four current test jobs are now read-verified and stored privately. Recheck the intended destination before dispatch; this inventory is not authorization.
-- Confirmation that the test jobs' notification and downstream integration settings are suitable for a controlled write. Test records in a live account are still live records.
-- Verified API attachment/material request and response contracts, supported reconciliation markers, and a way to inspect persisted results.
-- The user's explicit approval of the destinations and concrete previewed payloads for the bounded live run, including what retries are permitted.
-- The Shop business rule if testing its resolved path is included; unresolved behavior can be tested offline immediately.
+The Shop rule remains unspecified. RA-6 verifies that unresolved lines block approval; implementing resolved overhead allocation is outside the completed scope.
 
 Begin with one approved synthetic receipt and one approved test job. Capture a read-only baseline, preview the exact image and material payload, execute only the authorized scope, then read back the destination and each persisted result. Preserve external IDs and attempt evidence with secrets and signed URLs excluded. Expand to two jobs only after the first case is verified and the expanded scope is authorized.
 
-Use mocks to force timeout-after-save and similar failures; do not intentionally inject failures or duplicate writes into the live business account. Do not automatically delete test records or posted costs afterward. Cleanup, correction, and reversal are also live writes subject to the retained approval boundary.
+Use mocks to force timeout-after-save and similar failures; do not intentionally inject failures or duplicate writes into the live business account. Preserve test records as evidence unless cleanup is needed within the standing authorization. Corrections and cleanup must still respect exact scope and uncertain-outcome safeguards.
 
 ## Evidence and completion
 

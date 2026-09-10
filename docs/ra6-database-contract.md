@@ -36,7 +36,7 @@ The manual reconciliation endpoint can use claim/finish in a read-only mode with
 
 `grant_housecall_write_approval(p_actor_id uuid,p_intent_id uuid,p_payload_hash text,p_job_ids text[],p_expires_at timestamptz,p_max_writes integer,p_reason text)` requires an active **admin**, an exact frozen intent hash, a nonempty subset of that intent's destination IDs, an expiry within 24 hours, and a budget of 1–1,000 writes. It returns `{id,intent_id,payload_hash,job_ids,approved_by,reason,expires_at,max_writes,used_writes,revoked_at,created_at}` and appends an audit event. This administrative RPC is not called by receipt approval or ordinary retry. It is a mechanism for recording approval after the user's explicit authorization, not evidence of authorization by itself.
 
-`revoke_housecall_write_approval(p_actor_id uuid,p_approval_id uuid,p_reason text)` requires an active admin and audits revocation. Revocation prevents future consumption; it cannot recall an HTTP request already in flight. No grants are seeded or issued during development/tests except rollback-only synthetic database fixtures.
+`revoke_housecall_write_approval(p_actor_id uuid,p_approval_id uuid,p_reason text)` requires an active admin and audits revocation. Revocation prevents future consumption; it cannot recall an HTTP request already in flight. No grants are seeded by migrations. Controlled live acceptance created bounded, explicitly authorized local grants, all of which were revoked.
 
 The application additionally requires its writes-enabled mode and exact test-job allowlist. Before the first claim it must validate the entire intent's destination set, so an unapproved destination on a later line does not cause an earlier partial write.
 
@@ -67,3 +67,13 @@ An approval-time review trigger rechecks every destination against current catal
 `npm run test:applied` includes `ra6_applied.sql`, `ra6_jobs_applied.sql`, and `ra6_job_selection_applied.sql`; all SQL suites roll back. Set `SVL_APPLIED_DATABASE_URL` explicitly to the isolated local database. Never point development tests at Housecall or a hosted business database.
 
 `node scripts/ra6-export-concurrency.mjs` additionally opens actual concurrent PostgreSQL transactions and verifies that different receipts cannot steal the same destination before or after the first transaction commits. This script rejects non-loopback database URLs, creates synthetic cross-session fixtures, cleans them up, and makes no provider calls.
+
+## Manual resolution and scoped health/sync
+
+`close_housecall_export_for_manual_handling(actor, receipt, intent, hash, reason, evidence)` is service-only and requires an active admin. It validates the current outbox, fresh evidence for every unchanged step, no active step, and a unique known provider ID for every dispatched step. It records `housecall_manual_resolutions`, preserves immutable payloads/successes, cancels the outbox, revokes grants, dead-letters unfinished work and releases locks. It never creates success links or starts retention. Manager/admin RLS permits visible, unpurged receipt resolutions; purge clears reason/evidence.
+
+`finish_housecall_job_sync` now accepts optional `p_customer_ids text[]` after `p_observed_job_ids`. Scoped full scans only invalidate missing jobs belonging to that scope. The persisted `customer_scope` causes a full refresh whenever the configured scope changes. The application transport always supplies explicit customer/job read scopes; empty sets deny reads.
+
+`housecall_health_status(p_connected boolean = null, p_error text = null)` is service-only: null reads current history; a result records check time, last successful check and a whitelisted error category. The singleton table has RLS and no browser grants. It contains no credentials, request bodies or customer data.
+
+The applied test runner additionally includes `ra6_resolution_applied.sql` for these contracts.

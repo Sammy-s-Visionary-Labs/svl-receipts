@@ -1,6 +1,5 @@
 import { randomUUID } from "node:crypto";
 import {
-  createHousecallClient,
   type HousecallClient,
   HousecallError,
   isHousecallQuantitySupported,
@@ -10,7 +9,7 @@ import {
 } from "@svl/integrations";
 import { readReceiptObject } from "@/lib/storage/receipts";
 import { createServiceRoleClient } from "@/lib/supabase/service";
-import { housecallConfiguration } from "./config";
+import { configuredHousecallClient, housecallConfiguration } from "./config";
 
 export type ExportStepRow = {
   id: string;
@@ -163,13 +162,7 @@ export async function runReceiptHousecallExport(
     if (materials.some((row) => !isHousecallQuantitySupported(row.payload?.line?.qty)))
       return { completed: 0, unresolved: 0, skipped: "unsupported_quantity_precision" };
   }
-  const client =
-    input.client ??
-    createHousecallClient({
-      apiKey: process.env.HOUSECALL_API_KEY ?? "",
-      allowedWriteJobIds: [...config.allowedJobIds],
-      timeoutMs: 12_000,
-    });
+  const client = input.client ?? configuredHousecallClient(12_000, `receipt-${receiptId}`);
   const deadlineAt = input.deadlineAt ?? Date.now() + 140_000;
   const workerId = `housecall:${randomUUID()}`;
   let completed = 0;

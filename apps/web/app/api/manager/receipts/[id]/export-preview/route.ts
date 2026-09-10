@@ -24,6 +24,17 @@ export async function GET(request: Request, context: Context) {
       .eq("receipt_id", id)
       .maybeSingle();
     if (outboxError) throw outboxError;
+    let closedForManualHandling = false;
+    if (outbox?.intent_id && outbox.status === "cancelled") {
+      const { data: resolution, error: resolutionError } = await supabase
+        .from("housecall_manual_resolutions")
+        .select("id")
+        .eq("receipt_id", id)
+        .eq("intent_id", outbox.intent_id)
+        .maybeSingle();
+      if (resolutionError) throw resolutionError;
+      closedForManualHandling = !!resolution;
+    }
     const config = housecallConfiguration();
     let intent = null;
     let steps: PreviewStepRow[] = [];
@@ -76,7 +87,10 @@ export async function GET(request: Request, context: Context) {
         "The frozen export plan needs administrator review.",
       );
     }
-    return Response.json(preview, { headers: { "cache-control": "private, no-store" } });
+    return Response.json(
+      { ...preview, closedForManualHandling },
+      { headers: { "cache-control": "private, no-store" } },
+    );
   } catch (error) {
     const response =
       error instanceof HttpError ? httpErrorResponse(error) : authErrorResponse(error);

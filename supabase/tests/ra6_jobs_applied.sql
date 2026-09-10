@@ -27,7 +27,7 @@ begin
  end loop;
  foreach signature in array array[
   'public.claim_housecall_job_sync(integer)',
-  'public.finish_housecall_job_sync(uuid,timestamp with time zone,jsonb,boolean,text[])',
+  'public.finish_housecall_job_sync(uuid,timestamp with time zone,jsonb,boolean,text[],text[])',
   'public.fail_housecall_job_sync(uuid,text)',
   'public.configure_housecall_employee_mapping(uuid,text,uuid)'
  ] loop

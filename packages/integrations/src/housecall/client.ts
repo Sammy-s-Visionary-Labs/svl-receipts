@@ -160,6 +160,10 @@ export type HousecallClientOptions = {
   timeoutMs?: number;
   /** Empty by default. Exact provider IDs only; a customer/job name is never authorization. */
   allowedWriteJobIds?: readonly string[];
+  allowedReadJobIds?: readonly string[];
+  allowedReadCustomerIds?: readonly string[];
+  /** Opaque receipt or synchronization reference; never a customer name or credential. */
+  correlationId?: string;
   now?: () => number;
 };
 export function createHousecallClient(options: HousecallClientOptions) {
@@ -181,13 +185,25 @@ export function createHousecallClient(options: HousecallClientOptions) {
   )
     throw new HousecallError("configuration");
   const allowlist = new Set((options.allowedWriteJobIds ?? []).map(validateHousecallId));
+  const readJobs = options.allowedReadJobIds
+    ? new Set(options.allowedReadJobIds.map(validateHousecallId))
+    : null;
+  const readCustomers = options.allowedReadCustomerIds
+    ? new Set(options.allowedReadCustomerIds.map(validateHousecallId))
+    : null;
   const now = options.now ?? Date.now;
   const consumedPermits = new Set<string>();
+  const correlationId = options.correlationId ?? `sync-${crypto.randomUUID()}`;
+  if (!/^[A-Za-z0-9:_-]{1,100}$/.test(correlationId)) throw new HousecallError("configuration");
+  let requestSequence = 0;
+  let authorizationFailure: HousecallError | null = null;
 
   async function request(
     path: string,
     init: { method?: "GET" | "PUT" | "POST"; body?: BodyInit; json?: boolean } = {},
   ): Promise<{ data: unknown; status: number }> {
+    if (authorizationFailure) throw authorizationFailure;
+    const requestId = `${correlationId}-${++requestSequence}`;
     const method = init.method ?? "GET";
     const isWrite = method !== "GET";
     const abort = new AbortController();
@@ -203,6 +219,7 @@ export function createHousecallClient(options: HousecallClientOptions) {
         headers: {
           Authorization: `Token ${apiKey}`,
           Accept: "application/json",
+          "X-Request-Id": requestId,
           ...(init.json ? { "Content-Type": "application/json" } : {}),
         },
       });
@@ -264,7 +281,11 @@ export function createHousecallClient(options: HousecallClientOptions) {
         }),
       ]);
     } catch (error) {
-      if (error instanceof HousecallError) throw error;
+      if (error instanceof HousecallError) {
+        if (error.code === "authentication" || error.code === "forbidden")
+          authorizationFailure = error;
+        throw error;
+      }
       throw new HousecallError(abort.signal.aborted ? "timeout" : "network", null, null, isWrite);
     } finally {
       if (timer) clearTimeout(timer);
@@ -275,14 +296,19 @@ export function createHousecallClient(options: HousecallClientOptions) {
     options: { includeAttachments?: boolean } = {},
   ): Promise<HousecallJob> {
     validateHousecallId(jobId);
+    if (readJobs && !readJobs.has(jobId)) throw new HousecallError("unsafe_destination");
     const suffix = options.includeAttachments ? "?expand%5B%5D=attachments" : "";
     const { data } = await request(`/jobs/${jobId}${suffix}`);
     const result = parseHousecallJob(data);
     if (result.id !== jobId || (options.includeAttachments && result.attachments === null))
       throw new HousecallError("invalid_response");
+    if (readCustomers && (!result.customerId || !readCustomers.has(result.customerId)))
+      throw new HousecallError("unsafe_destination");
     return result;
   }
   async function listJobs(query: HousecallJobsQuery = {}): Promise<HousecallJobsPage> {
+    if (readCustomers && (!query.customerId || !readCustomers.has(query.customerId)))
+      throw new HousecallError("unsafe_destination");
     const page = query.page ?? 1;
     const pageSize = query.pageSize ?? 100;
     if (
@@ -321,6 +347,16 @@ export function createHousecallClient(options: HousecallClientOptions) {
       (result.totalPages === 0 && result.jobs.length > 0)
     )
       throw new HousecallError("invalid_response");
+    if (
+      readCustomers &&
+      result.jobs.some(
+        (job) =>
+          !job.customerId ||
+          job.customerId !== query.customerId ||
+          !readCustomers.has(job.customerId),
+      )
+    )
+      throw new HousecallError("unsafe_destination");
     return result;
   }
   async function listAllJobs(
@@ -340,6 +376,7 @@ export function createHousecallClient(options: HousecallClientOptions) {
     throw new HousecallError("invalid_response");
   }
   async function listJobInputMaterials(jobId: string): Promise<HousecallMaterial[]> {
+    if (readJobs && !readJobs.has(jobId)) throw new HousecallError("unsafe_destination");
     const { data } = await request(`/jobs/${validateHousecallId(jobId)}/job_input_materials`);
     return array(object(data).job_input_materials).map(parseMaterial);
   }
@@ -448,7 +485,11 @@ export function createHousecallClient(options: HousecallClientOptions) {
     return { status: "accepted", httpStatus: result.status };
   }
   async function checkHealth(): Promise<{ connected: true; writesEnabled: false }> {
-    await listJobs({ page: 1, pageSize: 1 });
+    await listJobs({
+      page: 1,
+      pageSize: 1,
+      ...(readCustomers ? { customerId: [...readCustomers][0] } : {}),
+    });
     // Individual explicit permits are required even with a configured allowlist.
     return { connected: true, writesEnabled: false };
   }

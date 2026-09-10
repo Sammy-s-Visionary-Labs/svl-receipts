@@ -749,3 +749,70 @@ test("RA5 administrator configures stable category IDs and preserves deactivated
   ).toBe(true);
   await page.screenshot({ path: testInfo.outputPath("ra5-category-settings.png"), fullPage: true });
 });
+
+test("administrator confirms manual handoff and sees closed state without export success", async ({
+  page,
+}) => {
+  await setup(page, { historical: true, role: "admin" });
+  let closed = false;
+  const requests: unknown[] = [];
+  await page.route(`**/api/manager/receipts/${id}/export-preview`, (route) =>
+    route.fulfill({
+      json: {
+        receiptId: id,
+        intentId: closed ? null : intentId,
+        payloadHash: "a".repeat(64),
+        closedForManualHandling: closed,
+        previewOnly: true,
+        liveWritesEnabled: false,
+        separateApprovalRequired: true,
+        taxExcluded: true,
+        totalMaterialCostCents: 101,
+        blockedReasons: closed ? ["no_current_intent"] : ["unsupported_quantity_precision"],
+        jobs: closed
+          ? []
+          : [
+              {
+                id: "job-a",
+                label: "Synthetic test",
+                allowedTestDestination: true,
+                materialCostCents: 101,
+                images: [],
+                lines: [
+                  {
+                    stepId: "line",
+                    description: "Synthetic material",
+                    qty: 1.005,
+                    unitCostCents: 100,
+                    extendedCostCents: 101,
+                    status: "reconcile_required",
+                    externalId: null,
+                  },
+                ],
+              },
+            ],
+      },
+    }),
+  );
+  await page.route(`**/api/admin/receipts/${id}/close-export`, (route) => {
+    requests.push(route.request().postDataJSON());
+    closed = true;
+    return route.fulfill({ json: { closed: true, exported: false } });
+  });
+  const region = page.getByRole("region", { name: "Housecall export preview" });
+  await region.getByRole("button", { name: "Load export preview", exact: true }).click();
+  await region.getByText("Stop this export for manual handling", { exact: true }).click();
+  const button = region.getByRole("button", { name: "Stop automatic export", exact: true });
+  await expect(button).toBeDisabled();
+  await region
+    .getByLabel("Manual handling reason", { exact: true })
+    .fill("Provider rounded the quantity; remaining synthetic costs handled manually.");
+  await expect(button).toBeDisabled();
+  await region.getByRole("checkbox").check();
+  await button.click();
+  await expect(region).toContainText("Automatic export stopped for manual handling.");
+  await expect(region).not.toContainText("Approve the receipt to freeze its export plan.");
+  expect(requests).toEqual([
+    expect.objectContaining({ intentId, payloadHash: "a".repeat(64), confirmStop: true }),
+  ]);
+});

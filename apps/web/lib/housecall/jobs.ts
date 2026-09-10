@@ -1,6 +1,6 @@
-import { createHousecallClient, HousecallError, type HousecallJob } from "@svl/integrations";
+import { type createHousecallClient, HousecallError, type HousecallJob } from "@svl/integrations";
 import { createServiceRoleClient } from "@/lib/supabase/service";
-import { housecallConfiguration } from "./config";
+import { configuredHousecallClient, housecallConfiguration } from "./config";
 
 export { HOUSECALL_JOB_STALE_MS } from "./catalog-policy";
 export function jobCatalogRow(job: HousecallJob) {
@@ -30,6 +30,7 @@ type SyncState = {
   lease_token: string;
   last_success_at: string | null;
   last_full_sync_at: string | null;
+  customer_scope?: string[] | null;
 };
 export async function syncHousecallJobs(input?: {
   full?: boolean;
@@ -37,11 +38,10 @@ export async function syncHousecallJobs(input?: {
   db?: ReturnType<typeof createServiceRoleClient>;
   deadlineAt?: number;
 }) {
-  if (!housecallConfiguration().readsEnabled) return { skipped: "reads_disabled", count: 0 };
+  const config = housecallConfiguration();
+  if (!config.readsEnabled) return { skipped: "reads_disabled", count: 0 };
   const db = input?.db ?? createServiceRoleClient();
-  const client =
-    input?.client ??
-    createHousecallClient({ apiKey: process.env.HOUSECALL_API_KEY ?? "", timeoutMs: 15_000 });
+  const client = input?.client ?? configuredHousecallClient();
   const { data, error } = await db.rpc("claim_housecall_job_sync", { p_lease_seconds: 180 });
   if (error) throw error;
   if (!data) return { skipped: "sync_in_progress", count: 0 };
@@ -54,42 +54,51 @@ export async function syncHousecallJobs(input?: {
     input?.full === true ||
     !state.last_success_at ||
     !state.last_full_sync_at ||
+    JSON.stringify(state.customer_scope ?? []) !== JSON.stringify(config.allowedCustomerIds) ||
     Date.now() - Date.parse(state.last_full_sync_at) > 7 * 24 * 60 * 60 * 1000;
   const cutoff =
     !full && state.last_success_at ? Date.parse(state.last_success_at) - 5 * 60_000 : null;
   const jobs = new Map<string, HousecallJob>();
   try {
-    let complete = false;
-    let expectedTotal: number | null = null;
-    let expectedPages: number | null = null;
-    for (let page = 1; page <= 100; page++) {
-      if (Date.now() + 20_000 > deadlineAt) throw new Error("sync_deadline");
-      const result = await client.listJobs({
-        page,
-        pageSize: 100,
-        sortBy: "updated_at",
-        sortDirection: "desc",
-      });
-      if (
-        (expectedTotal !== null && result.totalItems !== expectedTotal) ||
-        (expectedPages !== null && result.totalPages !== expectedPages) ||
-        result.page !== page ||
-        (result.jobs.length === 0 && result.totalItems > 0)
-      )
-        throw new Error("sync_unstable_pages");
-      expectedTotal = result.totalItems;
-      expectedPages = result.totalPages;
-      for (const job of result.jobs) {
-        if (jobs.has(job.id)) throw new Error("sync_unstable_pages");
-        jobs.set(job.id, job);
+    for (const customerId of config.allowedCustomerIds.length
+      ? config.allowedCustomerIds
+      : [undefined]) {
+      let complete = false;
+      let customerCount = 0;
+      let expectedTotal: number | null = null;
+      let expectedPages: number | null = null;
+      for (let page = 1; page <= 100; page++) {
+        if (Date.now() + 20_000 > deadlineAt) throw new Error("sync_deadline");
+        const result = await client.listJobs({
+          page,
+          pageSize: 100,
+          sortBy: "updated_at",
+          sortDirection: "desc",
+          ...(customerId ? { customerId } : {}),
+        });
+        if (
+          (expectedTotal !== null && result.totalItems !== expectedTotal) ||
+          (expectedPages !== null && result.totalPages !== expectedPages) ||
+          result.page !== page ||
+          (result.jobs.length === 0 && result.totalItems > 0)
+        )
+          throw new Error("sync_unstable_pages");
+        expectedTotal = result.totalItems;
+        expectedPages = result.totalPages;
+        for (const job of result.jobs) {
+          if (customerId && job.customerId !== customerId) throw new Error("sync_wrong_customer");
+          if (jobs.has(job.id)) throw new Error("sync_unstable_pages");
+          jobs.set(job.id, job);
+          customerCount++;
+        }
+        if (page >= result.totalPages) {
+          if (customerCount !== result.totalItems) throw new Error("sync_unstable_pages");
+          complete = true;
+          break;
+        }
       }
-      if (page >= result.totalPages) {
-        if (jobs.size !== result.totalItems) throw new Error("sync_unstable_pages");
-        complete = true;
-        break;
-      }
+      if (!complete) throw new Error("sync_page_limit");
     }
-    if (!complete) throw new Error("sync_page_limit");
     const changed = [...jobs.values()].filter(
       (job) =>
         cutoff === null ||
@@ -103,6 +112,7 @@ export async function syncHousecallJobs(input?: {
       p_jobs: changed.map(jobCatalogRow),
       p_full: full,
       p_observed_job_ids: [...jobs.keys()],
+      ...(config.allowedCustomerIds.length ? { p_customer_ids: config.allowedCustomerIds } : {}),
     });
     if (finishError) throw finishError;
     return { count: changed.length, scanned: jobs.size, full, syncedAt: startedAt };

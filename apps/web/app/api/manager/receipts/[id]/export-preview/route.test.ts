@@ -101,7 +101,8 @@ describe("read-only manager export preview route", () => {
       jobs: [],
       blockedReasons: ["no_current_intent"],
     });
-    expect(from).toHaveBeenCalledTimes(2);
+    expect(from).not.toHaveBeenCalledWith("housecall_intents");
+    expect(from).not.toHaveBeenCalledWith("housecall_export_steps");
   });
   it("requires manager authentication before database access", async () => {
     vi.mocked(requireManager).mockRejectedValue(new AuthHttpError(403, "forbidden", "Denied"));
@@ -119,4 +120,11 @@ describe("read-only manager export preview route", () => {
     };
     expect((await run()).status).toBe(422);
   });
+});
+
+it("distinguishes audited manual handoff from other cancelled intents", async () => {
+  rows.housecall_outbox = { intent_id: "intent", status: "cancelled" };
+  expect((await (await run()).json()).closedForManualHandling).toBe(false);
+  rows.housecall_manual_resolutions = { id: "resolution" };
+  expect((await (await run()).json()).closedForManualHandling).toBe(true);
 });
