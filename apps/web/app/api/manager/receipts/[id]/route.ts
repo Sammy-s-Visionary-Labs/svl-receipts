@@ -243,9 +243,10 @@ export async function GET(request: Request, context: Context) {
       confidence: extraction?.confidence ?? {},
       gps: receipt.gps_lat === null ? null : { lat: receipt.gps_lat, lng: receipt.gps_lng },
       pageCount: pages.data?.length ?? 0,
-      automaticTestExport:
-        UUID.test(process.env.HOUSECALL_TEST_SESSION_ID ?? "") &&
-        housecallConfiguration().exportsEnabled,
+      automaticExport:
+        housecallConfiguration().exportsEnabled &&
+        (housecallConfiguration().mode === "manager_approved" ||
+          UUID.test(process.env.HOUSECALL_TEST_SESSION_ID ?? "")),
       editable: receipt.status === "needs_review",
       steps:
         frozenSteps === null

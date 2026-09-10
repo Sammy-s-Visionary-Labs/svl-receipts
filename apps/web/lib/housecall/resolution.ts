@@ -25,7 +25,7 @@ export async function closeExportForManualHandling(
     throw new HttpError(
       409,
       "reads_disabled",
-      "Enable scoped Housecall reads to verify this export first.",
+      "Enable Housecall reads to verify this export first.",
     );
   const db = dependencies.db ?? createServiceRoleClient();
   const { data: intent, error } = await db
@@ -40,7 +40,7 @@ export async function closeExportForManualHandling(
     intent.payload_hash !== input.payloadHash ||
     !Array.isArray(intent.attachment_job_ids) ||
     !intent.attachment_job_ids.length ||
-    !intent.attachment_job_ids.every((id: string) => config.allowedJobIds.has(id))
+    !intent.attachment_job_ids.every((id: string) => config.allJobs || config.allowedJobIds.has(id))
   )
     throw new HttpError(409, "conflict", "The frozen export or allowed destinations changed.");
   const { data: rows, error: stepError } = await db
@@ -55,7 +55,10 @@ export async function closeExportForManualHandling(
     !rows?.length ||
     rows.length > 600 ||
     rows.some(
-      (step) => step.status === "in_progress" || !config.allowedJobIds.has(step.housecall_job_id),
+      (step) =>
+        step.status === "in_progress" ||
+        !intent.attachment_job_ids.includes(step.housecall_job_id) ||
+        (!config.allJobs && !config.allowedJobIds.has(step.housecall_job_id)),
     )
   )
     throw new HttpError(409, "conflict", "Wait for active export work before manual resolution.");

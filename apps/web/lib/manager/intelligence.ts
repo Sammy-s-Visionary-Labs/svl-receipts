@@ -10,6 +10,7 @@ import {
   suggestReceiptCategory,
 } from "@svl/domain";
 import { housecallCatalogJobIsStale } from "../housecall/catalog-policy";
+import { housecallConfiguration } from "../housecall/config";
 import { textValue } from "./detail";
 
 type Row = Record<string, unknown>;
@@ -103,7 +104,12 @@ export async function buildReceiptIntelligence(
     if (error) throw error;
     for (const row of data ?? []) {
       // A saved name/reference match cannot revive a missing or unverified provider job.
-      if (row.unavailable === true || housecallCatalogJobIsStale(row, catalogReadAt)) continue;
+      if (
+        (housecallConfiguration().allJobs && row.source !== "housecall") ||
+        row.unavailable === true ||
+        housecallCatalogJobIsStale(row, catalogReadAt)
+      )
+        continue;
       catalog.push({
         id: row.id,
         label: row.label,

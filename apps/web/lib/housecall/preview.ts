@@ -15,7 +15,7 @@ export type HousecallExportPreview = {
   payloadHash: string | null;
   previewOnly: true;
   liveWritesEnabled: boolean;
-  separateApprovalRequired: true;
+  separateApprovalRequired: boolean;
   taxExcluded: true;
   totalMaterialCostCents: number;
   blockedReasons: string[];
@@ -23,7 +23,7 @@ export type HousecallExportPreview = {
   jobs: Array<{
     id: string;
     label: string;
-    allowedTestDestination: boolean;
+    destinationAllowed: boolean;
     unavailable: boolean;
     materialCostCents: number;
     images: Array<{ stepId: string; pageIndex: number; status: string; externalId: string | null }>;
@@ -61,6 +61,8 @@ export function buildHousecallExportPreview(input: {
   steps: PreviewStepRow[];
   catalog: Array<{ id: string; label: string; unavailable?: boolean }>;
   allowedJobIds: ReadonlySet<string>;
+  allJobs?: boolean;
+  separateApprovalRequired?: boolean;
   liveWritesEnabled: boolean;
 }): HousecallExportPreview {
   const result: HousecallExportPreview = {
@@ -69,7 +71,7 @@ export function buildHousecallExportPreview(input: {
     payloadHash: input.intent?.payload_hash ?? null,
     previewOnly: true,
     liveWritesEnabled: input.liveWritesEnabled,
-    separateApprovalRequired: true,
+    separateApprovalRequired: input.separateApprovalRequired ?? true,
     taxExcluded: true,
     totalMaterialCostCents: 0,
     blockedReasons: [],
@@ -97,7 +99,7 @@ export function buildHousecallExportPreview(input: {
     return {
       id,
       label: job?.label || "Job label unavailable",
-      allowedTestDestination: input.allowedJobIds.has(id),
+      destinationAllowed: input.allJobs === true || input.allowedJobIds.has(id),
       unavailable: job?.unavailable === true,
       materialCostCents: 0,
       images: [],
@@ -153,7 +155,7 @@ export function buildHousecallExportPreview(input: {
   }
   if (!result.jobs.length || result.jobs.some((job) => !job.images.length || !job.lines.length))
     result.blockedReasons.push("incomplete_frozen_plan");
-  if (result.jobs.some((job) => !job.allowedTestDestination))
+  if (result.jobs.some((job) => !job.destinationAllowed))
     result.blockedReasons.push("destination_not_approved");
   if (result.jobs.some((job) => job.lines.some((line) => !isHousecallQuantitySupported(line.qty))))
     result.blockedReasons.push("unsupported_quantity_precision");

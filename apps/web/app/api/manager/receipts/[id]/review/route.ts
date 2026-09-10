@@ -52,16 +52,30 @@ export async function POST(request: Request, context: Context) {
     const canonical = body.canonicalReceiptId ?? null;
     if (canonical !== null && (typeof canonical !== "string" || !UUID.test(canonical)))
       throw new HttpError(400, "invalid_request", "Enter a valid canonical receipt ID");
+    const config = housecallConfiguration();
+    const managerExport = body.decision === "approve" && config.mode === "manager_approved";
+    if (managerExport && !config.exportsEnabled)
+      throw new HttpError(
+        503,
+        "export_unavailable",
+        "Housecall export is unavailable. Save your draft and try again later.",
+      );
     const sessionId =
-      body.decision === "approve" ? process.env.HOUSECALL_TEST_SESSION_ID?.trim() : undefined;
-    if (sessionId && (!UUID.test(sessionId) || !housecallConfiguration().exportsEnabled))
+      body.decision === "approve" && !managerExport
+        ? process.env.HOUSECALL_TEST_SESSION_ID?.trim()
+        : undefined;
+    if (sessionId && (!UUID.test(sessionId) || !config.exportsEnabled))
       throw new HttpError(
         503,
         "test_export_unavailable",
         "Test export is not enabled. Your edits have not been submitted.",
       );
     const { data, error } = await createServiceRoleClient().rpc(
-      sessionId ? "manager_review_with_test_export" : "manager_review_command",
+      managerExport
+        ? "manager_review_with_export"
+        : sessionId
+          ? "manager_review_with_test_export"
+          : "manager_review_command",
       {
         ...(sessionId ? { p_session_id: sessionId } : {}),
         p_receipt_id: id,

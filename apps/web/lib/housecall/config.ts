@@ -20,33 +20,51 @@ export function housecallConfiguration(
   ].sort();
   const validCustomerScope =
     customerIds.length <= 20 && customerIds.every((id) => /^[A-Za-z0-9_-]{1,160}$/.test(id));
+  const allJobs = env.HOUSECALL_ACCESS_MODE === "all_jobs";
+  const managerApproved = env.HOUSECALL_EXPORT_MODE === "manager_approved";
   return {
-    readsEnabled: readsEnabled && validCustomerScope,
+    allJobs,
+    readsEnabled: readsEnabled && (allJobs || validCustomerScope),
     exportsEnabled:
       readsEnabled &&
-      validCustomerScope &&
-      env.HOUSECALL_EXPORT_MODE === "approved_test" &&
-      validIds,
-    allowedCustomerIds: customerIds,
+      ((allJobs && managerApproved) ||
+        (!allJobs &&
+          validCustomerScope &&
+          env.HOUSECALL_EXPORT_MODE === "approved_test" &&
+          validIds)),
+    allowedCustomerIds: allJobs ? [] : customerIds,
     allowedJobIds: new Set(validIds ? ids : []),
     configured: !!env.HOUSECALL_API_KEY?.trim(),
-    mode:
-      env.HOUSECALL_EXPORT_MODE === "approved_test"
+    mode: managerApproved
+      ? ("manager_approved" as const)
+      : env.HOUSECALL_EXPORT_MODE === "approved_test"
         ? ("approved_test" as const)
         : ("disabled" as const),
   };
 }
 
-export function configuredHousecallClient(timeoutMs = 15_000, correlationId?: string) {
+export function configuredHousecallClient(
+  timeoutMs = 15_000,
+  correlationId?: string,
+  approvedJobIds: readonly string[] = [],
+) {
   const config = housecallConfiguration();
   return createHousecallClient({
     apiKey: process.env.HOUSECALL_API_KEY ?? "",
     timeoutMs,
     ...(correlationId ? { correlationId } : {}),
-    allowedWriteJobIds: [...config.allowedJobIds],
-    // The application supports scoped test operation only. Empty scopes deny
-    // reads at the transport; toggling reads alone cannot scan the business.
-    allowedReadCustomerIds: config.allowedCustomerIds,
-    allowedReadJobIds: [...config.allowedJobIds],
+    // All-job access never means unrestricted writes: the caller must supply
+    // the immutable receipt destinations and every request still needs a permit.
+    allowedWriteJobIds: config.exportsEnabled
+      ? config.allJobs
+        ? [...approvedJobIds]
+        : [...config.allowedJobIds]
+      : [],
+    ...(config.readsEnabled && config.allJobs
+      ? {}
+      : {
+          allowedReadCustomerIds: config.readsEnabled ? config.allowedCustomerIds : [],
+          allowedReadJobIds: config.readsEnabled ? [...config.allowedJobIds] : [],
+        }),
   });
 }

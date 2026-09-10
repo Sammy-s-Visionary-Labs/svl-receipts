@@ -446,6 +446,7 @@ export function createHousecallClient(options: HousecallClientOptions) {
     consumedPermits.add(permitKey);
     const job = await getJob(frozen.jobId);
     if (
+      (grant.expectedCustomerId !== undefined && job.customerId !== grant.expectedCustomerId) ||
       job.deleted ||
       job.canceled ||
       job.locked ||

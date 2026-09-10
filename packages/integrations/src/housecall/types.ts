@@ -83,6 +83,7 @@ export type PreparedAttachmentWrite = {
 export type PreparedHousecallWrite = PreparedMaterialWrite | PreparedAttachmentWrite;
 /** This is trusted server input created from a separately recorded human approval, never receipt/OCR/browser input. */
 export type HousecallWritePermit = {
+  expectedCustomerId?: string;
   approvalId: string;
   approvedBy: string;
   approvedAt: string;

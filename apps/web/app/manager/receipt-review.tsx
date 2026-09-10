@@ -79,8 +79,10 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
   const [correction, setCorrection] = useState(false);
   const [jobs, setJobs] = useState<ManagerJob[]>([]);
   const [jobSearch, setJobSearch] = useState("");
-  const [olderJobs, setOlderJobs] = useState(false);
+  const [olderJobs, setOlderJobs] = useState(true);
   const [jobError, setJobError] = useState("");
+  const [refreshingJobs, setRefreshingJobs] = useState(false);
+  const [jobRefreshVersion, setJobRefreshVersion] = useState(0);
   const [events, setEvents] = useState<ReviewEvent[]>([]);
   const [eventCursor, setEventCursor] = useState<string | null>(null);
   const [eventBusy, setEventBusy] = useState(false);
@@ -183,6 +185,7 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
       pendingLineFocus.current = false;
     }
   }, [draft?.lines.length]);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: The explicit refresh version reloads the current search after a provider sync.
   useEffect(() => {
     const controller = new AbortController();
     const timer = setTimeout(async () => {
@@ -204,7 +207,33 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
       clearTimeout(timer);
       controller.abort();
     };
-  }, [jobSearch, olderJobs]);
+  }, [jobSearch, olderJobs, jobRefreshVersion]);
+  async function refreshJobs() {
+    if (refreshingJobs) return;
+    setRefreshingJobs(true);
+    setJobError("");
+    try {
+      const response = await fetch("/api/manager/jobs", { method: "POST" });
+      if (!response.ok) throw new Error();
+      const result = await response.json();
+      if (result.skipped) throw new Error();
+      const detailsResponse = await fetch(`/api/manager/receipts/${id}`, { cache: "no-store" });
+      if (!detailsResponse.ok) throw new Error();
+      const fresh: ReceiptDetail = await detailsResponse.json();
+      setDetail((current) =>
+        current
+          ? { ...current, assignedJobs: fresh.assignedJobs, suggestions: fresh.suggestions }
+          : current,
+      );
+      setJobRefreshVersion((value) => value + 1);
+    } catch {
+      setJobError(
+        "Jobs could not be refreshed. Your receipt edits are preserved; try again shortly.",
+      );
+    } finally {
+      setRefreshingJobs(false);
+    }
+  }
   async function intelligenceAction(path: string, payload?: Record<string, unknown>) {
     if (actionLock.current) return;
     actionLock.current = true;
@@ -325,7 +354,7 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
             ? "Draft saved."
             : decision === "approve"
               ? body.exportAuthorized
-                ? "Receipt approved. Sending the receipt and material costs to the selected Housecall test jobs. Check export status below for confirmation."
+                ? "Receipt approved. Sending the receipt and material costs to the selected Housecall jobs. Check export status below for confirmation."
                 : "Receipt approved. Export is prepared; live Housecall writes require separate explicit approval."
               : decision === "request_clarification"
                 ? "Clarification recorded. Contact the worker using your agreed channel."
@@ -668,6 +697,13 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
                       />{" "}
                       Include all older jobs
                     </label>
+                    <button
+                      type="button"
+                      disabled={refreshingJobs || busy}
+                      onClick={() => void refreshJobs()}
+                    >
+                      {refreshingJobs ? "Refreshing jobs…" : "Refresh Housecall jobs"}
+                    </button>
                     {jobError && <p role="alert">{jobError}</p>}
                     {detail.suggestions.length > 0 && (
                       <div>
@@ -1128,8 +1164,8 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
                   </p>
                   {action === "approve" && (
                     <p>
-                      {detail?.automaticTestExport
-                        ? "Approving sends the reviewed receipt images and material costs automatically to the selected Housecall test jobs, within the authorized test session limits."
+                      {detail?.automaticExport
+                        ? "Approving sends the reviewed receipt images and material costs automatically to the selected Housecall jobs."
                         : "Approval freezes this receipt's export plan. Live Housecall writes require separate explicit approval before any data is sent."}
                     </p>
                   )}

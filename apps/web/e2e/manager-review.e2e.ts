@@ -282,7 +282,7 @@ test("loads the frozen export preview on demand and checks uncertain results wit
     jobs: ["job-a", "job-b"].map((jobId, index) => ({
       id: jobId,
       label: "Same synthetic customer",
-      allowedTestDestination: index === 0,
+      destinationAllowed: index === 0,
       unavailable: false,
       materialCostCents: 101,
       images: [
@@ -506,7 +506,7 @@ test("test-session approval explains automatic delivery and refreshes export com
   page,
 }) => {
   const state = await setup(page);
-  state.detail.automaticTestExport = true;
+  state.detail.automaticExport = true;
   state.detail.draft.lines[0].qty = "1.01";
   await page.reload();
   await page.route(`**/api/manager/receipts/${id}/review`, async (route) => {
@@ -517,7 +517,7 @@ test("test-session approval explains automatic delivery and refreshes export com
   });
   await page.getByRole("button", { name: "Approve receipt", exact: true }).click();
   const dialog = page.getByRole("dialog");
-  await expect(dialog).toContainText("automatically to the selected Housecall test jobs");
+  await expect(dialog).toContainText("automatically to the selected Housecall jobs");
   await dialog.getByRole("checkbox").check();
   await dialog.getByRole("button", { name: "Approve receipt", exact: true }).click();
   await expect(page.getByText(/Receipt approved. Sending the receipt/)).toBeVisible();
@@ -830,7 +830,7 @@ test("administrator confirms manual handoff and sees closed state without export
               {
                 id: "job-a",
                 label: "Synthetic test",
-                allowedTestDestination: true,
+                destinationAllowed: true,
                 materialCostCents: 101,
                 images: [],
                 lines: [
@@ -870,4 +870,24 @@ test("administrator confirms manual handoff and sees closed state without export
   expect(requests).toEqual([
     expect.objectContaining({ intentId, payloadHash: "a".repeat(64), confirmStop: true }),
   ]);
+});
+
+test("refreshes the job catalog without losing manager edits or approving the receipt", async ({
+  page,
+}) => {
+  const state = await setup(page);
+  let refreshed = false;
+  await page.route("**/api/manager/jobs", (route) => {
+    expect(route.request().method()).toBe("POST");
+    refreshed = true;
+    return route.fulfill({ json: { count: 990, scanned: 990 } });
+  });
+  await page.getByLabel("Vendor *", { exact: true }).fill("Manager's saved choice");
+  await page.getByRole("button", { name: "Refresh Housecall jobs", exact: true }).click();
+  await expect.poll(() => refreshed).toBe(true);
+  await expect(
+    page.getByRole("button", { name: "Refresh Housecall jobs", exact: true }),
+  ).toBeEnabled();
+  await expect(page.getByLabel("Vendor *", { exact: true })).toHaveValue("Manager's saved choice");
+  expect(state.requests).toEqual([]);
 });

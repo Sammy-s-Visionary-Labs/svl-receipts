@@ -46,6 +46,7 @@ export default defineConfig({
         HOUSECALL_API_KEY: "ra6_fixture_only_never_live",
         HOUSECALL_READS_ENABLED: "false",
         HOUSECALL_EXPORT_MODE: "disabled",
+        HOUSECALL_ACCESS_MODE: "test_jobs",
         HOUSECALL_TEST_JOB_IDS: "",
         HOUSECALL_TEST_CUSTOMER_IDS: "",
         HOUSECALL_TEST_SESSION_ID: "",

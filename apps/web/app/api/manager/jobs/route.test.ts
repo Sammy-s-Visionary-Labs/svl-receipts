@@ -1,11 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AuthHttpError, requireManager } from "@/lib/auth/guards";
-import { GET } from "./route";
+import { syncHousecallJobs } from "@/lib/housecall/jobs";
+import { GET, POST } from "./route";
 
 vi.mock("@/lib/auth/guards", async (original) => ({
   ...(await original<typeof import("@/lib/auth/guards")>()),
   requireManager: vi.fn(),
 }));
+
+vi.mock("@/lib/housecall/jobs", () => ({ syncHousecallJobs: vi.fn() }));
 
 const now = Date.parse("2026-09-09T16:00:00.000Z");
 const day = 86_400_000;
@@ -51,7 +54,7 @@ describe("manager saved Housecall job search", () => {
     expect(rpc).not.toHaveBeenCalled();
   });
 
-  it("binds default active/recent search windows to the authenticated catalog RPC", async () => {
+  it("searches all jobs by default and binds search windows to the authenticated catalog RPC", async () => {
     const response = await GET(request());
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ jobs: [] });
@@ -60,7 +63,7 @@ describe("manager saved Housecall job search", () => {
     expect(rpc).toHaveBeenCalledOnce();
     expect(rpc).toHaveBeenCalledWith("manager_search_housecall_jobs", {
       p_search: "",
-      p_active: true,
+      p_active: false,
       p_limit: 50,
       p_recent_since: at(-30 * day),
       p_upcoming_until: at(90 * day),
@@ -158,5 +161,35 @@ describe("manager saved Housecall job search", () => {
     const response = await GET(request());
     expect(response.status).toBe(500);
     expect(await response.text()).not.toContain("private database detail");
+  });
+});
+
+describe("manager catalog refresh", () => {
+  it("allows a database manager to refresh without accepting client configuration", async () => {
+    vi.stubEnv("HOUSECALL_READS_ENABLED", "true");
+    vi.stubEnv("HOUSECALL_ACCESS_MODE", "all_jobs");
+    vi.mocked(syncHousecallJobs).mockResolvedValue({
+      count: 990,
+      scanned: 990,
+      full: true,
+      syncedAt: new Date().toISOString(),
+    });
+    expect(
+      (
+        await POST(
+          new Request("http://localhost/api/manager/jobs", {
+            method: "POST",
+            body: JSON.stringify({ enableWrites: true, actorId: "spoof" }),
+          }),
+        )
+      ).status,
+    ).toBe(200);
+    expect(requireManager).toHaveBeenCalledWith(expect.any(Request), "POST manager jobs refresh");
+    expect(syncHousecallJobs).toHaveBeenCalledWith({ full: true });
+  });
+  it("denies workers before any provider access", async () => {
+    vi.mocked(requireManager).mockRejectedValue(new AuthHttpError(403, "forbidden", "Denied"));
+    expect((await POST(request())).status).toBe(403);
+    expect(syncHousecallJobs).not.toHaveBeenCalled();
   });
 });

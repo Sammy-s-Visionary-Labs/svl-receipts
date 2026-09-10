@@ -66,7 +66,7 @@ describe("frozen Housecall export preview", () => {
       "reconcile_required",
     ]);
     expect(preview.jobs[0].materialCostCents).toBe(101);
-    expect(preview.jobs[1].allowedTestDestination).toBe(false);
+    expect(preview.jobs[1].destinationAllowed).toBe(false);
     expect(JSON.stringify(preview)).not.toMatch(/storage_key|checksum|raw_text|private/);
   });
   it("marks missing legacy plans and never derives draft values", () => {

@@ -568,3 +568,40 @@ describe("Approved export scheduler selects runnable work", () => {
     expect(db.rpc).toHaveBeenCalledWith("list_ready_housecall_exports", { p_limit: 20 });
   });
 });
+
+describe("manager approved exports", () => {
+  it("exports an arbitrary approved job with the frozen customer and a short dispatch permit", async () => {
+    vi.stubEnv("HOUSECALL_READS_ENABLED", "true");
+    vi.stubEnv("HOUSECALL_ACCESS_MODE", "all_jobs");
+    vi.stubEnv("HOUSECALL_EXPORT_MODE", "manager_approved");
+    const start = new Date().toISOString();
+    const end = new Date(Date.now() + 120000).toISOString();
+    const db = database({
+      grant: approvalGrant({
+        authorization_kind: "manager_review",
+        job_bindings: { [jobId]: "customer_99" },
+        expires_at: "infinity",
+        dispatch_authorized_at: start,
+        dispatch_expires_at: end,
+      }),
+    });
+    const client = provider();
+    await run(db, client);
+    expect(client.executePreparedWrite).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        expectedCustomerId: "customer_99",
+        approvedAt: start,
+        expiresAt: end,
+      }),
+    );
+  });
+  it("does not dispatch a legacy grant or a grant missing the exact customer binding", async () => {
+    vi.stubEnv("HOUSECALL_READS_ENABLED", "true");
+    vi.stubEnv("HOUSECALL_ACCESS_MODE", "all_jobs");
+    vi.stubEnv("HOUSECALL_EXPORT_MODE", "manager_approved");
+    const client = provider();
+    await run(database(), client);
+    expect(client.executePreparedWrite).not.toHaveBeenCalled();
+  });
+});

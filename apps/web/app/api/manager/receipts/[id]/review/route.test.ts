@@ -39,6 +39,25 @@ beforeEach(() => {
   rpc.mockResolvedValue({ data: { id, version: 1, status: "approved" }, error: null });
 });
 describe("manager review API", () => {
+  it("uses database-role approval for all jobs without accepting a browser actor or test-session lock", async () => {
+    vi.stubEnv("HOUSECALL_ACCESS_MODE", "all_jobs");
+    vi.stubEnv("HOUSECALL_EXPORT_MODE", "manager_approved");
+    vi.stubEnv("HOUSECALL_READS_ENABLED", "true");
+    vi.stubEnv("HOUSECALL_TEST_SESSION_ID", "expired-test-session");
+    expect((await run({ ...body, actorId: "spoofed", sessionId: "spoofed" })).status).toBe(200);
+    expect(rpc).toHaveBeenCalledWith(
+      "manager_review_with_export",
+      expect.objectContaining({ p_actor_id: "actor" }),
+    );
+    expect(rpc.mock.calls[0][1]).not.toHaveProperty("p_session_id");
+  });
+  it("does not save a normal approval when export is misconfigured", async () => {
+    vi.stubEnv("HOUSECALL_EXPORT_MODE", "manager_approved");
+    vi.stubEnv("HOUSECALL_ACCESS_MODE", "test_jobs");
+    expect((await run(body)).status).toBe(503);
+    expect(rpc).not.toHaveBeenCalled();
+    expect(after).not.toHaveBeenCalled();
+  });
   it("explains a missing reviewer grant without claiming the session expired or exporting", async () => {
     rpc.mockResolvedValue({ error: { message: "test_export_reviewer" } });
     const response = await run(body);

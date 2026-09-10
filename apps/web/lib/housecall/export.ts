@@ -130,16 +130,19 @@ export async function runReceiptHousecallExport(
     !intent?.payload_hash ||
     !Array.isArray(jobs) ||
     jobs.length === 0 ||
-    !jobs.every((id) => typeof id === "string" && config.allowedJobIds.has(id))
+    !jobs.every((id) => typeof id === "string" && (config.allJobs || config.allowedJobIds.has(id)))
   )
     return { completed: 0, unresolved: 0, skipped: "destination_not_approved" };
-  const { data: approvals, error: approvalError } = await db
+  let approvalQuery = db
     .from("housecall_write_approvals")
-    .select("job_ids,used_writes,max_writes")
+    .select("job_ids,used_writes,max_writes,authorization_kind")
     .eq("intent_id", intent.id)
     .eq("payload_hash", intent.payload_hash)
     .is("revoked_at", null)
     .gt("expires_at", new Date().toISOString());
+  if (config.mode === "manager_approved" && !input.reconcileOnly)
+    approvalQuery = approvalQuery.eq("authorization_kind", "manager_review");
+  const { data: approvals, error: approvalError } = await approvalQuery;
   if (approvalError) throw approvalError;
   const authorizedJobs = new Set(
     (approvals ?? []).filter((a) => a.used_writes < a.max_writes).flatMap((a) => a.job_ids),
@@ -162,7 +165,7 @@ export async function runReceiptHousecallExport(
     if (materials.some((row) => !isHousecallQuantitySupported(row.payload?.line?.qty)))
       return { completed: 0, unresolved: 0, skipped: "unsupported_quantity_precision" };
   }
-  const client = input.client ?? configuredHousecallClient(12_000, `receipt-${receiptId}`);
+  const client = input.client ?? configuredHousecallClient(12_000, `receipt-${receiptId}`, jobs);
   const deadlineAt = input.deadlineAt ?? Date.now() + 140_000;
   const workerId = `housecall:${randomUUID()}`;
   let completed = 0;
@@ -185,7 +188,8 @@ export async function runReceiptHousecallExport(
       if (
         step.intent_id !== intent.id ||
         step.receipt_id !== receiptId ||
-        !config.allowedJobIds.has(step.housecall_job_id)
+        !jobs.includes(step.housecall_job_id) ||
+        (!config.allJobs && !config.allowedJobIds.has(step.housecall_job_id))
       )
         throw new Error("invalid_export_plan");
       const write = await prepareExportStep(step, input.readObject);
@@ -222,14 +226,20 @@ export async function runReceiptHousecallExport(
         grant.step_payload_hash !== step.payload_hash ||
         grant.payload_hash !== intent.payload_hash ||
         grant.step_id !== step.id ||
-        !grant.job_ids?.includes(step.housecall_job_id)
+        !grant.job_ids?.includes(step.housecall_job_id) ||
+        (config.mode === "manager_approved" &&
+          (grant.authorization_kind !== "manager_review" ||
+            typeof grant.job_bindings?.[step.housecall_job_id] !== "string"))
       )
         throw new Error("invalid_export_approval");
       await client.executePreparedWrite(write, {
         approvalId: `${grant.id}:${grant.used_writes}`,
         approvedBy: grant.approved_by,
-        approvedAt: grant.created_at,
-        expiresAt: grant.expires_at,
+        approvedAt: grant.dispatch_authorized_at ?? grant.created_at,
+        expiresAt: grant.dispatch_expires_at ?? grant.expires_at,
+        ...(grant.job_bindings?.[step.housecall_job_id]
+          ? { expectedCustomerId: grant.job_bindings[step.housecall_job_id] }
+          : {}),
         jobId: step.housecall_job_id,
         requestHash: write.requestHash,
       });

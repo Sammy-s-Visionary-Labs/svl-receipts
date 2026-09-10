@@ -1,4 +1,46 @@
-# Integrated test flow
+# Integrated receipt flow
+
+## Normal operation
+
+The September 10 all-job rollout supersedes the four-customer test boundary on
+the current manager/phone deployment. `HOUSECALL_ACCESS_MODE=all_jobs` enables
+account-wide job reads; `HOUSECALL_EXPORT_MODE=manager_approved` makes an active
+database manager/admin receipt approval the write authorization. Login, receipt
+review, and approval use the active `profiles.role`, not named users or reviewer
+grants. Workers cannot review or approve.
+
+`manager_review_with_export` saves the review, freezes its images/lines/jobs,
+records exact job/customer bindings, and creates a write authorization in one
+transaction. Approval does not expire with a testing session. Each dispatch
+rechecks the approving account role and gets a short one-use transport permit;
+immutable plans, attempt bounds, uncertain-result reconciliation, and current
+provider availability/customer checks remain enforced. No previously queued
+intent receives authorization merely because deployment configuration changes.
+
+The search includes older jobs by default. Managers can use **Refresh Housecall
+jobs** for new jobs; this synchronizes the saved catalog with GET requests only
+and preserves unsaved receipt edits. Canceled/deleted/locked and stale jobs still
+require resolution before export. Quantities beyond two decimals remain blocked.
+
+Set `HOUSECALL_EXPORT_MODE=disabled` to stop new writes without changing roles.
+The all-job rollout retains the current hosted development database so existing
+phone submissions and manager accounts stay together. It is not a migration to
+the separate production database. Production launch still requires the open
+operational/security and genuine receipt acceptance work in the acceptance record.
+
+## All-job rollout verification — September 10
+
+- Full Housecall job sync: 990 scanned, 843 available; 10 GETs and zero writes.
+- 315 web and 104 integration unit tests, 38 browser tests, and all 14 rollback-only
+  SQL suites passed. Typechecking, lint, and the production build passed.
+- A hosted rollback-only transaction used the existing manager profile and a job
+  outside the former four-job list. It produced the correct frozen authorization,
+  then rolled back the synthetic receipt, review, intent and grant before any
+  worker could observe them. No Housecall request or retained approval resulted.
+- Security advisors reported no errors or new-function warnings. Existing
+  unrelated advisories remain tracked separately.
+
+## Historical bounded test setup
 
 The [September 10 acceptance record](ra6-full-flow-acceptance-2026-09-10.md)
 includes a successful physical Pixel camera submission through Gemini, manager

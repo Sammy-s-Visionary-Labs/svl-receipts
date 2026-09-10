@@ -14,11 +14,11 @@ const statusLabels: Record<string, string> = {
 };
 const blockedLabels: Record<string, string> = {
   no_current_intent:
-    "Approve the receipt to freeze its export plan. Live writes still require separate explicit approval.",
+    "Approve the receipt to freeze its reviewed images, material costs, and destinations.",
   missing_frozen_plan: "This older approval has no frozen export plan and cannot be sent by RA-6.",
   incomplete_frozen_plan: "The frozen plan is missing required images or material lines.",
   destination_not_approved:
-    "At least one destination is outside the approved test job list. Export is blocked.",
+    "At least one destination is outside the configured scope. Export is blocked.",
   destination_unavailable: "A destination is marked unavailable. It needs administrator review.",
   unsupported_quantity_precision:
     "Housecall changed a three-decimal quantity during testing. Quantities with more than two decimal places are blocked; review the material quantity before export.",
@@ -154,10 +154,12 @@ export function HousecallPreview({
         <div aria-live="polite">
           <p className={styles.notice}>
             {preview.liveWritesEnabled
-              ? "Test export mode is configured."
+              ? "Housecall export is enabled."
               : "Live Housecall writes are disabled."}{" "}
-            Live writes require separate explicit approval for the exact destinations and frozen
-            plan. This preview does not grant that approval.
+            {preview.separateApprovalRequired
+              ? "Live writes require separate explicit approval for the exact destinations and frozen plan."
+              : "Approving a receipt authorizes its reviewed images and material costs for the selected jobs."}{" "}
+            Opening this preview does not approve or send anything.
           </p>
           {preview.closedForManualHandling && (
             <p role="status">
@@ -205,9 +207,9 @@ export function HousecallPreview({
                       Housecall job ID: <code>{job.id}</code>
                     </p>
                     <p>
-                      {job.allowedTestDestination
-                        ? "On the approved test job list"
-                        : "Blocked: outside the approved test job list"}
+                      {job.destinationAllowed
+                        ? "Destination available for approved exports"
+                        : "Blocked: destination outside the configured scope"}
                     </p>
                     <strong>{money(job.materialCostCents)} material costs</strong>
                     <h4>Receipt pages</h4>

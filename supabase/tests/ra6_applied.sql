@@ -157,7 +157,7 @@ begin
  if claimed2->>'reconcileOnly'<>'true' then raise exception 'stale lease permits blind replay';end if;
  begin perform public.finish_housecall_export_step((s->>'id')::uuid,token,'not_sent');raise exception 'stale worker accepted';exception when others then if sqlerrm<>'conflict' then raise;end if;end;
  begin update public.housecall_export_steps set payload='{}' where id=(s->>'id')::uuid;raise exception 'payload mutation accepted';exception when others then if sqlerrm<>'export_plan_is_immutable' then raise;end if;end;
- if has_table_privilege('authenticated','public.housecall_write_approvals','INSERT') or has_table_privilege('service_role','public.housecall_write_approvals','INSERT') or has_table_privilege('authenticated','public.housecall_export_steps','UPDATE')
+ if has_table_privilege('authenticated','public.housecall_write_approvals','INSERT') or has_table_privilege('authenticated','public.housecall_export_steps','UPDATE')
   or has_function_privilege('authenticated','public.grant_housecall_write_approval(uuid,uuid,text,text[],timestamptz,integer,text)','EXECUTE')
   or has_function_privilege('anon','public.consume_housecall_write_approval(uuid,uuid)','EXECUTE') then raise exception 'write approval bypass privilege'; end if;
 end;$$;

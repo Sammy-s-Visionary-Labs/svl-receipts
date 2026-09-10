@@ -9,7 +9,7 @@ import { AuthHttpError, requireAdmin, requireManager } from "@/lib/auth/guards";
 import { runApprovedHousecallExports, runReceiptHousecallExport } from "@/lib/housecall/export";
 import { syncHousecallJobs } from "@/lib/housecall/jobs";
 import { createServiceRoleClient } from "@/lib/supabase/service";
-import { housecallConfiguration } from "./config";
+import { configuredHousecallClient, housecallConfiguration } from "./config";
 
 vi.mock("@svl/integrations", async (original) => ({
   ...(await original<typeof import("@svl/integrations")>()),
@@ -92,6 +92,27 @@ afterEach(() => {
 });
 
 describe("Housecall server configuration", () => {
+  it("opens account reads but confines writes to the receipt destinations supplied by the server", () => {
+    vi.stubEnv("HOUSECALL_ACCESS_MODE", "all_jobs");
+    vi.stubEnv("HOUSECALL_EXPORT_MODE", "manager_approved");
+    vi.stubEnv("HOUSECALL_READS_ENABLED", "true");
+    expect(housecallConfiguration()).toMatchObject({
+      allJobs: true,
+      exportsEnabled: true,
+      allowedCustomerIds: [],
+    });
+    configuredHousecallClient();
+    expect(createHousecallClient).toHaveBeenLastCalledWith(
+      expect.objectContaining({ allowedWriteJobIds: [] }),
+    );
+    expect(vi.mocked(createHousecallClient).mock.calls.at(-1)?.[0]).not.toHaveProperty(
+      "allowedReadJobIds",
+    );
+    configuredHousecallClient(15000, undefined, ["job_business_99"]);
+    expect(createHousecallClient).toHaveBeenLastCalledWith(
+      expect.objectContaining({ allowedWriteJobIds: ["job_business_99"] }),
+    );
+  });
   it("defaults to disabled and never returns a secret", () => {
     const result = housecallConfiguration({
       NODE_ENV: "test",

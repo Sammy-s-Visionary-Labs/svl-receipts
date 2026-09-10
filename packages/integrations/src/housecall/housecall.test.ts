@@ -341,6 +341,18 @@ describe("Explicit approval for every live write", () => {
     expect(transport).toHaveBeenCalledTimes(1);
     expect(transport.mock.calls[0]?.[1].method).toBe("GET");
   });
+  it("rejects a job reassigned to another customer before posting", async () => {
+    const write = await material();
+    const transport = vi.fn().mockResolvedValue(json(job()));
+    await expect(
+      client(transport, [write.jobId]).executePreparedWrite(
+        write,
+        permit(write, { expectedCustomerId: "different_customer" }),
+      ),
+    ).rejects.toMatchObject({ code: "unsafe_destination" });
+    expect(transport).toHaveBeenCalledTimes(1);
+    expect(transport.mock.calls[0]?.[1].method).toBe("GET");
+  });
   it("sends one exact material request and consumes the permit across concurrent attempts", async () => {
     const write = await material();
     const transport = vi

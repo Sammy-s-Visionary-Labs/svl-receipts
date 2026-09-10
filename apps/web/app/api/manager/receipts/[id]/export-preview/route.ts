@@ -78,6 +78,8 @@ export async function GET(request: Request, context: Context) {
         steps,
         catalog,
         allowedJobIds: config.allowedJobIds,
+        allJobs: config.allJobs,
+        separateApprovalRequired: config.mode !== "manager_approved",
         liveWritesEnabled: config.exportsEnabled,
       });
     } catch {
