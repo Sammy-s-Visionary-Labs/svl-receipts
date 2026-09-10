@@ -31,6 +31,7 @@ const run = (payload: unknown) =>
   );
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.unstubAllEnvs();
   vi.mocked(requireManager).mockResolvedValue({
     actor: { userId: "actor", role: "manager", disabled: false },
   } as never);
@@ -38,6 +39,37 @@ beforeEach(() => {
   rpc.mockResolvedValue({ data: { id, version: 1, status: "approved" }, error: null });
 });
 describe("manager review API", () => {
+  it("uses only the server's configured test session for atomic approval", async () => {
+    const sessionId = "79100000-0000-4000-8000-000000000099";
+    vi.stubEnv("HOUSECALL_TEST_SESSION_ID", sessionId);
+    vi.stubEnv("HOUSECALL_READS_ENABLED", "true");
+    vi.stubEnv("HOUSECALL_EXPORT_MODE", "approved_test");
+    vi.stubEnv("HOUSECALL_TEST_CUSTOMER_IDS", "customer-test");
+    vi.stubEnv("HOUSECALL_TEST_JOB_IDS", "job-a");
+    expect((await run({ ...body, sessionId: "spoofed", exportAuthorized: true })).status).toBe(200);
+    expect(rpc).toHaveBeenCalledWith(
+      "manager_review_with_test_export",
+      expect.objectContaining({ p_session_id: sessionId, p_actor_id: "actor" }),
+    );
+  });
+  it("keeps drafts available while an automatic-export environment is disabled", async () => {
+    vi.stubEnv("HOUSECALL_TEST_SESSION_ID", "79100000-0000-4000-8000-000000000099");
+    vi.stubEnv("HOUSECALL_EXPORT_MODE", "disabled");
+    expect((await run(body)).status).toBe(503);
+    expect(rpc).not.toHaveBeenCalled();
+    expect((await run({ ...body, decision: "save_draft" })).status).toBe(200);
+    expect(rpc.mock.calls[0][0]).toBe("manager_review_command");
+  });
+  it("blocks unsupported precision before saving approval or kicking export", async () => {
+    const response = await run({
+      ...body,
+      draft: { ...draft, lines: [{ ...draft.lines[0], qty: "1.005" }] },
+    });
+    expect(response.status).toBe(400);
+    expect((await response.json()).fields["lines.0.qty"]).toContain("will not be rounded");
+    expect(rpc).not.toHaveBeenCalled();
+    expect(after).not.toHaveBeenCalled();
+  });
   it("takes the actor from auth and forwards a versioned sanitized snapshot", async () => {
     const response = await run({
       ...body,

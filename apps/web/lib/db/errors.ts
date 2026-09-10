@@ -2,6 +2,24 @@ import { HttpError } from "@/lib/http";
 
 export function rpcHttpError(error: { message?: string } | null | undefined): HttpError {
   const message = error?.message ?? "";
+  if (message === "test_export_scope")
+    return new HttpError(
+      409,
+      "test_export_scope",
+      "This receipt is outside the active test session, or the session has expired. Approval was not saved; keep your draft and contact the administrator.",
+    );
+  if (message === "test_export_budget")
+    return new HttpError(
+      409,
+      "test_export_budget",
+      "This approval would exceed the test session's receipt, cost, or write limit. Approval was not saved.",
+    );
+  if (message === "unsupported_quantity_precision")
+    return new HttpError(
+      400,
+      "unsupported_quantity_precision",
+      "Review quantities with more than two decimal places. Housecall export cannot preserve them; no approval was saved.",
+    );
   if (message.includes("unauthenticated")) {
     return new HttpError(401, "unauthenticated", "Sign in required");
   }

@@ -2,6 +2,7 @@ import { validateReview } from "@svl/domain";
 import { after } from "next/server";
 import { authErrorResponse, requireManager } from "@/lib/auth/guards";
 import { rpcHttpError } from "@/lib/db/errors";
+import { housecallConfiguration } from "@/lib/housecall/config";
 import { runReceiptHousecallExport } from "@/lib/housecall/export";
 import { HttpError, httpErrorResponse } from "@/lib/http";
 import { parseDraft, readReviewBody, UUID, validId } from "@/lib/manager/review-request";
@@ -51,16 +52,28 @@ export async function POST(request: Request, context: Context) {
     const canonical = body.canonicalReceiptId ?? null;
     if (canonical !== null && (typeof canonical !== "string" || !UUID.test(canonical)))
       throw new HttpError(400, "invalid_request", "Enter a valid canonical receipt ID");
-    const { data, error } = await createServiceRoleClient().rpc("manager_review_command", {
-      p_receipt_id: id,
-      p_actor_id: actor.userId,
-      p_version: body.version,
-      p_extraction_id: body.extractionId,
-      p_decision: body.decision,
-      p_snapshot: draft,
-      p_reason: reason || null,
-      p_canonical_id: canonical,
-    });
+    const sessionId =
+      body.decision === "approve" ? process.env.HOUSECALL_TEST_SESSION_ID?.trim() : undefined;
+    if (sessionId && (!UUID.test(sessionId) || !housecallConfiguration().exportsEnabled))
+      throw new HttpError(
+        503,
+        "test_export_unavailable",
+        "Test export is not enabled. Your edits have not been submitted.",
+      );
+    const { data, error } = await createServiceRoleClient().rpc(
+      sessionId ? "manager_review_with_test_export" : "manager_review_command",
+      {
+        ...(sessionId ? { p_session_id: sessionId } : {}),
+        p_receipt_id: id,
+        p_actor_id: actor.userId,
+        p_version: body.version,
+        p_extraction_id: body.extractionId,
+        p_decision: body.decision,
+        p_snapshot: draft,
+        p_reason: reason || null,
+        p_canonical_id: canonical,
+      },
+    );
     if (error) throw rpcHttpError(error);
     if (body.decision === "approve")
       after(async () => {

@@ -1,4 +1,5 @@
 import { authErrorResponse, requireManager } from "@/lib/auth/guards";
+import { housecallConfiguration } from "@/lib/housecall/config";
 import { HttpError, httpErrorResponse } from "@/lib/http";
 import {
   buildFrozenSteps,
@@ -242,6 +243,9 @@ export async function GET(request: Request, context: Context) {
       confidence: extraction?.confidence ?? {},
       gps: receipt.gps_lat === null ? null : { lat: receipt.gps_lat, lng: receipt.gps_lng },
       pageCount: pages.data?.length ?? 0,
+      automaticTestExport:
+        UUID.test(process.env.HOUSECALL_TEST_SESSION_ID ?? "") &&
+        housecallConfiguration().exportsEnabled,
       editable: receipt.status === "needs_review",
       steps:
         frozenSteps === null

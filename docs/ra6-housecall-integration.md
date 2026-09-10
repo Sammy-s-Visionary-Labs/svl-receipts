@@ -8,6 +8,10 @@ Ordinary receipt approval freezes instructions; it does not grant provider write
 
 ## Controls and execution
 
+The [integrated test flow](ra6-integrated-flow.md) adds an optional bounded
+standing session. In that explicitly configured preview, manager approval also
+reserves the session budget and creates the immutable write grant atomically.
+
 - `HOUSECALL_READS_ENABLED=false` disables provider reads and exports by default. Read-only connection checks and job refresh have admin routes and Settings controls.
 - `HOUSECALL_EXPORT_MODE=disabled` is the default. The only supported write mode is `approved_test`; unknown values remain disabled.
 - `HOUSECALL_TEST_CUSTOMER_IDS` and `HOUSECALL_TEST_JOB_IDS` are required exact read scopes. Empty scopes deny server reads; enabling the read flag alone cannot scan the business. Health probes use a customer-filtered GET.

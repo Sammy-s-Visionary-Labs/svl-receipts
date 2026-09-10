@@ -25,6 +25,12 @@ const draft: ReviewDraft = {
   lines: [line],
 };
 describe("review money and validation", () => {
+  it("retains three-decimal evidence in a draft but blocks approval without rounding", () => {
+    expect(validateReview(draft)).toEqual({});
+    expect(validateReview(draft, true)["lines.0.qty"]).toContain("will not be rounded");
+    expect(draft.lines[0]?.qty).toBe("1.005");
+    expect(validateReview({ ...draft, lines: [{ ...line, qty: "0.5" }] }, true)).toEqual({});
+  });
   it.each([
     ["1.005", "1.00", 101],
     ["0.125", "1.00", 13],

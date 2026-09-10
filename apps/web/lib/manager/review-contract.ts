@@ -63,6 +63,7 @@ export type ReceiptDetail = {
   confidence: Record<string, number>;
   gps: { lat: number; lng: number } | null;
   pageCount: number;
+  automaticTestExport?: boolean;
   editable: boolean;
   steps: ExportStep[];
   events: ReviewEvent[];

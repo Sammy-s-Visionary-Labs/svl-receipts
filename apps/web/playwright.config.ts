@@ -47,6 +47,8 @@ export default defineConfig({
         HOUSECALL_READS_ENABLED: "false",
         HOUSECALL_EXPORT_MODE: "disabled",
         HOUSECALL_TEST_JOB_IDS: "",
+        HOUSECALL_TEST_CUSTOMER_IDS: "",
+        HOUSECALL_TEST_SESSION_ID: "",
         NEXT_TELEMETRY_DISABLED: "1",
       },
     },

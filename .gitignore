@@ -47,3 +47,4 @@ web-build/
 # Supabase CLI state (config.toml and migrations stay committed)
 supabase/.branches/
 supabase/.temp/
+.vercel

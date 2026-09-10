@@ -149,6 +149,22 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
     return () => window.removeEventListener("beforeunload", before);
   }, [dirty]);
   useEffect(() => {
+    if (
+      !detail ||
+      !["approved", "exporting"].includes(detail.status) ||
+      dirty ||
+      correction ||
+      action ||
+      busy ||
+      loading
+    )
+      return;
+    const timer = setTimeout(() => {
+      void load();
+    }, 4000);
+    return () => clearTimeout(timer);
+  }, [detail, dirty, correction, action, busy, loading, load]);
+  useEffect(() => {
     if (action) {
       dialog.current?.showModal();
       setReason("");
@@ -293,7 +309,8 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
       if (!res.ok) {
         if (body.fields) setErrors(body.fields);
         throw new Error(
-          res.status === 409
+          res.status === 409 &&
+            !["test_export_scope", "test_export_budget"].includes(body.error?.code)
             ? "This receipt changed since you opened it. Your edits are preserved. Reload the latest receipt before saving again."
             : res.status === 401
               ? "Your session ended. Sign in again."
@@ -307,7 +324,9 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
           (decision === "save_draft"
             ? "Draft saved."
             : decision === "approve"
-              ? "Receipt approved. Export is prepared; live Housecall writes require separate explicit approval."
+              ? body.exportAuthorized
+                ? "Receipt approved. Sending the receipt and material costs to the selected Housecall test jobs. Check export status below for confirmation."
+                : "Receipt approved. Export is prepared; live Housecall writes require separate explicit approval."
               : decision === "request_clarification"
                 ? "Clarification recorded. Contact the worker using your agreed channel."
                 : "Decision recorded."),
@@ -436,18 +455,12 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
             )}
             <div className={styles.twoPane}>
               <section className={styles.imagePane} aria-label="Original receipt">
-                <ReceiptImage id={id} />
+                <ReceiptPages key={id} id={id} pageCount={detail.pageCount} />
                 <p>
                   {detail.gps
                     ? `Location available · ${detail.gps.lat.toFixed(4)}, ${detail.gps.lng.toFixed(4)}`
                     : "No location was shared with this receipt."}
                 </p>
-                {detail.pageCount > 1 && (
-                  <p>
-                    {detail.pageCount} pages were submitted. This inspection view shows the first
-                    page.
-                  </p>
-                )}
               </section>
               <form
                 ref={form}
@@ -1115,8 +1128,9 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
                   </p>
                   {action === "approve" && (
                     <p>
-                      Approval freezes this receipt's export plan. Live Housecall writes require
-                      separate explicit approval before any data is sent.
+                      {detail?.automaticTestExport
+                        ? "Approving sends the reviewed receipt images and material costs automatically to the selected Housecall test jobs, within the authorized test session limits."
+                        : "Approval freezes this receipt's export plan. Live Housecall writes require separate explicit approval before any data is sent."}
                     </p>
                   )}
                   <ul>
@@ -1246,7 +1260,30 @@ function exportError(code: string) {
   };
   return known[code] || "This export step needs administrator review.";
 }
-function ReceiptImage({ id }: { id: string }) {
+function ReceiptPages({ id, pageCount }: { id: string; pageCount: number }) {
+  const [page, setPage] = useState(0);
+  const count = Math.max(1, pageCount);
+  return (
+    <>
+      {count > 1 && (
+        <nav aria-label="Receipt pages" className={styles.imageTools}>
+          <button type="button" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>
+            Previous page
+          </button>
+          <output aria-live="polite">
+            Page {page + 1} of {count}
+          </output>
+          <button type="button" disabled={page >= count - 1} onClick={() => setPage((p) => p + 1)}>
+            Next page
+          </button>
+        </nav>
+      )}
+      <ReceiptImage key={`${id}/${page}`} id={id} pageIndex={page} />
+    </>
+  );
+}
+
+function ReceiptImage({ id, pageIndex }: { id: string; pageIndex: number }) {
   const [url, setUrl] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -1262,7 +1299,9 @@ function ReceiptImage({ id }: { id: string }) {
     setBusy(true);
     setError("");
     try {
-      const res = await fetch(`/api/receipts/${id}/image`, { cache: "no-store" });
+      const res = await fetch(`/api/receipts/${id}/image${pageIndex ? `?page=${pageIndex}` : ""}`, {
+        cache: "no-store",
+      });
       if (!res.ok) throw new Error();
       const data = await res.json();
       if (sequence !== loadSequence.current) return;
@@ -1274,7 +1313,7 @@ function ReceiptImage({ id }: { id: string }) {
     } finally {
       if (sequence === loadSequence.current) setBusy(false);
     }
-  }, [id]);
+  }, [id, pageIndex]);
   useEffect(() => {
     setUrl("");
     void load();
@@ -1391,7 +1430,11 @@ function ReceiptImage({ id }: { id: string }) {
             {/* biome-ignore lint/performance/noImgElement: private originals must bypass shared caches. */}
             <img
               src={url}
-              alt="Original submitted receipt"
+              alt={
+                pageIndex
+                  ? `Original submitted receipt, page ${pageIndex + 1}`
+                  : "Original submitted receipt"
+              }
               draggable={false}
               referrerPolicy="no-referrer"
               style={{ transform: `rotate(${rotation}deg)`, width: imageWidth, maxWidth: "none" }}
