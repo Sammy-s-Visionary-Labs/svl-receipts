@@ -4,6 +4,8 @@
 
 ## Official source checked
 
+Current RA-6 test authorization covers reads and writes only within the four verified test customers; see `AGENTS.md`. Per-run server grants still bound concrete requests. Unfiltered account-wide reads are not authorized by this standing scope.
+
 The [Housecall v1 API reference](https://docs.housecallpro.com/docs/housecall-public-api/a4ca20a18010c-housecall-v1-api) was read on 2026-09-09. Its **Export → Original** public `housecall.v1.yaml` establishes the following contract:
 
 | Operation | Verified schema | Adapter behavior |
@@ -30,11 +32,15 @@ A permit object is not a signed authorization credential and must never be accep
 
 ## Uncertain outcomes and retries
 
+### Observed quantity precision limitation
+
+On September 10 the approved two-page test sent quantity `1.005` with unit cost `100` cents; GET returned quantity `1.01`. The worker rejected the mismatch, retained reconciliation-required state, and did not send the second fractional line. The adapter now rejects writes with more than two decimal places, and the worker checks all immutable material lines before dispatching any part of the receipt. Preview data keeps the original quantity and shows `unsupported_quantity_precision`. Builders and GET reconciliation retain three-decimal representation so historical mismatches remain inspectable. No implicit rounding or conversion to a quantity-one amount line is implemented.
+
 No request, including a read, is automatically retried in this adapter. Calls have deadlines covering both fetch and body parsing. Rate-limit errors carry the later of a bounded parsed `Retry-After` and the Unix epoch `RateLimit-Reset` documented on the [official API overview](https://docs.housecallpro.com/); provider bodies, raw exception text and credentials are never placed in errors.
 
 A timeout, network failure, malformed successful response, redirect or server error after write dispatch is recorded as potentially committed. A later successful reconciliation can establish completion. An absent result after an uncertain write **does not establish permission to resend**. In particular, the attachment endpoint is asynchronous and publishes no completion-time bound. The worker must keep such steps unresolved and retry verification only, or obtain explicit resolution and a new bounded approval before any new write. Successful steps must be skipped using persistent per-image/per-line state.
 
-The published attachment representation has no content hash. Filename plus provider attachment ID verifies the stable upload reference; it is not an independent byte-for-byte download verification. The first approved live test verified filename and material reference preservation, attachment expansion, and quantity/unit-cost readback on an initially empty job. Append behavior on a populated job, existing-material preservation and broader cost-rounding cases still require approved live verification before enabling operational exports.
+The published attachment representation has no content hash. Filename plus provider attachment ID verifies the stable upload reference; it is not an independent byte-for-byte download verification. Approved live tests verified filename/material reference preservation, attachment expansion, simple quantity/unit-cost readback, two-job routing, and append preservation of existing rows. Both pages of the fractional receipt were verified at both destinations, but its material export remains partial due to the precision mismatch. Broader cost-rounding behavior must be resolved before operational exports.
 
 ## Local verification
 

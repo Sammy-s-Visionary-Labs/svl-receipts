@@ -1,4 +1,5 @@
 import { extendedCostCents } from "@svl/domain";
+import { isHousecallQuantitySupported } from "@svl/integrations";
 
 export type PreviewStepRow = {
   id: string;
@@ -153,6 +154,8 @@ export function buildHousecallExportPreview(input: {
     result.blockedReasons.push("incomplete_frozen_plan");
   if (result.jobs.some((job) => !job.allowedTestDestination))
     result.blockedReasons.push("destination_not_approved");
+  if (result.jobs.some((job) => job.lines.some((line) => !isHousecallQuantitySupported(line.qty))))
+    result.blockedReasons.push("unsupported_quantity_precision");
   if (result.jobs.some((job) => job.unavailable))
     result.blockedReasons.push("destination_unavailable");
   for (const job of result.jobs) job.images.sort((a, b) => a.pageIndex - b.pageIndex);

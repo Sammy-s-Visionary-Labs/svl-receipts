@@ -20,6 +20,8 @@ const blockedLabels: Record<string, string> = {
   destination_not_approved:
     "At least one destination is outside the approved test job list. Export is blocked.",
   destination_unavailable: "A destination is marked unavailable. It needs administrator review.",
+  unsupported_quantity_precision:
+    "Housecall changed a three-decimal quantity during testing. Quantities with more than two decimal places are blocked; review the material quantity before export.",
 };
 
 export function HousecallPreview({ receiptId }: { receiptId: string }) {

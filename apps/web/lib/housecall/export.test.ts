@@ -79,6 +79,7 @@ function approvalGrant(extra: Record<string, unknown> = {}) {
 }
 type Claim = { step: ExportStepRow; reconcileOnly: boolean };
 type DbOptions = {
+  materials?: ExportStepRow[];
   readyReceipts?: Array<{ receipt_id: string }>;
   jobs?: string[];
   approvals?: Array<{ job_ids: string[]; used_writes: number; max_writes: number }>;
@@ -106,7 +107,9 @@ function database(options: DbOptions = {}) {
           }
         : table === "housecall_write_approvals"
           ? (options.approvals ?? [{ job_ids: [jobId], used_writes: 0, max_writes: 10 }])
-          : null;
+          : table === "housecall_export_steps"
+            ? (options.materials ?? [materialStep()])
+            : null;
   const rpc = vi.fn(async (name: string, args: Record<string, unknown>) => {
     events.push(name);
     if (name === "list_ready_housecall_exports")
@@ -208,6 +211,40 @@ afterEach(() => {
 });
 
 describe("RA-6 export approval boundaries", () => {
+  it("blocks the whole receipt before its first attachment when a later quantity exceeds provider precision", async () => {
+    enable();
+    const fractional = materialStep();
+    if (!fractional.payload.line) throw new Error("test material missing");
+    fractional.payload.line.qty = 1.005;
+    const db = database({
+      materials: [materialStep(), fractional],
+      claims: [{ step: imageStep(), reconcileOnly: false }],
+    });
+    const client = provider();
+    expect(await run(db, client)).toEqual({
+      completed: 0,
+      unresolved: 0,
+      skipped: "unsupported_quantity_precision",
+    });
+    expect(db.rpc).not.toHaveBeenCalled();
+    expect(client.reconcileWrite).not.toHaveBeenCalled();
+    expect(client.executePreparedWrite).not.toHaveBeenCalled();
+  });
+  it("still permits GET-only reconciliation of an old three-decimal dispatch", async () => {
+    enable();
+    const fractional = materialStep();
+    if (!fractional.payload.line) throw new Error("test material missing");
+    fractional.payload.line.qty = 1.005;
+    const db = database({
+      materials: [fractional],
+      claims: [{ step: fractional, reconcileOnly: true }],
+    });
+    const client = provider();
+    client.reconcileWrite.mockResolvedValue({ status: "conflict", reason: "payload_mismatch" });
+    expect(await run(db, client, { reconcileOnly: true })).toEqual({ completed: 0, unresolved: 1 });
+    expect(client.reconcileWrite).toHaveBeenCalledOnce();
+    expect(client.executePreparedWrite).not.toHaveBeenCalled();
+  });
   it("default disabled mode constructs no DB and touches no provider", async () => {
     expect(await runReceiptHousecallExport(receiptId)).toMatchObject({
       skipped: "live_writes_disabled",

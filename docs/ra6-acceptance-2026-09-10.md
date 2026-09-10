@@ -2,6 +2,28 @@
 
 The first explicitly approved live test is complete: exactly one synthetic receipt attachment and one $21.00 internal material entry were created and verified on Test Customer#2, job #2000. The user approved those two frozen requests only; both local grants are now revoked and application exports remain disabled. No hosted database change was made. RA-6 remains in progress.
 
+**Subsequent authorization:** the user then approved all HCP actions that only read or change the four verified test customers. That standing approval supersedes per-operation prompts inside this scope. Exact private bindings and authorization are retained separately; general application exports stay disabled and each scoped run still receives bounded internal grants. The expanded test below found a material-precision limitation, so RA-6 is not complete.
+
+## Expanded test under standing customer authorization
+
+At 17:38:40 UTC the newer user instruction was recorded verbatim in the ignored `.local/ra6/test-customer-authorization.json` and the working agreement was updated. Only the three already-bound jobs for Customers #2–#4 were accessed during this run; no account-wide catalog or employee reads were made. The test transport allowlisted exact GET paths and frozen write payloads, checked customer identity on each job read, disabled redirects, and journaled each write before network dispatch. Customer #1 is within the standing authorization but was not needed for these cases.
+
+Three local browser review tests froze the Klumm, two-page rounding and handwritten synthetic receipts. The global review app remained unable to contact HCP. Live outcomes:
+
+| Case | Observed result |
+| --- | --- |
+| Klumm two jobs | Passed: one image on Customer #2 and #4, $45.00 disposal material on #2 and $99.00 aggregate material on #4. All four steps verified. Existing attachment/material rows on #2 were unchanged. Replaying the completed intent made zero additional writes. |
+| Two-page rounding | Partial: both pages verified on both #2 and #3. The first material request sent quantity **1.005**, unit cost **100 cents**, but HCP stored **1.01**. Exact reconciliation rejected that mismatch and stopped. The second material, quantity 10.125, was never sent. |
+| Handwritten receipt | Not exported: zero writes. The unresolved material on Customer #2 correctly prevented this later receipt from acquiring the job export lock. Both handwritten steps remain ready. |
+
+The expanded bundle attempted **nine writes**: six attachment uploads (201) and three material writes (200). All were confined to the verified test jobs and none was repeated. A separate four-GET inspection confirmed the persisted 1.01 quantity and no material on Customer #3. The partial rounding receipt remains `partial_success` with four successful attachment steps, one `reconcile_required` material, and one untouched material. Its original quantities remain 1.005 and 10.125 in the immutable local plan. No cleanup or silent cost/quantity conversion was performed.
+
+The adapter now blocks dispatch of quantities with more than two decimal places. The worker checks all frozen material quantities before any provider read, claim or attachment dispatch; the preview displays the precision block while preserving the source values. The payload builder still represents original three-decimal inputs for historical inspection and GET-only reconciliation. The underlying domain half-up calculation remains unchanged. This is a conservative restriction based on the observed 1.005 → 1.01 conversion, not a claim that every possible provider rounding case has been characterized.
+
+Validation after the fix: **96 integration tests and 274 web tests pass**, including prevention of the first attachment when a later line has unsupported precision, direct-client rejection before network, and continued GET-only reconciliation of historical mismatches. A fourth local browser check verified the visible precision warning and unchanged frozen quantities. Web, integration and acceptance-script type checks and repository lint also passed.
+
+Private evidence: `expanded-live-journal.jsonl`, `expanded-live-results.json` (the completed Klumm case), `precision-readback.json`, `handwritten-live-journal.jsonl`, `standing-approval-final-state.json`, and the local precision-warning screenshot. Final local state has **zero active per-run grants**, with standing customer authorization retained. All journals and actual provider IDs remain ignored. Resolving the fractional representation/mismatch and completing the handwritten test remain outstanding; the original plan must not be silently rewritten or its uncertain material resent. Full-business catalog/employee reads remain outside the current authorization.
+
 ## Housecall reads and contract correction
 
 The copied web environment contains the API key. The application configuration remains `HOUSECALL_READS_ENABLED=false`, `HOUSECALL_EXPORT_MODE=disabled`, and an empty `HOUSECALL_TEST_JOB_IDS`. The explicitly opted-in verification script uses its own GET-only transport, an exact URL set from the ignored private inventory, and a twelve-read budget. It cannot send a body, change configuration or dispatch a write.

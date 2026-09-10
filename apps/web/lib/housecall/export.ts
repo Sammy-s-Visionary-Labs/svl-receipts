@@ -3,6 +3,7 @@ import {
   createHousecallClient,
   type HousecallClient,
   HousecallError,
+  isHousecallQuantitySupported,
   type PreparedHousecallWrite,
   prepareAttachmentWrite,
   prepareMaterialWrite,
@@ -148,6 +149,20 @@ export async function runReceiptHousecallExport(
   // dispatch; consume_housecall_write_approval remains the durable authority.
   if (!input.reconcileOnly && !approvals?.length)
     return { completed: 0, unresolved: 0, skipped: "explicit_approval_required" };
+  if (!input.reconcileOnly) {
+    // Check the whole immutable receipt before even its first attachment read
+    // or claim. A later material must not strand earlier uploaded pages.
+    const { data: materials, error } = await db
+      .from("housecall_export_steps")
+      .select("payload")
+      .eq("intent_id", intent.id)
+      .eq("step", "job_cost");
+    if (error) throw error;
+    if (!materials?.length)
+      return { completed: 0, unresolved: 0, skipped: "incomplete_frozen_plan" };
+    if (materials.some((row) => !isHousecallQuantitySupported(row.payload?.line?.qty)))
+      return { completed: 0, unresolved: 0, skipped: "unsupported_quantity_precision" };
+  }
   const client =
     input.client ??
     createHousecallClient({

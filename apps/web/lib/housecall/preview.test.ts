@@ -54,7 +54,11 @@ describe("frozen Housecall export preview", () => {
       separateApprovalRequired: true,
       taxExcluded: true,
       totalMaterialCostCents: 202,
-      blockedReasons: ["live_writes_disabled", "destination_not_approved"],
+      blockedReasons: [
+        "live_writes_disabled",
+        "destination_not_approved",
+        "unsupported_quantity_precision",
+      ],
     });
     expect(preview.jobs.map((job) => job.id)).toEqual(["job-a", "job-b"]);
     expect(preview.jobs[0].images.map((image) => image.status)).toEqual([

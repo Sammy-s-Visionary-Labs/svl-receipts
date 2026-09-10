@@ -1,4 +1,9 @@
-import { HOUSECALL_ORIGIN, validateHousecallId, verifyPreparedHousecallWrite } from "./payloads";
+import {
+  HOUSECALL_ORIGIN,
+  isHousecallQuantitySupported,
+  validateHousecallId,
+  verifyPreparedHousecallWrite,
+} from "./payloads";
 import type {
   HousecallAttachment,
   HousecallJob,
@@ -394,6 +399,11 @@ export function createHousecallClient(options: HousecallClientOptions) {
     )
       throw new HousecallError("write_blocked");
     if (!(await verifyPreparedHousecallWrite(frozen))) throw new HousecallError("invalid_payload");
+    if (
+      frozen.kind === "job_cost" &&
+      !isHousecallQuantitySupported(frozen.body.job_input_materials[0]?.quantity)
+    )
+      throw new HousecallError("invalid_payload");
     // Reserve before an await so concurrent callers cannot dispatch the same grant twice.
     if (consumedPermits.has(permitKey)) throw new HousecallError("write_blocked");
     consumedPermits.add(permitKey);

@@ -2,6 +2,8 @@
 
 ## Authorization boundary
 
+**Current authorization, September 10:** the user subsequently approved all RA-6 HCP actions that only read or change the four verified test customers. That standing approval replaces the per-write approval requirement below within this scope. Keep exact customer/job allowlists, per-run frozen request budgets and no blind resends. Reads of real customers, unfiltered business catalogs and account-wide operations are outside scope. See the current working agreement in `AGENTS.md`; earlier prerequisites below are historical.
+
 The user authorized RA-6 implementation on 2026-09-09 and explicitly retained this restriction:
 
 > For our work on RA-6, I’ll treat live Housecall writes as requiring your explicit approval.
@@ -23,6 +25,8 @@ The machine-readable source is [`fixtures/ra6/manifest.json`](../fixtures/ra6/ma
 | Sandman handwritten | Customer 2: $80.00 | Handwritten-reference image planned; deterministic 2 × $40.00 input |
 | Sandman consolidated | Assigned: Customer 2 $640.00, Customer 3 $198.00; unresolved $483.00; whole receipt $1,321.00 | Entire approval/export blocked while any line remains unresolved |
 | Two-page rounding | Customer 2: $1.01; Customer 3: $38.48; total $39.49 | Half-up cent rounding and every required image page at both jobs |
+
+**Observed September 10:** the two-page fixture exposed HCP changing quantity 1.005 to 1.01. Its expected totals remain the source contract, but live material acceptance failed. Future writes of quantities with more than two decimal places are blocked before any receipt upload, pending an explicit representation policy. Do not change the fixture to hide this failure. The Klumm multi-job and existing-row append checks passed; the handwritten receipt remains queued behind the unresolved fractional result on Customer #2.
 
 In the consolidated case, the $483.00 unresolved amount consists of $225.00 with no reliable job reference and $258.00 of Shop lines. Their quantities and amounts remain visible. The known $838.00 is an assignment preview, not an instruction to partially approve or export the receipt. The current manager contract requires a selected known job for every approved line. Do not invent an overhead destination or delete the Shop lines to make approval pass.
 

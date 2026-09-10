@@ -7,6 +7,18 @@ import type {
 export const HOUSECALL_ORIGIN = "https://api.housecallpro.com" as const;
 const MAX_CENTS = 2_147_483_647;
 
+/** The live material API rounded 1.005 to 1.01. Keep the original quantity
+ * available for previews/reconciliation, but never dispatch unsupported precision. */
+export function isHousecallQuantitySupported(quantity: unknown): quantity is number {
+  return (
+    typeof quantity === "number" &&
+    Number.isFinite(quantity) &&
+    quantity > 0 &&
+    quantity <= MAX_CENTS &&
+    Number(quantity.toFixed(2)) === quantity
+  );
+}
+
 export function validateHousecallId(value: string): string {
   if (typeof value !== "string" || !/^[A-Za-z0-9_-]{1,160}$/.test(value))
     throw new Error("Invalid Housecall identifier");

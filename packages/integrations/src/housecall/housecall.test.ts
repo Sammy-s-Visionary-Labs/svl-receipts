@@ -6,10 +6,32 @@ import {
   parseHousecallRateLimitReset,
   parseHousecallRetryAfter,
 } from "./client";
-import { HOUSECALL_ORIGIN, prepareAttachmentWrite, prepareMaterialWrite } from "./payloads";
+import {
+  HOUSECALL_ORIGIN,
+  isHousecallQuantitySupported,
+  prepareAttachmentWrite,
+  prepareMaterialWrite,
+} from "./payloads";
 import type { HousecallWritePermit, PreparedHousecallWrite } from "./types";
 
 const NOW = Date.parse("2026-09-09T12:00:00Z");
+describe("live provider quantity precision", () => {
+  it.each([0.5, 1, 1.01, 10.12])("allows exact hundredths %s", (quantity) => {
+    expect(isHousecallQuantitySupported(quantity)).toBe(true);
+  });
+  it.each([1.005, 10.125, 0.001])(
+    "blocks %s before any provider request while retaining the original for reconciliation",
+    async (quantity) => {
+      const write = await material({ quantity });
+      expect(write.body.job_input_materials[0]?.quantity).toBe(quantity);
+      const transport = vi.fn();
+      await expect(
+        client(transport, [write.jobId]).executePreparedWrite(write, permit(write)),
+      ).rejects.toMatchObject({ code: "invalid_payload" });
+      expect(transport).not.toHaveBeenCalled();
+    },
+  );
+});
 const job = (id = "job_test_2", extra: Record<string, unknown> = {}) => ({
   id,
   work_status: "scheduled",
