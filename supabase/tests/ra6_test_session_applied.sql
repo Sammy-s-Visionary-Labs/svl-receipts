@@ -16,6 +16,13 @@ select set_config('svl.integration_session_id',public.create_housecall_test_sess
  array['79100000-0000-4000-8000-000000000002']::uuid[],'{"ra6-flow-job":"ra6-flow-customer"}',
  now()+interval '1 hour',1,3,2100,2100,'Scoped rollback-only integration test')::text,true);
 reset role;
+-- Simulate an elapsed authorization without weakening the immutable policy.
+insert into public.housecall_test_sessions(id,authorized_by,owner_ids,reviewer_ids,job_bindings,
+ reason,created_at,expires_at,max_receipts,max_writes,max_total_cents,max_receipt_cents)
+ select '79300000-0000-4000-8000-000000000001',authorized_by,owner_ids,reviewer_ids,job_bindings,
+ 'Expired rollback-only fixture',now()-interval '2 hours',now()-interval '1 hour',
+ max_receipts,max_writes,max_total_cents,max_receipt_cents
+ from public.housecall_test_sessions where id=current_setting('svl.integration_session_id')::uuid;
 insert into public.receipts(id,owner_user_id,status,submitted_at,created_at)
  select ('79200000-0000-4000-8000-'||lpad(n::text,12,'0'))::uuid,
  case when n=6 then '79100000-0000-4000-8000-000000000004'::uuid else '79100000-0000-4000-8000-000000000001'::uuid end,
@@ -31,6 +38,10 @@ declare session_id uuid:=current_setting('svl.integration_session_id')::uuid;
  snapshot jsonb:='{"vendor":"SYNTHETIC FLOW","purchaseDate":"2026-09-10","invoiceNumber":"FLOW-1","ticketNumber":"","category":"ra6-flow-materials","referenceTotal":"22.63","managerNotes":"test only","lines":[{"description":"Limestone","qty":"0.5","uom":"ton","unitCost":"42.00","jobId":"ra6-flow-job"}]}';
  result jsonb; claimed_step jsonb; grant_result jsonb; test_intent uuid; n integer;
 begin
+ begin perform public.manager_review_with_test_export('79300000-0000-4000-8000-000000000001','79200000-0000-4000-8000-000000000008',manager_id,0,null,'approve',snapshot);
+  raise exception 'expired session approved';exception when others then if sqlerrm<>'test_export_scope' then raise;end if;end;
+ begin update public.housecall_test_sessions set expires_at=expires_at+interval '1 hour' where id=session_id;
+  raise exception 'authorization extended';exception when others then if sqlerrm<>'immutable_test_authorization' then raise;end if;end;
  begin perform public.manager_review_with_test_export(session_id,'79200000-0000-4000-8000-000000000003',manager_id,0,null,'approve',jsonb_set(snapshot,'{lines,0,jobId}','"ra6-outside-job"'));
   raise exception 'outside job exported';exception when others then if sqlerrm<>'test_export_scope' then raise;end if;end;
  begin perform public.manager_review_with_test_export(session_id,'79200000-0000-4000-8000-000000000004',manager_id,0,null,'approve',jsonb_set(snapshot,'{lines,0,qty}','"1.005"'));

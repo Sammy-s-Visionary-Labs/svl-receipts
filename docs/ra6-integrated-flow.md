@@ -1,5 +1,9 @@
 # Integrated test flow
 
+The [September 10 acceptance record](ra6-full-flow-acceptance-2026-09-10.md)
+includes a successful physical Pixel camera submission through Gemini, manager
+approval and automatic Housecall export.
+
 The phone and manager preview use one hosted development Supabase project.
 Receipt confirmation schedules Gemini readability and extraction. The manager
 reviews the actual result and every uploaded page, then approves the frozen
@@ -53,6 +57,11 @@ Local unit, browser and rollback-only SQL checks cover atomic authorization,
 scope, budget/replay protection, precision, revocation, image navigation and
 automatic status refresh. They do not prove physical capture, hosted Gemini,
 notification delivery or authentic supplier accuracy; record those separately.
+
+`npm run test:ra6:session-concurrency` additionally runs simultaneous manager
+approvals against an explicit loopback database. It observes the second approval
+waiting for the session lock, then verifies the exhausted-budget rejection rolls
+back the second review. Fixtures are removed afterward; no provider is called.
 
 Controlled end-to-end acceptance is separate from production rollout. Automatic
 post-export correction writes, final retention/closure policy, operational
