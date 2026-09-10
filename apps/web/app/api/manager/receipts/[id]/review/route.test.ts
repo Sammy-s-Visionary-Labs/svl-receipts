@@ -39,6 +39,16 @@ beforeEach(() => {
   rpc.mockResolvedValue({ data: { id, version: 1, status: "approved" }, error: null });
 });
 describe("manager review API", () => {
+  it("explains a missing reviewer grant without claiming the session expired or exporting", async () => {
+    rpc.mockResolvedValue({ error: { message: "test_export_reviewer" } });
+    const response = await run(body);
+    expect(response.status).toBe(409);
+    const result = await response.json();
+    expect(result.error.code).toBe("test_export_reviewer");
+    expect(result.error.message).toContain("Your manager account is not authorized");
+    expect(result.error.message).not.toContain("expired");
+    expect(after).not.toHaveBeenCalled();
+  });
   it("uses only the server's configured test session for atomic approval", async () => {
     const sessionId = "79100000-0000-4000-8000-000000000099";
     vi.stubEnv("HOUSECALL_TEST_SESSION_ID", sessionId);

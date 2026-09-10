@@ -5,6 +5,16 @@ includes a successful physical Pixel camera submission through Gemini, manager
 approval and automatic Housecall export.
 
 The phone and manager preview use one hosted development Supabase project.
+
+An existing active manager may be admitted to a running test session through the
+service-only `authorize_housecall_test_reviewer` operation. Only the session's
+original active administrator can authorize this addition. The append-only grant
+records the reviewer, authorizer, reason and timestamp; the original session row,
+owner restrictions, four destination bindings, expiry and accumulated budgets
+remain unchanged. Added reviewers share the existing limits and lose access when
+disabled or when the session expires or is revoked. No browser role can create or
+edit these grants. A missing reviewer permission has its own error message so it
+is not misreported as an expired session.
 Receipt confirmation schedules Gemini readability and extraction. The manager
 reviews the actual result and every uploaded page, then approves the frozen
 content for automatic export to the authorized test jobs.

@@ -3,9 +3,11 @@ insert into auth.users(id,aud,role,email) values
  ('79100000-0000-4000-8000-000000000001','authenticated','authenticated','ra6-flow-worker@example.invalid'),
  ('79100000-0000-4000-8000-000000000002','authenticated','authenticated','ra6-flow-manager@example.invalid'),
  ('79100000-0000-4000-8000-000000000003','authenticated','authenticated','ra6-flow-admin@example.invalid'),
- ('79100000-0000-4000-8000-000000000004','authenticated','authenticated','ra6-flow-other@example.invalid');
-update public.profiles set role='manager' where id='79100000-0000-4000-8000-000000000002';
-update public.profiles set role='admin' where id='79100000-0000-4000-8000-000000000003';
+ ('79100000-0000-4000-8000-000000000004','authenticated','authenticated','ra6-flow-other@example.invalid'),
+ ('79100000-0000-4000-8000-000000000005','authenticated','authenticated','ra6-flow-added-manager@example.invalid'),
+ ('79100000-0000-4000-8000-000000000006','authenticated','authenticated','ra6-flow-other-admin@example.invalid');
+update public.profiles set role='manager' where id in ('79100000-0000-4000-8000-000000000002','79100000-0000-4000-8000-000000000005');
+update public.profiles set role='admin' where id in ('79100000-0000-4000-8000-000000000003','79100000-0000-4000-8000-000000000006');
 insert into public.receipt_categories(id,label) values('ra6-flow-materials','Flow materials');
 insert into public.manager_job_catalog(id,label,customer_id,source,synced_at)
  values('ra6-flow-job','Flow test job','ra6-flow-customer','housecall',now()),
@@ -33,9 +35,11 @@ insert into public.receipt_pages(receipt_id,page_index,storage_key,content_type,
  from public.receipts r cross join generate_series(0,1)p where r.id::text like '79200000%';
 set local role service_role;
 do $$
+<<ra6_session>>
 declare session_id uuid:=current_setting('svl.integration_session_id')::uuid;
  manager_id uuid:='79100000-0000-4000-8000-000000000002'; admin_id uuid:='79100000-0000-4000-8000-000000000003';
  snapshot jsonb:='{"vendor":"SYNTHETIC FLOW","purchaseDate":"2026-09-10","invoiceNumber":"FLOW-1","ticketNumber":"","category":"ra6-flow-materials","referenceTotal":"22.63","managerNotes":"test only","lines":[{"description":"Limestone","qty":"0.5","uom":"ton","unitCost":"42.00","jobId":"ra6-flow-job"}]}';
+ added_manager_id uuid:='79100000-0000-4000-8000-000000000005'; policy_before jsonb;
  result jsonb; claimed_step jsonb; grant_result jsonb; test_intent uuid; n integer;
 begin
  begin perform public.manager_review_with_test_export('79300000-0000-4000-8000-000000000001','79200000-0000-4000-8000-000000000008',manager_id,0,null,'approve',snapshot);
@@ -51,11 +55,32 @@ begin
    raise exception 'outside owner or historical receipt exported';exception when others then if sqlerrm<>'test_export_scope' then raise;end if;end;
  end loop;
  begin perform public.manager_review_with_test_export(session_id,'79200000-0000-4000-8000-000000000007',admin_id,0,null,'approve',snapshot);
-  raise exception 'unbound reviewer exported';exception when others then if sqlerrm<>'test_export_scope' then raise;end if;end;
+  raise exception 'unbound reviewer exported';exception when others then if sqlerrm<>'test_export_reviewer' then raise;end if;end;
  if exists(select 1 from public.housecall_intents where receipt_id::text like '79200000%')
   or exists(select 1 from public.reviews where receipt_id::text like '79200000%')
   or (select reserved_writes from public.housecall_test_sessions where id=session_id)<>0 then raise exception 'failed authorization did not roll back review';end if;
- result:=public.manager_review_with_test_export(session_id,'79200000-0000-4000-8000-000000000001',manager_id,0,null,'approve',snapshot);
+ select to_jsonb(s) into policy_before from public.housecall_test_sessions s where id=session_id;
+ begin perform public.authorize_housecall_test_reviewer(manager_id,session_id,added_manager_id,'Not an administrator');
+  raise exception 'manager granted export access';exception when others then if sqlerrm<>'forbidden' then raise;end if;end;
+ begin perform public.authorize_housecall_test_reviewer(admin_id,session_id,'79100000-0000-4000-8000-000000000004','Worker not allowed');
+  raise exception 'worker received review access';exception when others then if sqlerrm<>'forbidden' then raise;end if;end;
+ begin perform public.authorize_housecall_test_reviewer(admin_id,'79300000-0000-4000-8000-000000000001',added_manager_id,'Expired session');
+  raise exception 'expired session extended';exception when others then if sqlerrm<>'test_export_scope' then raise;end if;end;
+ begin perform public.authorize_housecall_test_reviewer('79100000-0000-4000-8000-000000000006',session_id,added_manager_id,'Different authorizer');
+  raise exception 'different admin changed authorization';exception when others then if sqlerrm<>'forbidden' then raise;end if;end;
+ perform public.authorize_housecall_test_reviewer(admin_id,session_id,added_manager_id,'Verified manager for existing test scope');
+ perform public.authorize_housecall_test_reviewer(admin_id,session_id,added_manager_id,'Idempotent repeat');
+ if (select count(*) from public.housecall_test_reviewer_grants g where g.session_id=ra6_session.session_id)<>1
+  then raise exception 'reviewer grant duplicated';end if;
+ if (select to_jsonb(s) from public.housecall_test_sessions s where id=session_id) is distinct from policy_before
+  then raise exception 'reviewer grant changed original policy or budgets';end if;
+ begin perform public.manager_review_with_test_export(session_id,'79200000-0000-4000-8000-000000000003',added_manager_id,0,null,'approve',jsonb_set(snapshot,'{lines,0,jobId}','"ra6-outside-job"'));
+  raise exception 'added reviewer bypassed job scope';exception when others then if sqlerrm<>'test_export_scope' then raise;end if;end;
+ update public.profiles set disabled=true where id=added_manager_id;
+ begin perform public.manager_review_with_test_export(session_id,'79200000-0000-4000-8000-000000000001',added_manager_id,0,null,'approve',snapshot);
+  raise exception 'disabled reviewer approved';exception when others then if sqlerrm<>'unauthenticated' then raise;end if;end;
+ update public.profiles set disabled=false where id=added_manager_id;
+ result:=public.manager_review_with_test_export(session_id,'79200000-0000-4000-8000-000000000001',added_manager_id,0,null,'approve',snapshot);
  test_intent:=(result->>'intentId')::uuid;
  if result->>'exportAuthorized'<>'true' or (select count(*) from public.housecall_write_approvals where test_session_id=session_id)<>1
   or (select max_writes from public.housecall_write_approvals where intent_id=test_intent)<>3 then raise exception 'exact approval not atomic';end if;
@@ -71,6 +96,8 @@ begin
  perform public.finish_housecall_export_step((claimed_step->>'id')::uuid,(claimed_step->>'lease_token')::uuid,'succeeded','flow-page-one',null,
   jsonb_build_object('verified',true,'housecall_job_id',claimed_step->>'housecall_job_id','payload_hash',claimed_step->>'payload_hash'));
  perform public.revoke_housecall_test_session(admin_id,session_id,'Stop test session');
+ begin perform public.authorize_housecall_test_reviewer(admin_id,session_id,manager_id,'Revoked session');
+  raise exception 'revoked session admitted a reviewer';exception when others then if sqlerrm<>'test_export_scope' then raise;end if;end;
  claimed_step:=public.claim_housecall_export_step(test_intent,'revoked-session')->'step';
  begin perform public.consume_housecall_write_approval((claimed_step->>'id')::uuid,(claimed_step->>'lease_token')::uuid);
   raise exception 'revoked session dispatched';exception when others then if sqlerrm<>'live_write_approval_required' then raise;end if;end;
@@ -80,7 +107,12 @@ end;$$;
 reset role;
 do $$
 begin
- if has_table_privilege('authenticated','public.housecall_test_sessions','SELECT')
+ if has_table_privilege('authenticated','public.housecall_test_reviewer_grants','SELECT')
+  or has_table_privilege('service_role','public.housecall_test_reviewer_grants','UPDATE')
+  or has_table_privilege('service_role','public.housecall_test_reviewer_grants','DELETE')
+  or has_function_privilege('authenticated','public.authorize_housecall_test_reviewer(uuid,uuid,uuid,text)','EXECUTE')
+  or has_function_privilege('anon','public.authorize_housecall_test_reviewer(uuid,uuid,uuid,text)','EXECUTE')
+  or has_table_privilege('authenticated','public.housecall_test_sessions','SELECT')
   or has_function_privilege('authenticated','public.manager_review_with_test_export(uuid,uuid,uuid,integer,uuid,text,jsonb,text,uuid)','EXECUTE')
   or has_function_privilege('anon','public.create_housecall_test_session(uuid,uuid[],uuid[],jsonb,timestamptz,integer,integer,integer,integer,text)','EXECUTE')
   then raise exception 'public authorization surface exposed';end if;

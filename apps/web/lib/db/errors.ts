@@ -2,6 +2,12 @@ import { HttpError } from "@/lib/http";
 
 export function rpcHttpError(error: { message?: string } | null | undefined): HttpError {
   const message = error?.message ?? "";
+  if (message === "test_export_reviewer")
+    return new HttpError(
+      409,
+      "test_export_reviewer",
+      "Your manager account is not authorized to approve exports in this test session. Approval was not saved; save your draft and contact the administrator.",
+    );
   if (message === "test_export_scope")
     return new HttpError(
       409,
