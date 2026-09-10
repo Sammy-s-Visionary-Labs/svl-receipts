@@ -37,8 +37,10 @@
         ]
       },
       "extractionEvaluation": {
-        "status": "not-run",
-        "evidencePath": null
+        "status": "failed",
+        "evidencePath": "evaluation/gemini-results.json",
+        "evaluatedAt": "2026-09-10T17:16:13.220Z",
+        "promptVersion": "ra6-receipt-v1.3"
       }
     },
     {
@@ -77,8 +79,10 @@
         ]
       },
       "extractionEvaluation": {
-        "status": "not-run",
-        "evidencePath": null
+        "status": "failed",
+        "evidencePath": "evaluation/gemini-results.json",
+        "evaluatedAt": "2026-09-10T17:16:39.178Z",
+        "promptVersion": "ra6-receipt-v1.3"
       }
     },
     {
@@ -113,8 +117,10 @@
         ]
       },
       "extractionEvaluation": {
-        "status": "not-run",
-        "evidencePath": null
+        "status": "failed",
+        "evidencePath": "evaluation/gemini-results.json",
+        "evaluatedAt": "2026-09-10T17:16:36.051Z",
+        "promptVersion": "ra6-receipt-v1.3"
       }
     },
     {
@@ -154,8 +160,10 @@
         ]
       },
       "extractionEvaluation": {
-        "status": "not-run",
-        "evidencePath": null
+        "status": "failed",
+        "evidencePath": "evaluation/gemini-results.json",
+        "evaluatedAt": "2026-09-10T17:16:42.527Z",
+        "promptVersion": "ra6-receipt-v1.3"
       }
     },
     {
@@ -210,8 +218,10 @@
         ]
       },
       "extractionEvaluation": {
-        "status": "not-run",
-        "evidencePath": null
+        "status": "passed",
+        "evidencePath": "evaluation/gemini-results.json",
+        "evaluatedAt": "2026-09-10T17:16:17.760Z",
+        "promptVersion": "ra6-receipt-v1.3"
       }
     },
     {
@@ -252,8 +262,10 @@
         ]
       },
       "extractionEvaluation": {
-        "status": "not-run",
-        "evidencePath": null
+        "status": "passed",
+        "evidencePath": "evaluation/gemini-results.json",
+        "evaluatedAt": "2026-09-10T17:16:21.100Z",
+        "promptVersion": "ra6-receipt-v1.3"
       }
     },
     {
@@ -295,8 +307,10 @@
         ]
       },
       "extractionEvaluation": {
-        "status": "not-run",
-        "evidencePath": null
+        "status": "passed",
+        "evidencePath": "evaluation/gemini-results.json",
+        "evaluatedAt": "2026-09-10T17:16:28.529Z",
+        "promptVersion": "ra6-receipt-v1.3"
       }
     },
     {
@@ -333,8 +347,10 @@
         ]
       },
       "extractionEvaluation": {
-        "status": "not-run",
-        "evidencePath": null
+        "status": "passed",
+        "evidencePath": "evaluation/gemini-results.json",
+        "evaluatedAt": "2026-09-10T17:16:33.128Z",
+        "promptVersion": "ra6-receipt-v1.3"
       }
     },
     {
@@ -374,8 +390,10 @@
         ]
       },
       "extractionEvaluation": {
-        "status": "not-run",
-        "evidencePath": null
+        "status": "passed",
+        "evidencePath": "evaluation/gemini-results.json",
+        "evaluatedAt": "2026-09-10T17:16:33.128Z",
+        "promptVersion": "ra6-receipt-v1.3"
       }
     }
   ]

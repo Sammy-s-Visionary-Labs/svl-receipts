@@ -36,7 +36,7 @@ The five source JPGs in the user's Downloads directory remain unchanged. The fir
 
 The existing [RA-5 synthetic pack](../fixtures/ra5/README.md) supplies image/OCR controls for multi-job receipts, exact and visual duplicates, separate purchases, multipage receipts, and unresolved extraction fields. Its printed names remain the earlier RA-5 names. Reusing those images alone does not test the new RA-6 name mapping.
 
-The new image pack contains nine generated PNGs, each visually accepted against the intended fields. Actual outputs, hashes, provenance, and review notes are tracked in [`generated-images.json`](../fixtures/ra6/generated-images.json); the [fixture README](../fixtures/ra6/README.md) links each image. App-model extraction of this new pack has not been executed. The visibly marked “SYNTHETIC — RA6 TEST” documents use these planned labels:
+The new image pack contains nine generated PNGs, each visually accepted against the intended fields. Actual outputs, hashes, provenance, and review notes are tracked in [`generated-images.json`](../fixtures/ra6/generated-images.json); the [fixture README](../fixtures/ra6/README.md) links each image. App-model extraction and the first local browser review are recorded in [September 10 acceptance evidence](ra6-acceptance-2026-09-10.md); supplier recognition still fails on the four Select variants. The visibly marked “SYNTHETIC — RA6 TEST” documents use these planned labels:
 
 - Benner → **RA6 Test Customer 2**.
 - Sophia → **RA6 Test Customer 3**.
@@ -59,7 +59,7 @@ Rate-limit/authentication/transport failures also need the API-client tests. A r
 
 The following information remains unavailable or unapproved; none should be invented:
 
-- Exact HCP job IDs for the existing test job and any additional jobs the user creates, with read verification of the associated customer and job details.
+- Exact IDs for all four current test jobs are now read-verified and stored privately. Recheck the intended destination before dispatch; this inventory is not authorization.
 - Confirmation that the test jobs' notification and downstream integration settings are suitable for a controlled write. Test records in a live account are still live records.
 - Verified API attachment/material request and response contracts, supported reconciliation markers, and a way to inspect persisted results.
 - The user's explicit approval of the destinations and concrete previewed payloads for the bounded live run, including what retries are permitted.

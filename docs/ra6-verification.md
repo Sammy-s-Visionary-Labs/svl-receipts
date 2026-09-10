@@ -39,8 +39,10 @@ The nine [synthetic PNG fixtures](../fixtures/ra6/README.md) were generated usin
 
 ## Remaining acceptance
 
-- Verify the actual API connection, MAX/API permissions, catalog shape and job/employee mappings through approved configuration. On 2026-09-10, all four test job IDs were verified through the signed-in Housecall browser UI and saved in the ignored local inventory. Customers #2–#4 have notifications off; #1 has notifications on. This browser verification does not establish API access or authorize writes. The committed fixture template deliberately retains null HCP bindings.
-- Run the new synthetic pack through the app's extraction/review flow. Numeric US dates may need explicit manager confirmation under the strict date policy. Confirm the exact destination IDs and final per-line/image preview before any live test.
+September 10 update: [read-only API verification, synthetic extraction results and the local browser review](ra6-acceptance-2026-09-10.md) are now recorded. The first exact export request is prepared but unapproved. The initial dated verification above remains unchanged.
+
+- API connection, exact customer/job IDs, expanded attachments, materials and customer-filtered catalogs now pass read verification. Full-business synchronization, employee mappings and actual write capabilities remain to be verified. Customers #2–#4 have notifications off; #1 has notifications on. The committed fixture template deliberately retains null HCP bindings.
+- Extraction ran for all eight new cases. Four Select variants retain a supplier-name error; the first receipt's supplier and date were corrected through local browser review. The first frozen destination/line/image preview is ready. Broader review and real-vendor accuracy remain separate acceptance work.
 - Obtain explicit user approval for the exact test jobs, immutable payloads, write count and time window. A live test job remains a record in the real business account.
 - Verify attachment filename preservation and asynchronous visibility, material append behavior and preservation of existing rows, three-decimal quantity arithmetic, and returned external IDs. The documented attachment schema has no content hash, so filename/ID matching is not independent byte-identity proof.
 - Keep Shop and the unidentified consolidated line unresolved until the business allocation rule is confirmed. Confirmed corrections/reversals require a separate approved procedure; this implementation records proposals and blocks uncertain work rather than automatically changing existing costs.

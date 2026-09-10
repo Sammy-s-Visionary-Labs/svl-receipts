@@ -1,0 +1,2046 @@
+{
+  "evaluatedAt": "2026-09-10T17:17:16.630Z",
+  "syntheticOnly": true,
+  "deferred": ["real-vendor accuracy", "live Housecall verification"],
+  "results": [
+    {
+      "fixture": "select-multijob",
+      "synthetic": true,
+      "cohorts": ["Select", "handwriting", "multijob", "decimal_quantity"],
+      "images": [
+        {
+          "name": "select-multijob.png",
+          "sha256": "30a3d13b250049d7f31652a3c1b65811f118a13ddb3cc60aa11b820b7251dd51"
+        }
+      ],
+      "requestedModel": "gemini-3.5-flash-lite",
+      "actualModel": "gemini-3.5-flash-lite",
+      "promptVersion": "ra6-receipt-v1.3",
+      "schemaVersion": 1,
+      "usage": {
+        "inputTokens": 1548,
+        "outputTokens": 1582,
+        "thinkingTokens": null,
+        "totalTokens": 3130
+      },
+      "checks": [
+        {
+          "field": "vendor",
+          "pass": true,
+          "expected": true,
+          "actual": true
+        },
+        {
+          "field": "identifier",
+          "pass": true,
+          "expected": true,
+          "actual": true
+        },
+        {
+          "field": "purchase_date",
+          "pass": true,
+          "expected": "2026-08-18",
+          "actual": "2026-08-18"
+        },
+        {
+          "field": "receipt_total_cents",
+          "pass": true,
+          "expected": 18769,
+          "actual": 18769
+        },
+        {
+          "field": "tax_cents",
+          "pass": true,
+          "expected": 1269,
+          "actual": 1269
+        },
+        {
+          "field": "material_total_cents",
+          "pass": true,
+          "expected": 17500,
+          "actual": 17500
+        },
+        {
+          "field": "line_count",
+          "pass": true,
+          "expected": 2,
+          "actual": 2
+        },
+        {
+          "field": "lines.0.qty",
+          "pass": true,
+          "expected": 2.5,
+          "actual": 2.5
+        },
+        {
+          "field": "lines.0.uom",
+          "pass": true,
+          "expected": "ton",
+          "actual": "ton"
+        },
+        {
+          "field": "lines.0.unit_cost_cents",
+          "pass": true,
+          "expected": 4000,
+          "actual": 4000
+        },
+        {
+          "field": "lines.0.extended_cost_cents",
+          "pass": true,
+          "expected": 10000,
+          "actual": 10000
+        },
+        {
+          "field": "lines.0.job_hint",
+          "pass": true,
+          "expected": true,
+          "actual": true
+        },
+        {
+          "field": "lines.1.qty",
+          "pass": true,
+          "expected": 3,
+          "actual": 3
+        },
+        {
+          "field": "lines.1.uom",
+          "pass": true,
+          "expected": "yd3",
+          "actual": "yd3"
+        },
+        {
+          "field": "lines.1.unit_cost_cents",
+          "pass": true,
+          "expected": 2500,
+          "actual": 2500
+        },
+        {
+          "field": "lines.1.extended_cost_cents",
+          "pass": true,
+          "expected": 7500,
+          "actual": 7500
+        },
+        {
+          "field": "lines.1.job_hint",
+          "pass": true,
+          "expected": true,
+          "actual": true
+        },
+        {
+          "field": "has_field_evidence",
+          "pass": true,
+          "expected": true,
+          "actual": true
+        }
+      ],
+      "warningCodes": ["missing_evidence"],
+      "normalizedPrediction": {
+        "schema_version": 1,
+        "provider": "gemini",
+        "document_kind": "invoice",
+        "vendor": "Select Stone (SIMULATED)",
+        "purchase_date": "2026-08-18",
+        "invoice_number": "TEST-SEL-001",
+        "ticket_number": null,
+        "currency": "USD",
+        "receipt_total_cents": 18769,
+        "tax_cents": 1269,
+        "subtotal_cents": 17500,
+        "material_total_cents": 17500,
+        "lines": [
+          {
+            "source_index": 0,
+            "page_index": 0,
+            "description": "Limestone #57",
+            "qty": 2.5,
+            "uom": "ton",
+            "unit_cost_cents": 4000,
+            "extended_cost_cents": 10000,
+            "printed_extended_cost_cents": 10000,
+            "job_hint": "Sullivan / PO TEST-1042"
+          },
+          {
+            "source_index": 1,
+            "page_index": 0,
+            "description": "Screened topsoil",
+            "qty": 3,
+            "uom": "yd3",
+            "unit_cost_cents": 2500,
+            "extended_cost_cents": 7500,
+            "printed_extended_cost_cents": 7500,
+            "job_hint": "Oak Demo / PO TEST-2048"
+          }
+        ],
+        "job_hints": [
+          {
+            "text": "Sullivan / PO TEST-1042",
+            "page_index": 0
+          },
+          {
+            "text": "Oak Demo / PO TEST-2048",
+            "page_index": 0
+          }
+        ],
+        "confidence": {
+          "vendor": 1,
+          "purchase_date": 1,
+          "invoice_number": 1,
+          "receipt_total_cents": 1,
+          "tax_cents": 1,
+          "subtotal_cents": 1,
+          "job_hints.0": 1,
+          "job_hints.1": 1,
+          "lines.0.description": 1,
+          "lines.0.qty": 1,
+          "lines.0.uom": 1,
+          "lines.0.unit_cost_cents": 1,
+          "lines.0.printed_extended_cost_cents": 1,
+          "lines.0.job_hint": 1,
+          "lines.1.description": 1,
+          "lines.1.qty": 1,
+          "lines.1.uom": 1,
+          "lines.1.unit_cost_cents": 1,
+          "lines.1.printed_extended_cost_cents": 1,
+          "lines.1.job_hint": 1
+        },
+        "warnings": [
+          {
+            "code": "missing_evidence",
+            "field": "currency",
+            "message": "The provider did not supply field confidence and source evidence; verify this field."
+          }
+        ]
+      },
+      "passed": true,
+      "durationMs": 6630
+    },
+    {
+      "fixture": "sandman-decimal-mismatch",
+      "synthetic": true,
+      "cohorts": ["Sandman", "arithmetic_mismatch", "decimal_quantity"],
+      "images": [
+        {
+          "name": "sandman-decimal-mismatch.png",
+          "sha256": "b50443f21ed2a88a81eeb59abbe44cf86cf95f900b2bd2294a163a294bd9cab4"
+        }
+      ],
+      "requestedModel": "gemini-3.5-flash-lite",
+      "actualModel": "gemini-3.5-flash-lite",
+      "promptVersion": "ra6-receipt-v1.3",
+      "schemaVersion": 1,
+      "usage": {
+        "inputTokens": 1564,
+        "outputTokens": 1083,
+        "thinkingTokens": null,
+        "totalTokens": 2647
+      },
+      "checks": [
+        {
+          "field": "vendor",
+          "pass": true,
+          "expected": true,
+          "actual": true
+        },
+        {
+          "field": "identifier",
+          "pass": true,
+          "expected": true,
+          "actual": true
+        },
+        {
+          "field": "purchase_date",
+          "pass": true,
+          "expected": "2026-08-19",
+          "actual": "2026-08-19"
+        },
+        {
+          "field": "receipt_total_cents",
+          "pass": true,
+          "expected": 16315,
+          "actual": 16315
+        },
+        {
+          "field": "tax_cents",
+          "pass": true,
+          "expected": 1173,
+          "actual": 1173
+        },
+        {
+          "field": "material_total_cents",
+          "pass": true,
+          "expected": 15042,
+          "actual": 15042
+        },
+        {
+          "field": "line_count",
+          "pass": true,
+          "expected": 1,
+          "actual": 1
+        },
+        {
+          "field": "lines.0.qty",
+          "pass": true,
+          "expected": 6.09,
+          "actual": 6.09
+        },
+        {
+          "field": "lines.0.uom",
+          "pass": true,
+          "expected": "ton",
+          "actual": "ton"
+        },
+        {
+          "field": "lines.0.unit_cost_cents",
+          "pass": true,
+          "expected": 2470,
+          "actual": 2470
+        },
+        {
+          "field": "lines.0.extended_cost_cents",
+          "pass": true,
+          "expected": 15042,
+          "actual": 15042
+        },
+        {
+          "field": "lines.0.printed_extended_cost_cents",
+          "pass": true,
+          "expected": 15142,
+          "actual": 15142
+        },
+        {
+          "field": "warning.line_total_mismatch",
+          "pass": true,
+          "expected": true,
+          "actual": true
+        },
+        {
+          "field": "warning.subtotal_mismatch",
+          "pass": true,
+          "expected": true,
+          "actual": true
+        },
+        {
+          "field": "warning.receipt_total_mismatch",
+          "pass": true,
+          "expected": true,
+          "actual": true
+        },
+        {
+          "field": "has_field_evidence",
+          "pass": true,
+          "expected": true,
+          "actual": true
+        }
+      ],
+      "warningCodes": ["line_total_mismatch", "subtotal_mismatch", "receipt_total_mismatch"],
+      "normalizedPrediction": {
+        "schema_version": 1,
+        "provider": "gemini",
+        "document_kind": "receipt",
+        "vendor": "Sandman (SIMULATED)",
+        "purchase_date": "2026-08-19",
+        "invoice_number": null,
+        "ticket_number": "TEST-SAN-002",
+        "currency": "USD",
+        "receipt_total_cents": 16315,
+        "tax_cents": 1173,
+        "subtotal_cents": 15142,
+        "material_total_cents": 15042,
+        "lines": [
+          {
+            "source_index": 0,
+            "page_index": 0,
+            "description": "Washed sand",
+            "qty": 6.09,
+            "uom": "ton",
+            "unit_cost_cents": 2470,
+            "extended_cost_cents": 15042,
+            "printed_extended_cost_cents": 15142,
+            "job_hint": "Sullivan"
+          }
+        ],
+        "job_hints": [
+          {
+            "text": "Sullivan",
+            "page_index": 0
+          },
+          {
+            "text": "TEST-1042",
+            "page_index": 0
+          }
+        ],
+        "confidence": {
+          "vendor": 1,
+          "purchase_date": 1,
+          "ticket_number": 1,
+          "receipt_total_cents": 1,
+          "tax_cents": 1,
+          "subtotal_cents": 1,
+          "job_hints.0": 1,
+          "job_hints.1": 1,
+          "lines.0.description": 1,
+          "lines.0.qty": 1,
+          "lines.0.uom": 1,
+          "lines.0.unit_cost_cents": 1,
+          "lines.0.printed_extended_cost_cents": 1,
+          "lines.0.job_hint": 1
+        },
+        "warnings": [
+          {
+            "code": "line_total_mismatch",
+            "field": "lines.0.printed_extended_cost_cents",
+            "message": "Printed line amount differs from quantity × unit cost; calculated material cost is preserved."
+          },
+          {
+            "code": "subtotal_mismatch",
+            "field": "subtotal_cents",
+            "message": "Material line sum differs from the printed subtotal; verify discounts, fees or missing lines."
+          },
+          {
+            "code": "receipt_total_mismatch",
+            "field": "receipt_total_cents",
+            "message": "Material line sum plus reference tax differs from the receipt total; tax never changes material costs."
+          }
+        ]
+      },
+      "passed": true,
+      "durationMs": 6504
+    },
+    {
+      "fixture": "klumm-disposal",
+      "synthetic": true,
+      "cohorts": ["Klumm", "disposal", "conflicting_handwriting"],
+      "images": [
+        {
+          "name": "klumm-disposal.png",
+          "sha256": "ffb25e725db17188d30d0c1beb63b5721dac05fb7c6c4f167bef0e44c983b885"
+        }
+      ],
+      "requestedModel": "gemini-3.5-flash-lite",
+      "actualModel": "gemini-3.5-flash-lite",
+      "promptVersion": "ra6-receipt-v1.3",
+      "schemaVersion": 1,
+      "usage": {
+        "inputTokens": 1564,
+        "outputTokens": 1051,
+        "thinkingTokens": null,
+        "totalTokens": 2615
+      },
+      "checks": [
+        {
+          "field": "vendor",
+          "pass": true,
+          "expected": true,
+          "actual": true
+        },
+        {
+          "field": "identifier",
+          "pass": true,
+          "expected": true,
+          "actual": true
+        },
+        {
+          "field": "purchase_date",
+          "pass": true,
+          "expected": "2026-08-20",
+          "actual": "2026-08-20"
+        },
+        {
+          "field": "receipt_total_cents",
+          "pass": true,
+          "expected": 10500,
+          "actual": 10500
+        },
+        {
+          "field": "tax_cents",
+          "pass": true,
+          "expected": 0,
+          "actual": 0
+        },
+        {
+          "field": "material_total_cents",
+          "pass": true,
+          "expected": 10500,
+          "actual": 10500
+        },
+        {
+          "field": "line_count",
+          "pass": true,
+          "expected": 1,
+          "actual": 1
+        },
+        {
+          "field": "lines.0.qty",
+          "pass": true,
+          "expected": 1.75,
+          "actual": 1.75
+        },
+        {
+          "field": "lines.0.uom",
+          "pass": true,
+          "expected": "ton",
+          "actual": "ton"
+        },
+        {
+          "field": "lines.0.unit_cost_cents",
+          "pass": true,
+          "expected": 6000,
+          "actual": 6000
+        },
+        {
+          "field": "lines.0.extended_cost_cents",
+          "pass": true,
+          "expected": 10500,
+          "actual": 10500
+        },
+        {
+          "field": "has_field_evidence",
+          "pass": true,
+          "expected": true,
+          "actual": true
+        }
+      ],
+      "warningCodes": [],
+      "normalizedPrediction": {
+        "schema_version": 1,
+        "provider": "gemini",
+        "document_kind": "weight_ticket",
+        "vendor": "Klumm Bros (SIMULATED)",
+        "purchase_date": "2026-08-20",
+        "invoice_number": null,
+        "ticket_number": "TEST-KLU-003",
+        "currency": "USD",
+        "receipt_total_cents": 10500,
+        "tax_cents": 0,
+        "subtotal_cents": 10500,
+        "material_total_cents": 10500,
+        "lines": [
+          {
+            "source_index": 0,
+            "page_index": 0,
+            "description": "Construction debris disposal",
+            "qty": 1.75,
+            "uom": "ton",
+            "unit_cost_cents": 6000,
+            "extended_cost_cents": 10500,
+            "printed_extended_cost_cents": 10500,
+            "job_hint": null
+          }
+        ],
+        "job_hints": [
+          {
+            "text": "TEST-2048",
+            "page_index": 0
+          },
+          {
+            "text": "Oak Demo not Sullivan",
+            "page_index": 0
+          }
+        ],
+        "confidence": {
+          "vendor": 1,
+          "purchase_date": 1,
+          "ticket_number": 1,
+          "receipt_total_cents": 1,
+          "tax_cents": 1,
+          "subtotal_cents": 1,
+          "job_hints.0": 1,
+          "job_hints.1": 1,
+          "lines.0.description": 1,
+          "lines.0.qty": 1,
+          "lines.0.uom": 1,
+          "lines.0.unit_cost_cents": 1,
+          "lines.0.printed_extended_cost_cents": 1
+        },
+        "warnings": []
+      },
+      "passed": true,
+      "durationMs": 5850
+    },
+    {
+      "fixture": "lowes-ambiguous-missing",
+      "synthetic": true,
+      "cohorts": ["Lowes", "ambiguous_date", "missing_cost", "faint_handwriting"],
+      "images": [
+        {
+          "name": "lowes-ambiguous-missing.png",
+          "sha256": "494f30cd742a35ff7efbac94c20885400138bbd3bce481c2aeabd236d6c9666f"
+        }
+      ],
+      "requestedModel": "gemini-3.5-flash-lite",
+      "actualModel": "gemini-3.5-flash-lite",
+      "promptVersion": "ra6-receipt-v1.3",
+      "schemaVersion": 1,
+      "usage": {
+        "inputTokens": 1584,
+        "outputTokens": 1008,
+        "thinkingTokens": null,
+        "totalTokens": 2592
+      },
+      "checks": [
+        {
+          "field": "vendor",
+          "pass": true,
+          "expected": true,
+          "actual": true
+        },
+        {
+          "field": "identifier",
+          "pass": true,
+          "expected": true,
+          "actual": true
+        },
+        {
+          "field": "purchase_date",
+          "pass": true,
+          "expected": null,
+          "actual": null
+        },
+        {
+          "field": "receipt_total_cents",
+          "pass": true,
+          "expected": null,
+          "actual": null
+        },
+        {
+          "field": "tax_cents",
+          "pass": true,
+          "expected": null,
+          "actual": null
+        },
+        {
+          "field": "material_total_cents",
+          "pass": true,
+          "expected": null,
+          "actual": null
+        },
+        {
+          "field": "line_count",
+          "pass": true,
+          "expected": 2,
+          "actual": 2
+        },
+        {
+          "field": "lines.0.qty",
+          "pass": true,
+          "expected": 2,
+          "actual": 2
+        },
+        {
+          "field": "lines.0.uom",
+          "pass": true,
+          "expected": "box",
+          "actual": "box"
+        },
+        {
+          "field": "lines.0.unit_cost_cents",
+          "pass": true,
+          "expected": 850,
+          "actual": 850
+        },
+        {
+          "field": "lines.0.extended_cost_cents",
+          "pass": true,
+          "expected": 1700,
+          "actual": 1700
+        },
+        {
+          "field": "lines.1.qty",
+          "pass": true,
+          "expected": 3,
+          "actual": 3
+        },
+        {
+          "field": "lines.1.uom",
+          "pass": true,
+          "expected": "bag",
+          "actual": "bag"
+        },
+        {
+          "field": "lines.1.unit_cost_cents",
+          "pass": true,
+          "expected": null,
+          "actual": null
+        },
+        {
+          "field": "lines.1.extended_cost_cents",
+          "pass": true,
+          "expected": null,
+          "actual": null
+        },
+        {
+          "field": "warning.ambiguous_date",
+          "pass": true,
+          "expected": true,
+          "actual": true
+        },
+        {
+          "field": "warning.missing_field",
+          "pass": true,
+          "expected": true,
+          "actual": true
+        },
+        {
+          "field": "has_field_evidence",
+          "pass": true,
+          "expected": true,
+          "actual": true
+        }
+      ],
+      "warningCodes": ["ambiguous_date", "missing_field"],
+      "normalizedPrediction": {
+        "schema_version": 1,
+        "provider": "gemini",
+        "document_kind": "receipt",
+        "vendor": "Lowe's (SIMULATED)",
+        "purchase_date": null,
+        "invoice_number": null,
+        "ticket_number": "TEST-LOW-004",
+        "currency": "USD",
+        "receipt_total_cents": null,
+        "tax_cents": null,
+        "subtotal_cents": null,
+        "material_total_cents": null,
+        "lines": [
+          {
+            "source_index": 0,
+            "page_index": 0,
+            "description": "Fence screws",
+            "qty": 2,
+            "uom": "box",
+            "unit_cost_cents": 850,
+            "extended_cost_cents": 1700,
+            "printed_extended_cost_cents": 1700,
+            "job_hint": null
+          },
+          {
+            "source_index": 1,
+            "page_index": 0,
+            "description": "Concrete mix",
+            "qty": 3,
+            "uom": "bag",
+            "unit_cost_cents": null,
+            "extended_cost_cents": null,
+            "printed_extended_cost_cents": null,
+            "job_hint": null
+          }
+        ],
+        "job_hints": [
+          {
+            "text": "Sullivan...?",
+            "page_index": 0
+          }
+        ],
+        "confidence": {
+          "vendor": 1,
+          "purchase_date": 1,
+          "ticket_number": 1,
+          "job_hints.0": 0.9,
+          "lines.0.description": 1,
+          "lines.0.qty": 1,
+          "lines.0.uom": 1,
+          "lines.0.unit_cost_cents": 1,
+          "lines.0.printed_extended_cost_cents": 1,
+          "lines.1.description": 1,
+          "lines.1.qty": 1,
+          "lines.1.uom": 1
+        },
+        "warnings": [
+          {
+            "code": "ambiguous_date",
+            "field": "purchase_date",
+            "message": "The date has an ambiguous order or two-digit year; verify the purchase date."
+          },
+          {
+            "code": "missing_field",
+            "field": "lines.1.unit_cost_cents",
+            "message": "This field was not found; check the document before approval."
+          }
+        ]
+      },
+      "passed": true,
+      "durationMs": 4772
+    },
+    {
+      "fixture": "perrysburg-multipage",
+      "synthetic": true,
+      "cohorts": ["Perrysburg Pipe", "multipage", "carried_forward_summary"],
+      "images": [
+        {
+          "name": "perrysburg-page-1.png",
+          "sha256": "fa5697734927ebd7948de0e8acc08514a64a42cedb48dd81ee2d26814c7fc4cc"
+        },
+        {
+          "name": "perrysburg-page-2.png",
+          "sha256": "3eaea2094f395066603e42503ee96c5d38136eadc169bd43f18fa972ec6fa0d3"
+        }
+      ],
+      "requestedModel": "gemini-3.5-flash-lite",
+      "actualModel": "gemini-3.5-flash-lite",
+      "promptVersion": "ra6-receipt-v1.3",
+      "schemaVersion": 1,
+      "usage": {
+        "inputTokens": 2612,
+        "outputTokens": 1940,
+        "thinkingTokens": null,
+        "totalTokens": 4552
+      },
+      "checks": [
+        {
+          "field": "vendor",
+          "pass": true,
+          "expected": true,
+          "actual": true
+        },
+        {
+          "field": "identifier",
+          "pass": true,
+          "expected": true,
+          "actual": true
+        },
+        {
+          "field": "purchase_date",
+          "pass": true,
+          "expected": "2026-08-21",
+          "actual": "2026-08-21"
+        },
+        {
+          "field": "receipt_total_cents",
+          "pass": true,
+          "expected": 7812,
+          "actual": 7812
+        },
+        {
+          "field": "tax_cents",
+          "pass": true,
+          "expected": 562,
+          "actual": 562
+        },
+        {
+          "field": "material_total_cents",
+          "pass": true,
+          "expected": 7250,
+          "actual": 7250
+        },
+        {
+          "field": "line_count",
+          "pass": true,
+          "expected": 3,
+          "actual": 3
+        },
+        {
+          "field": "lines.0.qty",
+          "pass": true,
+          "expected": 4,
+          "actual": 4
+        },
+        {
+          "field": "lines.0.uom",
+          "pass": true,
+          "expected": "ea",
+          "actual": "ea"
+        },
+        {
+          "field": "lines.0.unit_cost_cents",
+          "pass": true,
+          "expected": 1250,
+          "actual": 1250
+        },
+        {
+          "field": "lines.0.extended_cost_cents",
+          "pass": true,
+          "expected": 5000,
+          "actual": 5000
+        },
+        {
+          "field": "lines.0.page_index",
+          "pass": true,
+          "expected": 0,
+          "actual": 0
+        },
+        {
+          "field": "lines.1.qty",
+          "pass": true,
+          "expected": 2,
+          "actual": 2
+        },
+        {
+          "field": "lines.1.uom",
+          "pass": true,
+          "expected": "ea",
+          "actual": "ea"
+        },
+        {
+          "field": "lines.1.unit_cost_cents",
+          "pass": true,
+          "expected": 725,
+          "actual": 725
+        },
+        {
+          "field": "lines.1.extended_cost_cents",
+          "pass": true,
+          "expected": 1450,
+          "actual": 1450
+        },
+        {
+          "field": "lines.1.page_index",
+          "pass": true,
+          "expected": 0,
+          "actual": 0
+        },
+        {
+          "field": "lines.2.qty",
+          "pass": true,
+          "expected": 1,
+          "actual": 1
+        },
+        {
+          "field": "lines.2.uom",
+          "pass": true,
+          "expected": "can",
+          "actual": "can"
+        },
+        {
+          "field": "lines.2.unit_cost_cents",
+          "pass": true,
+          "expected": 800,
+          "actual": 800
+        },
+        {
+          "field": "lines.2.extended_cost_cents",
+          "pass": true,
+          "expected": 800,
+          "actual": 800
+        },
+        {
+          "field": "lines.2.page_index",
+          "pass": true,
+          "expected": 1,
+          "actual": 1
+        },
+        {
+          "field": "has_field_evidence",
+          "pass": true,
+          "expected": true,
+          "actual": true
+        }
+      ],
+      "warningCodes": [],
+      "normalizedPrediction": {
+        "schema_version": 1,
+        "provider": "gemini",
+        "document_kind": "invoice",
+        "vendor": "Perrysburg Pipe (SIMULATED)",
+        "purchase_date": "2026-08-21",
+        "invoice_number": "TEST-PER-005",
+        "ticket_number": null,
+        "currency": "USD",
+        "receipt_total_cents": 7812,
+        "tax_cents": 562,
+        "subtotal_cents": 7250,
+        "material_total_cents": 7250,
+        "lines": [
+          {
+            "source_index": 0,
+            "page_index": 0,
+            "description": "PVC pipe 4 inch",
+            "qty": 4,
+            "uom": "ea",
+            "unit_cost_cents": 1250,
+            "extended_cost_cents": 5000,
+            "printed_extended_cost_cents": 5000,
+            "job_hint": "Oak Demo"
+          },
+          {
+            "source_index": 1,
+            "page_index": 0,
+            "description": "PVC elbow 4 inch",
+            "qty": 2,
+            "uom": "ea",
+            "unit_cost_cents": 725,
+            "extended_cost_cents": 1450,
+            "printed_extended_cost_cents": 1450,
+            "job_hint": "Oak Demo"
+          },
+          {
+            "source_index": 2,
+            "page_index": 1,
+            "description": "PVC cement",
+            "qty": 1,
+            "uom": "can",
+            "unit_cost_cents": 800,
+            "extended_cost_cents": 800,
+            "printed_extended_cost_cents": 800,
+            "job_hint": "Oak Demo"
+          }
+        ],
+        "job_hints": [
+          {
+            "text": "Oak Demo",
+            "page_index": 0
+          },
+          {
+            "text": "Oak Demo",
+            "page_index": 1
+          }
+        ],
+        "confidence": {
+          "vendor": 1,
+          "purchase_date": 1,
+          "invoice_number": 1,
+          "subtotal_cents": 1,
+          "tax_cents": 1,
+          "receipt_total_cents": 1,
+          "job_hints.0": 1,
+          "job_hints.1": 1,
+          "lines.0.description": 1,
+          "lines.0.qty": 1,
+          "lines.0.uom": 1,
+          "lines.0.unit_cost_cents": 1,
+          "lines.0.printed_extended_cost_cents": 1,
+          "lines.0.job_hint": 1,
+          "lines.1.description": 1,
+          "lines.1.qty": 1,
+          "lines.1.uom": 1,
+          "lines.1.unit_cost_cents": 1,
+          "lines.1.printed_extended_cost_cents": 1,
+          "lines.1.job_hint": 1,
+          "lines.2.description": 1,
+          "lines.2.qty": 1,
+          "lines.2.uom": 1,
+          "lines.2.unit_cost_cents": 1,
+          "lines.2.printed_extended_cost_cents": 1,
+          "lines.2.job_hint": 1
+        },
+        "warnings": []
+      },
+      "passed": true,
+      "durationMs": 8418
+    },
+    {
+      "fixture": "menards-purchase",
+      "synthetic": true,
+      "cohorts": ["Menards", "sale_format"],
+      "images": [
+        {
+          "name": "menards-purchase.png",
+          "sha256": "7724e5f61cd65d65135236ce3e840184f4f86138d6c74e21f4d9f2d960dae72a"
+        }
+      ],
+      "requestedModel": "gemini-3.5-flash-lite",
+      "actualModel": "gemini-3.5-flash-lite",
+      "promptVersion": "ra6-receipt-v1.3",
+      "schemaVersion": 1,
+      "usage": {
+        "inputTokens": 1584,
+        "outputTokens": 1068,
+        "thinkingTokens": null,
+        "totalTokens": 2652
+      },
+      "checks": [
+        {
+          "field": "vendor",
+          "pass": true,
+          "expected": true,
+          "actual": true
+        },
+        {
+          "field": "identifier",
+          "pass": true,
+          "expected": true,
+          "actual": true
+        },
+        {
+          "field": "purchase_date",
+          "pass": true,
+          "expected": "2026-08-22",
+          "actual": "2026-08-22"
+        },
+        {
+          "field": "receipt_total_cents",
+          "pass": true,
+          "expected": 5654,
+          "actual": 5654
+        },
+        {
+          "field": "tax_cents",
+          "pass": true,
+          "expected": 407,
+          "actual": 407
+        },
+        {
+          "field": "material_total_cents",
+          "pass": true,
+          "expected": 5247,
+          "actual": 5247
+        },
+        {
+          "field": "line_count",
+          "pass": true,
+          "expected": 1,
+          "actual": 1
+        },
+        {
+          "field": "lines.0.qty",
+          "pass": true,
+          "expected": 3,
+          "actual": 3
+        },
+        {
+          "field": "lines.0.uom",
+          "pass": true,
+          "expected": "ea",
+          "actual": "ea"
+        },
+        {
+          "field": "lines.0.unit_cost_cents",
+          "pass": true,
+          "expected": 1749,
+          "actual": 1749
+        },
+        {
+          "field": "lines.0.extended_cost_cents",
+          "pass": true,
+          "expected": 5247,
+          "actual": 5247
+        },
+        {
+          "field": "has_field_evidence",
+          "pass": true,
+          "expected": true,
+          "actual": true
+        }
+      ],
+      "warningCodes": [],
+      "normalizedPrediction": {
+        "schema_version": 1,
+        "provider": "gemini",
+        "document_kind": "receipt",
+        "vendor": "Menards (SIMULATED)",
+        "purchase_date": "2026-08-22",
+        "invoice_number": null,
+        "ticket_number": "TEST-MEN-006",
+        "currency": "USD",
+        "receipt_total_cents": 5654,
+        "tax_cents": 407,
+        "subtotal_cents": 5247,
+        "material_total_cents": 5247,
+        "lines": [
+          {
+            "source_index": 0,
+            "page_index": 0,
+            "description": "Cedar post 4x4",
+            "qty": 3,
+            "uom": "ea",
+            "unit_cost_cents": 1749,
+            "extended_cost_cents": 5247,
+            "printed_extended_cost_cents": 5247,
+            "job_hint": null
+          }
+        ],
+        "job_hints": [
+          {
+            "text": "Sullivan",
+            "page_index": 0
+          },
+          {
+            "text": "PO TEST-1042",
+            "page_index": 0
+          }
+        ],
+        "confidence": {
+          "vendor": 1,
+          "purchase_date": 1,
+          "ticket_number": 1,
+          "receipt_total_cents": 1,
+          "tax_cents": 1,
+          "subtotal_cents": 1,
+          "job_hints.0": 1,
+          "job_hints.1": 1,
+          "lines.0.description": 1,
+          "lines.0.qty": 1,
+          "lines.0.uom": 1,
+          "lines.0.unit_cost_cents": 1,
+          "lines.0.printed_extended_cost_cents": 1
+        },
+        "warnings": []
+      },
+      "passed": true,
+      "durationMs": 5472
+    },
+    {
+      "fixture": "home-depot-base",
+      "synthetic": true,
+      "cohorts": ["Home Depot", "repeated_items"],
+      "images": [
+        {
+          "name": "home-depot-base.png",
+          "sha256": "98a3110a85c21cee4802211bf1184062704174a795701ef5e92d73509c33ccde"
+        }
+      ],
+      "requestedModel": "gemini-3.5-flash-lite",
+      "actualModel": "gemini-3.5-flash-lite",
+      "promptVersion": "ra6-receipt-v1.3",
+      "schemaVersion": 1,
+      "usage": {
+        "inputTokens": 1584,
+        "outputTokens": 1426,
+        "thinkingTokens": null,
+        "totalTokens": 3010
+      },
+      "checks": [
+        {
+          "field": "vendor",
+          "pass": true,
+          "expected": true,
+          "actual": true
+        },
+        {
+          "field": "identifier",
+          "pass": true,
+          "expected": true,
+          "actual": true
+        },
+        {
+          "field": "purchase_date",
+          "pass": true,
+          "expected": "2026-08-23",
+          "actual": "2026-08-23"
+        },
+        {
+          "field": "receipt_total_cents",
+          "pass": true,
+          "expected": 10180,
+          "actual": 10180
+        },
+        {
+          "field": "tax_cents",
+          "pass": true,
+          "expected": 732,
+          "actual": 732
+        },
+        {
+          "field": "material_total_cents",
+          "pass": true,
+          "expected": 9448,
+          "actual": 9448
+        },
+        {
+          "field": "line_count",
+          "pass": true,
+          "expected": 2,
+          "actual": 2
+        },
+        {
+          "field": "lines.0.qty",
+          "pass": true,
+          "expected": 2,
+          "actual": 2
+        },
+        {
+          "field": "lines.0.uom",
+          "pass": true,
+          "expected": "ea",
+          "actual": "ea"
+        },
+        {
+          "field": "lines.0.unit_cost_cents",
+          "pass": true,
+          "expected": 4600,
+          "actual": 4600
+        },
+        {
+          "field": "lines.0.extended_cost_cents",
+          "pass": true,
+          "expected": 9200,
+          "actual": 9200
+        },
+        {
+          "field": "lines.1.qty",
+          "pass": true,
+          "expected": 1,
+          "actual": 1
+        },
+        {
+          "field": "lines.1.uom",
+          "pass": true,
+          "expected": "ea",
+          "actual": "ea"
+        },
+        {
+          "field": "lines.1.unit_cost_cents",
+          "pass": true,
+          "expected": 248,
+          "actual": 248
+        },
+        {
+          "field": "lines.1.extended_cost_cents",
+          "pass": true,
+          "expected": 248,
+          "actual": 248
+        },
+        {
+          "field": "has_field_evidence",
+          "pass": true,
+          "expected": true,
+          "actual": true
+        }
+      ],
+      "warningCodes": [],
+      "normalizedPrediction": {
+        "schema_version": 1,
+        "provider": "gemini",
+        "document_kind": "receipt",
+        "vendor": "Home Depot (SIMULATED)",
+        "purchase_date": "2026-08-23",
+        "invoice_number": null,
+        "ticket_number": "TEST-HD-007",
+        "currency": "USD",
+        "receipt_total_cents": 10180,
+        "tax_cents": 732,
+        "subtotal_cents": 9448,
+        "material_total_cents": 9448,
+        "lines": [
+          {
+            "source_index": 0,
+            "page_index": 0,
+            "description": "Square steel tube",
+            "qty": 2,
+            "uom": "ea",
+            "unit_cost_cents": 4600,
+            "extended_cost_cents": 9200,
+            "printed_extended_cost_cents": 9200,
+            "job_hint": null
+          },
+          {
+            "source_index": 1,
+            "page_index": 0,
+            "description": "Paint brush",
+            "qty": 1,
+            "uom": "ea",
+            "unit_cost_cents": 248,
+            "extended_cost_cents": 248,
+            "printed_extended_cost_cents": 248,
+            "job_hint": null
+          }
+        ],
+        "job_hints": [
+          {
+            "text": "PO TEST-1042",
+            "page_index": 0
+          },
+          {
+            "text": "Sullivan",
+            "page_index": 0
+          }
+        ],
+        "confidence": {
+          "vendor": 1,
+          "purchase_date": 1,
+          "ticket_number": 1,
+          "receipt_total_cents": 1,
+          "tax_cents": 1,
+          "subtotal_cents": 1,
+          "currency": 0.8,
+          "job_hints.0": 1,
+          "job_hints.1": 1,
+          "lines.0.description": 1,
+          "lines.0.qty": 1,
+          "lines.0.uom": 1,
+          "lines.0.unit_cost_cents": 1,
+          "lines.0.printed_extended_cost_cents": 1,
+          "lines.1.description": 1,
+          "lines.1.qty": 1,
+          "lines.1.uom": 1,
+          "lines.1.unit_cost_cents": 1,
+          "lines.1.printed_extended_cost_cents": 1
+        },
+        "warnings": []
+      },
+      "passed": true,
+      "durationMs": 6554
+    },
+    {
+      "fixture": "fuel-category",
+      "synthetic": true,
+      "cohorts": ["fuel", "half_up_rounding"],
+      "images": [
+        {
+          "name": "fuel-category.png",
+          "sha256": "fe09bf1074ac0453ae1d5f3180cb55e0f1878a845aed5c0c6e388c52a9b0ec2f"
+        }
+      ],
+      "requestedModel": "gemini-3.5-flash-lite",
+      "actualModel": "gemini-3.5-flash-lite",
+      "promptVersion": "ra6-receipt-v1.3",
+      "schemaVersion": 1,
+      "usage": {
+        "inputTokens": 1584,
+        "outputTokens": 1092,
+        "thinkingTokens": null,
+        "totalTokens": 2676
+      },
+      "checks": [
+        {
+          "field": "vendor",
+          "pass": true,
+          "expected": true,
+          "actual": true
+        },
+        {
+          "field": "identifier",
+          "pass": true,
+          "expected": true,
+          "actual": true
+        },
+        {
+          "field": "purchase_date",
+          "pass": true,
+          "expected": "2026-08-24",
+          "actual": "2026-08-24"
+        },
+        {
+          "field": "receipt_total_cents",
+          "pass": true,
+          "expected": 3848,
+          "actual": 3848
+        },
+        {
+          "field": "tax_cents",
+          "pass": true,
+          "expected": 0,
+          "actual": 0
+        },
+        {
+          "field": "material_total_cents",
+          "pass": true,
+          "expected": 3848,
+          "actual": 3848
+        },
+        {
+          "field": "line_count",
+          "pass": true,
+          "expected": 1,
+          "actual": 1
+        },
+        {
+          "field": "lines.0.qty",
+          "pass": true,
+          "expected": 10.125,
+          "actual": 10.125
+        },
+        {
+          "field": "lines.0.uom",
+          "pass": true,
+          "expected": "gal",
+          "actual": "gal"
+        },
+        {
+          "field": "lines.0.unit_cost_cents",
+          "pass": true,
+          "expected": 380,
+          "actual": 380
+        },
+        {
+          "field": "lines.0.extended_cost_cents",
+          "pass": true,
+          "expected": 3848,
+          "actual": 3848
+        },
+        {
+          "field": "has_field_evidence",
+          "pass": true,
+          "expected": true,
+          "actual": true
+        }
+      ],
+      "warningCodes": [],
+      "normalizedPrediction": {
+        "schema_version": 1,
+        "provider": "gemini",
+        "document_kind": "receipt",
+        "vendor": "Test Fuel Stop",
+        "purchase_date": "2026-08-24",
+        "invoice_number": "TEST-FUEL-010",
+        "ticket_number": null,
+        "currency": "USD",
+        "receipt_total_cents": 3848,
+        "tax_cents": 0,
+        "subtotal_cents": 3848,
+        "material_total_cents": 3848,
+        "lines": [
+          {
+            "source_index": 0,
+            "page_index": 0,
+            "description": "Diesel fuel",
+            "qty": 10.125,
+            "uom": "gal",
+            "unit_cost_cents": 380,
+            "extended_cost_cents": 3848,
+            "printed_extended_cost_cents": 3848,
+            "job_hint": "Oak Demo"
+          }
+        ],
+        "job_hints": [
+          {
+            "text": "PO TEST-2048",
+            "page_index": 0
+          },
+          {
+            "text": "Oak Demo",
+            "page_index": 0
+          }
+        ],
+        "confidence": {
+          "vendor": 1,
+          "purchase_date": 1,
+          "invoice_number": 1,
+          "receipt_total_cents": 1,
+          "tax_cents": 1,
+          "subtotal_cents": 1,
+          "job_hints.0": 1,
+          "job_hints.1": 1,
+          "lines.0.description": 1,
+          "lines.0.qty": 1,
+          "lines.0.uom": 1,
+          "lines.0.unit_cost_cents": 1,
+          "lines.0.printed_extended_cost_cents": 1,
+          "lines.0.job_hint": 1
+        },
+        "warnings": []
+      },
+      "passed": true,
+      "durationMs": 6020
+    },
+    {
+      "fixture": "home-depot-rephotographed",
+      "synthetic": true,
+      "cohorts": ["Home Depot", "near_duplicate"],
+      "images": [
+        {
+          "name": "home-depot-rephotographed.png",
+          "sha256": "c03dcd23ffe56e5708a1ee3044e91df14815836adc25e20afa588748daa27f98"
+        }
+      ],
+      "requestedModel": "gemini-3.5-flash-lite",
+      "actualModel": "gemini-3.5-flash-lite",
+      "promptVersion": "ra6-receipt-v1.3",
+      "schemaVersion": 1,
+      "usage": {
+        "inputTokens": 1584,
+        "outputTokens": 1396,
+        "thinkingTokens": null,
+        "totalTokens": 2980
+      },
+      "checks": [
+        {
+          "field": "vendor",
+          "pass": true,
+          "expected": true,
+          "actual": true
+        },
+        {
+          "field": "identifier",
+          "pass": true,
+          "expected": true,
+          "actual": true
+        },
+        {
+          "field": "purchase_date",
+          "pass": true,
+          "expected": "2026-08-23",
+          "actual": "2026-08-23"
+        },
+        {
+          "field": "receipt_total_cents",
+          "pass": true,
+          "expected": 10180,
+          "actual": 10180
+        },
+        {
+          "field": "tax_cents",
+          "pass": true,
+          "expected": 732,
+          "actual": 732
+        },
+        {
+          "field": "material_total_cents",
+          "pass": true,
+          "expected": 9448,
+          "actual": 9448
+        },
+        {
+          "field": "line_count",
+          "pass": true,
+          "expected": 2,
+          "actual": 2
+        },
+        {
+          "field": "lines.0.qty",
+          "pass": true,
+          "expected": 2,
+          "actual": 2
+        },
+        {
+          "field": "lines.0.uom",
+          "pass": true,
+          "expected": "ea",
+          "actual": "ea"
+        },
+        {
+          "field": "lines.0.unit_cost_cents",
+          "pass": true,
+          "expected": 4600,
+          "actual": 4600
+        },
+        {
+          "field": "lines.0.extended_cost_cents",
+          "pass": true,
+          "expected": 9200,
+          "actual": 9200
+        },
+        {
+          "field": "lines.1.qty",
+          "pass": true,
+          "expected": 1,
+          "actual": 1
+        },
+        {
+          "field": "lines.1.uom",
+          "pass": true,
+          "expected": "ea",
+          "actual": "ea"
+        },
+        {
+          "field": "lines.1.unit_cost_cents",
+          "pass": true,
+          "expected": 248,
+          "actual": 248
+        },
+        {
+          "field": "lines.1.extended_cost_cents",
+          "pass": true,
+          "expected": 248,
+          "actual": 248
+        },
+        {
+          "field": "has_field_evidence",
+          "pass": true,
+          "expected": true,
+          "actual": true
+        }
+      ],
+      "warningCodes": [],
+      "normalizedPrediction": {
+        "schema_version": 1,
+        "provider": "gemini",
+        "document_kind": "receipt",
+        "vendor": "Home Depot (SIMULATED)",
+        "purchase_date": "2026-08-23",
+        "invoice_number": null,
+        "ticket_number": "TEST-HD-007",
+        "currency": "USD",
+        "receipt_total_cents": 10180,
+        "tax_cents": 732,
+        "subtotal_cents": 9448,
+        "material_total_cents": 9448,
+        "lines": [
+          {
+            "source_index": 0,
+            "page_index": 0,
+            "description": "Square steel tube",
+            "qty": 2,
+            "uom": "ea",
+            "unit_cost_cents": 4600,
+            "extended_cost_cents": 9200,
+            "printed_extended_cost_cents": 9200,
+            "job_hint": null
+          },
+          {
+            "source_index": 1,
+            "page_index": 0,
+            "description": "Paint brush",
+            "qty": 1,
+            "uom": "ea",
+            "unit_cost_cents": 248,
+            "extended_cost_cents": 248,
+            "printed_extended_cost_cents": 248,
+            "job_hint": null
+          }
+        ],
+        "job_hints": [
+          {
+            "text": "TEST-1042",
+            "page_index": 0
+          },
+          {
+            "text": "Sullivan",
+            "page_index": 0
+          }
+        ],
+        "confidence": {
+          "vendor": 1,
+          "purchase_date": 1,
+          "ticket_number": 1,
+          "receipt_total_cents": 1,
+          "tax_cents": 1,
+          "subtotal_cents": 1,
+          "job_hints.0": 1,
+          "job_hints.1": 1,
+          "lines.0.description": 1,
+          "lines.0.qty": 1,
+          "lines.0.uom": 1,
+          "lines.0.unit_cost_cents": 1,
+          "lines.0.printed_extended_cost_cents": 1,
+          "lines.1.description": 1,
+          "lines.1.qty": 1,
+          "lines.1.uom": 1,
+          "lines.1.unit_cost_cents": 1,
+          "lines.1.printed_extended_cost_cents": 1
+        },
+        "warnings": []
+      },
+      "passed": true,
+      "durationMs": 6311
+    },
+    {
+      "fixture": "home-depot-separate-purchase",
+      "synthetic": true,
+      "cohorts": ["Home Depot", "duplicate_negative"],
+      "images": [
+        {
+          "name": "home-depot-separate-purchase.png",
+          "sha256": "64b9dbcfbcbf2d6fb4852dafa0f21ceab20b5b0a49904577d998a88a9b116b2f"
+        }
+      ],
+      "requestedModel": "gemini-3.5-flash-lite",
+      "actualModel": "gemini-3.5-flash-lite",
+      "promptVersion": "ra6-receipt-v1.3",
+      "schemaVersion": 1,
+      "usage": {
+        "inputTokens": 1584,
+        "outputTokens": 1387,
+        "thinkingTokens": null,
+        "totalTokens": 2971
+      },
+      "checks": [
+        {
+          "field": "vendor",
+          "pass": true,
+          "expected": true,
+          "actual": true
+        },
+        {
+          "field": "identifier",
+          "pass": true,
+          "expected": true,
+          "actual": true
+        },
+        {
+          "field": "purchase_date",
+          "pass": true,
+          "expected": "2026-08-24",
+          "actual": "2026-08-24"
+        },
+        {
+          "field": "receipt_total_cents",
+          "pass": true,
+          "expected": 10180,
+          "actual": 10180
+        },
+        {
+          "field": "tax_cents",
+          "pass": true,
+          "expected": 732,
+          "actual": 732
+        },
+        {
+          "field": "material_total_cents",
+          "pass": true,
+          "expected": 9448,
+          "actual": 9448
+        },
+        {
+          "field": "line_count",
+          "pass": true,
+          "expected": 2,
+          "actual": 2
+        },
+        {
+          "field": "lines.0.qty",
+          "pass": true,
+          "expected": 2,
+          "actual": 2
+        },
+        {
+          "field": "lines.0.uom",
+          "pass": true,
+          "expected": "ea",
+          "actual": "ea"
+        },
+        {
+          "field": "lines.0.unit_cost_cents",
+          "pass": true,
+          "expected": 4600,
+          "actual": 4600
+        },
+        {
+          "field": "lines.0.extended_cost_cents",
+          "pass": true,
+          "expected": 9200,
+          "actual": 9200
+        },
+        {
+          "field": "lines.1.qty",
+          "pass": true,
+          "expected": 1,
+          "actual": 1
+        },
+        {
+          "field": "lines.1.uom",
+          "pass": true,
+          "expected": "ea",
+          "actual": "ea"
+        },
+        {
+          "field": "lines.1.unit_cost_cents",
+          "pass": true,
+          "expected": 248,
+          "actual": 248
+        },
+        {
+          "field": "lines.1.extended_cost_cents",
+          "pass": true,
+          "expected": 248,
+          "actual": 248
+        },
+        {
+          "field": "has_field_evidence",
+          "pass": true,
+          "expected": true,
+          "actual": true
+        }
+      ],
+      "warningCodes": [],
+      "normalizedPrediction": {
+        "schema_version": 1,
+        "provider": "gemini",
+        "document_kind": "receipt",
+        "vendor": "Home Depot (SIMULATED)",
+        "purchase_date": "2026-08-24",
+        "invoice_number": null,
+        "ticket_number": "TEST-HD-009",
+        "currency": "USD",
+        "receipt_total_cents": 10180,
+        "tax_cents": 732,
+        "subtotal_cents": 9448,
+        "material_total_cents": 9448,
+        "lines": [
+          {
+            "source_index": 0,
+            "page_index": 0,
+            "description": "Square steel tube",
+            "qty": 2,
+            "uom": "ea",
+            "unit_cost_cents": 4600,
+            "extended_cost_cents": 9200,
+            "printed_extended_cost_cents": 9200,
+            "job_hint": null
+          },
+          {
+            "source_index": 1,
+            "page_index": 0,
+            "description": "Paint brush",
+            "qty": 1,
+            "uom": "ea",
+            "unit_cost_cents": 248,
+            "extended_cost_cents": 248,
+            "printed_extended_cost_cents": 248,
+            "job_hint": null
+          }
+        ],
+        "job_hints": [
+          {
+            "text": "PO TEST-1042",
+            "page_index": 0
+          },
+          {
+            "text": "Sullivan",
+            "page_index": 0
+          }
+        ],
+        "confidence": {
+          "vendor": 1,
+          "purchase_date": 1,
+          "ticket_number": 1,
+          "receipt_total_cents": 1,
+          "tax_cents": 1,
+          "subtotal_cents": 1,
+          "job_hints.0": 1,
+          "job_hints.1": 0.9,
+          "lines.0.description": 1,
+          "lines.0.qty": 1,
+          "lines.0.uom": 1,
+          "lines.0.unit_cost_cents": 1,
+          "lines.0.printed_extended_cost_cents": 1,
+          "lines.1.description": 1,
+          "lines.1.qty": 1,
+          "lines.1.uom": 1,
+          "lines.1.unit_cost_cents": 1,
+          "lines.1.printed_extended_cost_cents": 1
+        },
+        "warnings": []
+      },
+      "passed": true,
+      "durationMs": 6056
+    },
+    {
+      "fixture": "menards-picking-list",
+      "synthetic": true,
+      "cohorts": ["Menards", "picking_list", "missing_cost"],
+      "images": [
+        {
+          "name": "menards-picking-list.png",
+          "sha256": "8d7ac43808846e894250dd0db855340ae7fb11b737a3c39dadcd1ccea3f79fbe"
+        }
+      ],
+      "requestedModel": "gemini-3.5-flash-lite",
+      "actualModel": "gemini-3.5-flash-lite",
+      "promptVersion": "ra6-receipt-v1.3",
+      "schemaVersion": 1,
+      "usage": {
+        "inputTokens": 1548,
+        "outputTokens": 798,
+        "thinkingTokens": null,
+        "totalTokens": 2346
+      },
+      "checks": [
+        {
+          "field": "vendor",
+          "pass": true,
+          "expected": true,
+          "actual": true
+        },
+        {
+          "field": "document_kind",
+          "pass": true,
+          "expected": "picking_list",
+          "actual": "picking_list"
+        },
+        {
+          "field": "material_total_cents",
+          "pass": true,
+          "expected": null,
+          "actual": null
+        },
+        {
+          "field": "line_count",
+          "pass": true,
+          "expected": 1,
+          "actual": 1
+        },
+        {
+          "field": "lines.0.qty",
+          "pass": true,
+          "expected": 3,
+          "actual": 3
+        },
+        {
+          "field": "lines.0.uom",
+          "pass": true,
+          "expected": "ea",
+          "actual": "ea"
+        },
+        {
+          "field": "lines.0.unit_cost_cents",
+          "pass": true,
+          "expected": null,
+          "actual": null
+        },
+        {
+          "field": "lines.0.extended_cost_cents",
+          "pass": true,
+          "expected": null,
+          "actual": null
+        },
+        {
+          "field": "warning.document_requires_review",
+          "pass": true,
+          "expected": true,
+          "actual": true
+        },
+        {
+          "field": "warning.missing_field",
+          "pass": true,
+          "expected": true,
+          "actual": true
+        },
+        {
+          "field": "has_field_evidence",
+          "pass": true,
+          "expected": true,
+          "actual": true
+        }
+      ],
+      "warningCodes": ["missing_field", "document_requires_review"],
+      "normalizedPrediction": {
+        "schema_version": 1,
+        "provider": "gemini",
+        "document_kind": "picking_list",
+        "vendor": "Menards (SIMULATED)",
+        "purchase_date": "2026-08-22",
+        "invoice_number": "TEST-PICK-011",
+        "ticket_number": null,
+        "currency": "USD",
+        "receipt_total_cents": null,
+        "tax_cents": null,
+        "subtotal_cents": 5247,
+        "material_total_cents": null,
+        "lines": [
+          {
+            "source_index": 0,
+            "page_index": 0,
+            "description": "Cedar post 4x4",
+            "qty": 3,
+            "uom": "ea",
+            "unit_cost_cents": null,
+            "extended_cost_cents": null,
+            "printed_extended_cost_cents": null,
+            "job_hint": null
+          }
+        ],
+        "job_hints": [
+          {
+            "text": "TEST-1042",
+            "page_index": 0
+          }
+        ],
+        "confidence": {
+          "vendor": 1,
+          "purchase_date": 1,
+          "invoice_number": 1,
+          "subtotal_cents": 1,
+          "currency": 0.8,
+          "job_hints.0": 1,
+          "lines.0.description": 1,
+          "lines.0.qty": 1,
+          "lines.0.uom": 1
+        },
+        "warnings": [
+          {
+            "code": "missing_field",
+            "field": "lines.0.unit_cost_cents",
+            "message": "This field was not found; check the document before approval."
+          },
+          {
+            "code": "document_requires_review",
+            "field": "document_kind",
+            "message": "This document does not establish a purchase receipt; verify supporting evidence."
+          }
+        ]
+      },
+      "passed": true,
+      "durationMs": 4915
+    }
+  ]
+}

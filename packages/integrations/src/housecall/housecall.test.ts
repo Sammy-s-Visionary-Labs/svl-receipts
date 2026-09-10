@@ -181,7 +181,9 @@ describe("Housecall server read client", () => {
         })
       ).map((x) => x.id),
     ).toEqual(["job_test_2", "job_test_3"]);
-    expect(transport.mock.calls[0]?.[0]).toContain("work_status=scheduled&work_status=in_progress");
+    expect(transport.mock.calls[0]?.[0]).toContain(
+      "work_status%5B%5D=scheduled&work_status%5B%5D=in_progress",
+    );
     const capped = vi
       .fn()
       .mockResolvedValue(
@@ -449,7 +451,7 @@ describe("Read reconciliation, never blind retry", () => {
       providerId: "att_test",
     });
     expect(transport.mock.calls[0]?.[0]).toBe(
-      `${HOUSECALL_ORIGIN}/jobs/job_test_2?expand=attachments`,
+      `${HOUSECALL_ORIGIN}/jobs/job_test_2?expand%5B%5D=attachments`,
     );
   });
 });

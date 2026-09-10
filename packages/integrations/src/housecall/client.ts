@@ -270,7 +270,7 @@ export function createHousecallClient(options: HousecallClientOptions) {
     options: { includeAttachments?: boolean } = {},
   ): Promise<HousecallJob> {
     validateHousecallId(jobId);
-    const suffix = options.includeAttachments ? "?expand=attachments" : "";
+    const suffix = options.includeAttachments ? "?expand%5B%5D=attachments" : "";
     const { data } = await request(`/jobs/${jobId}${suffix}`);
     const result = parseHousecallJob(data);
     if (result.id !== jobId || (options.includeAttachments && result.attachments === null))
@@ -292,11 +292,11 @@ export function createHousecallClient(options: HousecallClientOptions) {
     if (query.customerId) params.set("customer_id", validateHousecallId(query.customerId));
     if (query.scheduledStartMin) params.set("scheduled_start_min", query.scheduledStartMin);
     if (query.scheduledStartMax) params.set("scheduled_start_max", query.scheduledStartMax);
-    // OpenAPI array query defaults to form/explode. One parameter per selected value.
+    // The live provider requires bracketed array keys, including for one value.
     for (const status of query.workStatus ?? []) {
       if (!["unscheduled", "scheduled", "in_progress", "completed", "canceled"].includes(status))
         throw new HousecallError("invalid_payload");
-      params.append("work_status", status);
+      params.append("work_status[]", status);
     }
     if (query.sortBy) params.set("sort_by", query.sortBy);
     if (query.sortDirection) params.set("sort_direction", query.sortDirection);

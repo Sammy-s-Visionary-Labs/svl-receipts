@@ -1,6 +1,6 @@
 # RA-6 Housecall provider contract
 
-**Live Housecall writes require the user's explicit approval.** Implementing RA-6, approving a receipt inside the app, configuring an API key, or naming a customer “test” is not that approval. All contract checks below used an injected fake transport. No Housecall account request or write was made to verify this implementation.
+**Live Housecall writes require the user's explicit approval.** Implementing RA-6, approving a receipt inside the app, configuring an API key, or naming a customer “test” is not that approval. Initial contract checks used injected transports. On 2026-09-10, read-only API verification covered all four test jobs and corrected array query serialization; no Housecall write has been made. See the [acceptance evidence](ra6-acceptance-2026-09-10.md).
 
 ## Official source checked
 
@@ -10,11 +10,11 @@ The [Housecall v1 API reference](https://docs.housecallpro.com/docs/housecall-pu
 | --- | --- | --- |
 | Authentication | `Authorization: Token {api-key}`, base `https://api.housecallpro.com` | Server constructor only; fixed origin, redirects disabled, no cookies, no caching. No arbitrary URL or customer-facing billing method is exposed. |
 | Job reads | `GET /jobs`, pagination `page`, `page_size`, `total_pages`, `total_items`; `GET /jobs/{id}` | Response validation and exact returned ID check. Bounded full-list scan throws when incomplete. |
-| Job filters | `scheduled_start_min/max`, `customer_id`, `work_status`, `sort_by`, `sort_direction` | No invented `updated_since` or free-text search parameter. Multiple statuses use OpenAPI form/explode query serialization; live account behavior remains to be verified. |
+| Job filters | `scheduled_start_min/max`, `customer_id`, `work_status`, `sort_by`, `sort_direction` | No invented `updated_since` or free-text search parameter. Live verification established bracketed `work_status[]` array keys, including for one status; scalar keys return HTTP 400. |
 | Internal materials | `PUT /jobs/{job_id}/job_input_materials/bulk_update`, body `job_input_materials` | One approved receipt line per request. `name`, frozen vendor/invoice/date reference plus traceable `description`, stable `part_number`, `quantity`, and integer-cent `unit_cost`; omit `uuid` to create a new entry. |
 | Material verification | `GET /jobs/{job_id}/job_input_materials` returns all `job_input_materials` | No pagination in this endpoint's published schema. Match exact `part_number`, provider `uuid`, name, description, quantity and cost. Unrelated placeholder rows may have zero quantity or missing optional values; unknown values stay null/empty in the read model. Our reference requires a nonempty provider ID and exact complete fields. Any duplicate reference, missing required verification field, or mismatch requires resolution. |
 | Receipt image upload | `POST /jobs/{job_id}/attachments`, multipart `file`; HTTP 202 with `job_url` | Upload one image at a time. Filename contains receipt, intent, page and SHA-256 bytes digest. The body is binary data from private storage; no public URL upload is used. |
-| Attachment verification | `GET /jobs/{id}?expand=attachments`; `attachments` has `id`, `file_name`, `url`, `file_type` | Require explicit expanded collection and exact job ID. Match exact filename to a single provider attachment ID. HTTP 202 is only accepted, never completed. |
+| Attachment verification | `GET /jobs/{id}?expand[]=attachments`; `attachments` has `id`, `file_name`, `url`, `file_type` | The bracketed query was verified live; the client URL-encodes the brackets. Require explicit expanded collection and exact job ID. Match exact filename to a single provider attachment ID. HTTP 202 is only accepted, never completed. |
 
 `JobInputMaterial.unit_cost` explicitly says “Unit in cents.” Its quantity is a number (example `1.51`); the schema does not state a precision limit. The adapter preserves the application's existing three-decimal approved quantity and validates integer-cent unit cost and signed-32-bit extended-cost bounds. Live checks must verify Housecall preserves these quantities and computes expected extended amounts. Tax is not part of the material payload. Neither invoice line items, selling prices, payments, job status updates nor customer changes are implemented.
 

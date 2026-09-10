@@ -1,0 +1,1342 @@
+{
+  "evaluatedAt": "2026-09-10T17:03:25.083Z",
+  "syntheticOnly": true,
+  "scope": "Actual app image normalization and Gemini extraction; database persistence, browser review and live Housecall writes remain separate acceptance steps",
+  "results": [
+    {
+      "fixture": "select-fractional-base",
+      "startedAt": "2026-09-10T17:02:50.291Z",
+      "requestedModel": "gemini-3.5-flash-lite",
+      "images": [
+        {
+          "path": "images/select-fractional-base.png",
+          "pageIndex": 0,
+          "sha256": "84308cecc2f60e0062a6a949c89dcdf559f1bdff0907e47cff7a37ac6f777ca4",
+          "normalizedSha256": "caea12e8a34fa9a4375456971cfc207c8505f69c58bb18ea3e1f917009e2a412"
+        }
+      ],
+      "synthetic": true,
+      "actualModel": "gemini-3.5-flash-lite",
+      "promptVersion": "ra6-receipt-v1.1",
+      "usage": {
+        "inputTokens": 1613,
+        "outputTokens": 1046,
+        "thinkingTokens": null,
+        "totalTokens": 2659
+      },
+      "checks": [
+        {
+          "field": "vendor",
+          "pass": true,
+          "actual": "RA6 Test Stone Supplier",
+          "expected": "RA6 Test Stone Supplier"
+        },
+        {
+          "field": "identifier",
+          "pass": true,
+          "actual": true,
+          "expected": true
+        },
+        {
+          "field": "date_correct_or_explicitly_unresolved",
+          "pass": true,
+          "actual": true,
+          "expected": true
+        },
+        {
+          "field": "currency",
+          "pass": true,
+          "actual": "USD",
+          "expected": "USD"
+        },
+        {
+          "field": "receipt_total_cents",
+          "pass": true,
+          "actual": 2263,
+          "expected": 2263
+        },
+        {
+          "field": "tax_cents",
+          "pass": true,
+          "actual": 163,
+          "expected": 163
+        },
+        {
+          "field": "material_total_cents",
+          "pass": true,
+          "actual": 2100,
+          "expected": 2100
+        },
+        {
+          "field": "line_count",
+          "pass": true,
+          "actual": 1,
+          "expected": 1
+        },
+        {
+          "field": "lines.0.qty",
+          "pass": true,
+          "actual": 0.5,
+          "expected": 0.5
+        },
+        {
+          "field": "lines.0.unit_cost_cents",
+          "pass": true,
+          "actual": 4200,
+          "expected": 4200
+        },
+        {
+          "field": "lines.0.extended_cost_cents",
+          "pass": true,
+          "actual": 2100,
+          "expected": 2100
+        },
+        {
+          "field": "lines.0.page_index",
+          "pass": true,
+          "actual": 0,
+          "expected": 0
+        },
+        {
+          "field": "lines.0.job_hint",
+          "pass": true,
+          "actual": "RA6 Test Customer 2",
+          "expected": "RA6 Test Customer 2"
+        },
+        {
+          "field": "lines.0.description",
+          "pass": true,
+          "actual": "synthetic test #8 limestone bulk",
+          "expected": "synthetic test #8 limestone bulk"
+        },
+        {
+          "field": "has_field_evidence",
+          "pass": true,
+          "actual": true,
+          "expected": true
+        }
+      ],
+      "passed": true,
+      "normalizedPrediction": {
+        "schema_version": 1,
+        "provider": "gemini",
+        "document_kind": "invoice",
+        "vendor": "RA6 Test Stone Supplier",
+        "purchase_date": null,
+        "invoice_number": "RA6-SYN-SELECT-001",
+        "ticket_number": null,
+        "currency": "USD",
+        "receipt_total_cents": 2263,
+        "tax_cents": 163,
+        "subtotal_cents": 2100,
+        "material_total_cents": 2100,
+        "lines": [
+          {
+            "source_index": 0,
+            "page_index": 0,
+            "description": "SYNTHETIC TEST #8 limestone bulk",
+            "qty": 0.5,
+            "uom": "ton",
+            "unit_cost_cents": 4200,
+            "extended_cost_cents": 2100,
+            "printed_extended_cost_cents": 2100,
+            "job_hint": null
+          }
+        ],
+        "job_hints": [
+          {
+            "text": "RA6 Test Customer 2",
+            "page_index": 0
+          }
+        ],
+        "confidence": {
+          "vendor": 1,
+          "purchase_date": 1,
+          "invoice_number": 1,
+          "receipt_total_cents": 1,
+          "tax_cents": 1,
+          "subtotal_cents": 1,
+          "currency": 1,
+          "job_hints.0": 1,
+          "lines.0.description": 1,
+          "lines.0.qty": 1,
+          "lines.0.uom": 1,
+          "lines.0.unit_cost_cents": 1,
+          "lines.0.printed_extended_cost_cents": 1
+        },
+        "warnings": [
+          {
+            "code": "ambiguous_date",
+            "field": "purchase_date",
+            "message": "The date has an ambiguous order or two-digit year; verify the purchase date."
+          }
+        ]
+      },
+      "completedAt": "2026-09-10T17:02:53.937Z"
+    },
+    {
+      "fixture": "klumm-two-jobs",
+      "startedAt": "2026-09-10T17:02:53.965Z",
+      "requestedModel": "gemini-3.5-flash-lite",
+      "images": [
+        {
+          "path": "images/klumm-two-jobs.png",
+          "pageIndex": 0,
+          "sha256": "33321121e4e1ae5162b22b90e12a55d7b9a7331823639a0669810b4f707d229b",
+          "normalizedSha256": "6a96e4c30dc7cc855a412d0dd43fed2a26a9feb7c449119c36d415c8aaf12da5"
+        }
+      ],
+      "synthetic": true,
+      "actualModel": "gemini-3.5-flash-lite",
+      "promptVersion": "ra6-receipt-v1.1",
+      "usage": {
+        "inputTokens": 1613,
+        "outputTokens": 1608,
+        "thinkingTokens": null,
+        "totalTokens": 3221
+      },
+      "checks": [
+        {
+          "field": "vendor",
+          "pass": true,
+          "actual": "RA6 Test Landscape Supplier",
+          "expected": "RA6 Test Landscape Supplier"
+        },
+        {
+          "field": "identifier",
+          "pass": true,
+          "actual": true,
+          "expected": true
+        },
+        {
+          "field": "date_correct_or_explicitly_unresolved",
+          "pass": true,
+          "actual": true,
+          "expected": true
+        },
+        {
+          "field": "currency",
+          "pass": true,
+          "actual": "USD",
+          "expected": "USD"
+        },
+        {
+          "field": "receipt_total_cents",
+          "pass": true,
+          "actual": 14400,
+          "expected": 14400
+        },
+        {
+          "field": "tax_cents",
+          "pass": true,
+          "actual": 0,
+          "expected": 0
+        },
+        {
+          "field": "material_total_cents",
+          "pass": true,
+          "actual": 14400,
+          "expected": 14400
+        },
+        {
+          "field": "line_count",
+          "pass": true,
+          "actual": 2,
+          "expected": 2
+        },
+        {
+          "field": "lines.0.qty",
+          "pass": true,
+          "actual": 6,
+          "expected": 6
+        },
+        {
+          "field": "lines.0.unit_cost_cents",
+          "pass": true,
+          "actual": 1650,
+          "expected": 1650
+        },
+        {
+          "field": "lines.0.extended_cost_cents",
+          "pass": true,
+          "actual": 9900,
+          "expected": 9900
+        },
+        {
+          "field": "lines.0.page_index",
+          "pass": true,
+          "actual": 0,
+          "expected": 0
+        },
+        {
+          "field": "lines.0.job_hint",
+          "pass": true,
+          "actual": "RA6 Test Customer 4",
+          "expected": "RA6 Test Customer 4"
+        },
+        {
+          "field": "lines.0.description",
+          "pass": true,
+          "actual": "synthetic test recycled aggregate",
+          "expected": "synthetic test recycled aggregate"
+        },
+        {
+          "field": "lines.1.qty",
+          "pass": true,
+          "actual": 1,
+          "expected": 1
+        },
+        {
+          "field": "lines.1.unit_cost_cents",
+          "pass": true,
+          "actual": 4500,
+          "expected": 4500
+        },
+        {
+          "field": "lines.1.extended_cost_cents",
+          "pass": true,
+          "actual": 4500,
+          "expected": 4500
+        },
+        {
+          "field": "lines.1.page_index",
+          "pass": true,
+          "actual": 0,
+          "expected": 0
+        },
+        {
+          "field": "lines.1.job_hint",
+          "pass": true,
+          "actual": "RA6 Test Customer 2",
+          "expected": "RA6 Test Customer 2"
+        },
+        {
+          "field": "lines.1.description",
+          "pass": true,
+          "actual": "synthetic test dirt disposal fee",
+          "expected": "synthetic test dirt disposal fee"
+        },
+        {
+          "field": "has_field_evidence",
+          "pass": true,
+          "actual": true,
+          "expected": true
+        }
+      ],
+      "passed": true,
+      "normalizedPrediction": {
+        "schema_version": 1,
+        "provider": "gemini",
+        "document_kind": "invoice",
+        "vendor": "RA6 Test Landscape Supplier",
+        "purchase_date": null,
+        "invoice_number": "RA6-SYN-KLUMM-002",
+        "ticket_number": null,
+        "currency": "USD",
+        "receipt_total_cents": 14400,
+        "tax_cents": 0,
+        "subtotal_cents": 14400,
+        "material_total_cents": 14400,
+        "lines": [
+          {
+            "source_index": 0,
+            "page_index": 0,
+            "description": "SYNTHETIC TEST recycled aggregate",
+            "qty": 6,
+            "uom": "ton",
+            "unit_cost_cents": 1650,
+            "extended_cost_cents": 9900,
+            "printed_extended_cost_cents": 9900,
+            "job_hint": "RA6 Test Customer 4"
+          },
+          {
+            "source_index": 1,
+            "page_index": 0,
+            "description": "SYNTHETIC TEST dirt disposal fee",
+            "qty": 1,
+            "uom": "ea",
+            "unit_cost_cents": 4500,
+            "extended_cost_cents": 4500,
+            "printed_extended_cost_cents": 4500,
+            "job_hint": "RA6 Test Customer 2"
+          }
+        ],
+        "job_hints": [
+          {
+            "text": "RA6 Test Customer 4",
+            "page_index": 0
+          },
+          {
+            "text": "RA6 Test Customer 2",
+            "page_index": 0
+          }
+        ],
+        "confidence": {
+          "vendor": 1,
+          "purchase_date": 1,
+          "invoice_number": 1,
+          "receipt_total_cents": 1,
+          "tax_cents": 1,
+          "subtotal_cents": 1,
+          "currency": 1,
+          "job_hints.0": 1,
+          "job_hints.1": 1,
+          "lines.0.description": 1,
+          "lines.0.qty": 1,
+          "lines.0.uom": 1,
+          "lines.0.unit_cost_cents": 1,
+          "lines.0.printed_extended_cost_cents": 1,
+          "lines.0.job_hint": 1,
+          "lines.1.description": 1,
+          "lines.1.qty": 1,
+          "lines.1.uom": 1,
+          "lines.1.unit_cost_cents": 1,
+          "lines.1.printed_extended_cost_cents": 1,
+          "lines.1.job_hint": 1
+        },
+        "warnings": [
+          {
+            "code": "ambiguous_date",
+            "field": "purchase_date",
+            "message": "The date has an ambiguous order or two-digit year; verify the purchase date."
+          }
+        ]
+      },
+      "completedAt": "2026-09-10T17:02:58.353Z"
+    },
+    {
+      "fixture": "sandman-handwritten",
+      "startedAt": "2026-09-10T17:02:58.390Z",
+      "requestedModel": "gemini-3.5-flash-lite",
+      "images": [
+        {
+          "path": "images/sandman-handwritten.png",
+          "pageIndex": 0,
+          "sha256": "b5bba84b9d2b2288368d5c478744e7b36a99e5046af78b07471d10d92c2f6f82",
+          "normalizedSha256": "0702cbc9c297dad1eaae56d466fb55c295ecc0c07a02a45178c280bb0dec55e9"
+        }
+      ],
+      "synthetic": true,
+      "actualModel": "gemini-3.5-flash-lite",
+      "promptVersion": "ra6-receipt-v1.1",
+      "usage": {
+        "inputTokens": 1613,
+        "outputTokens": 1009,
+        "thinkingTokens": null,
+        "totalTokens": 2622
+      },
+      "checks": [
+        {
+          "field": "vendor",
+          "pass": true,
+          "actual": "RA6 Test Yard Supplier",
+          "expected": "RA6 Test Yard Supplier"
+        },
+        {
+          "field": "identifier",
+          "pass": true,
+          "actual": true,
+          "expected": true
+        },
+        {
+          "field": "date_correct_or_explicitly_unresolved",
+          "pass": true,
+          "actual": true,
+          "expected": true
+        },
+        {
+          "field": "currency",
+          "pass": true,
+          "actual": "USD",
+          "expected": "USD"
+        },
+        {
+          "field": "receipt_total_cents",
+          "pass": true,
+          "actual": 8000,
+          "expected": 8000
+        },
+        {
+          "field": "tax_cents",
+          "pass": true,
+          "actual": 0,
+          "expected": 0
+        },
+        {
+          "field": "material_total_cents",
+          "pass": true,
+          "actual": 8000,
+          "expected": 8000
+        },
+        {
+          "field": "line_count",
+          "pass": true,
+          "actual": 1,
+          "expected": 1
+        },
+        {
+          "field": "lines.0.qty",
+          "pass": true,
+          "actual": 2,
+          "expected": 2
+        },
+        {
+          "field": "lines.0.unit_cost_cents",
+          "pass": true,
+          "actual": 4000,
+          "expected": 4000
+        },
+        {
+          "field": "lines.0.extended_cost_cents",
+          "pass": true,
+          "actual": 8000,
+          "expected": 8000
+        },
+        {
+          "field": "lines.0.page_index",
+          "pass": true,
+          "actual": 0,
+          "expected": 0
+        },
+        {
+          "field": "lines.0.job_hint",
+          "pass": true,
+          "actual": "RA6 Test Customer 2",
+          "expected": "RA6 Test Customer 2"
+        },
+        {
+          "field": "lines.0.description",
+          "pass": true,
+          "actual": "synthetic test dark mulch",
+          "expected": "synthetic test dark mulch"
+        },
+        {
+          "field": "has_field_evidence",
+          "pass": true,
+          "actual": true,
+          "expected": true
+        }
+      ],
+      "passed": true,
+      "normalizedPrediction": {
+        "schema_version": 1,
+        "provider": "gemini",
+        "document_kind": "receipt",
+        "vendor": "RA6 Test Yard Supplier",
+        "purchase_date": "2026-09-03",
+        "invoice_number": null,
+        "ticket_number": "RA6-SYN-SANDMAN-003",
+        "currency": "USD",
+        "receipt_total_cents": 8000,
+        "tax_cents": 0,
+        "subtotal_cents": 8000,
+        "material_total_cents": 8000,
+        "lines": [
+          {
+            "source_index": 0,
+            "page_index": 0,
+            "description": "SYNTHETIC TEST dark mulch",
+            "qty": 2,
+            "uom": "yd3",
+            "unit_cost_cents": 4000,
+            "extended_cost_cents": 8000,
+            "printed_extended_cost_cents": 8000,
+            "job_hint": null
+          }
+        ],
+        "job_hints": [
+          {
+            "text": "RA6 Test Customer 2",
+            "page_index": 0
+          }
+        ],
+        "confidence": {
+          "vendor": 1,
+          "purchase_date": 1,
+          "ticket_number": 1,
+          "receipt_total_cents": 1,
+          "tax_cents": 1,
+          "subtotal_cents": 1,
+          "currency": 1,
+          "job_hints.0": 1,
+          "lines.0.description": 1,
+          "lines.0.qty": 1,
+          "lines.0.uom": 1,
+          "lines.0.unit_cost_cents": 1,
+          "lines.0.printed_extended_cost_cents": 1
+        },
+        "warnings": []
+      },
+      "completedAt": "2026-09-10T17:03:01.769Z"
+    },
+    {
+      "fixture": "sandman-shop-and-missing-job",
+      "startedAt": "2026-09-10T17:03:01.805Z",
+      "requestedModel": "gemini-3.5-flash-lite",
+      "images": [
+        {
+          "path": "images/sandman-shop-and-missing-job.png",
+          "pageIndex": 0,
+          "sha256": "fa7a7d6f1892f402fda7d6e7d05e767041c8872608c303bdf9561d03afe0a9ec",
+          "normalizedSha256": "c51cd0582a1efe0123921a27f8ba6d332038017c832038aac57ffbd870814e2e"
+        }
+      ],
+      "synthetic": true,
+      "passed": false,
+      "providerError": {
+        "code": "provider_invalid_response",
+        "kind": "retryable"
+      },
+      "completedAt": "2026-09-10T17:03:10.087Z"
+    },
+    {
+      "fixture": "half-up-two-pages",
+      "startedAt": "2026-09-10T17:03:10.124Z",
+      "requestedModel": "gemini-3.5-flash-lite",
+      "images": [
+        {
+          "path": "images/half-up-two-pages-page-2.png",
+          "pageIndex": 1,
+          "sha256": "d3eac69c67578e174746d75c933d1a97ceb8988c6ae161561e28b0af55075596",
+          "normalizedSha256": "f8605266e525b6c2c5d820aa22c543d6552e2a0e420b7e94e3a50cc002992517"
+        },
+        {
+          "path": "images/half-up-two-pages-page-1.png",
+          "pageIndex": 0,
+          "sha256": "a30099ef4cde2ffc7d1e636e03f0507ef76a0d9abbaa9591217f7771ac19c86f",
+          "normalizedSha256": "e5e3a6a7d7e9a309980931fa0380f162bf2ecc4158330dbcf6c887c4546ef153"
+        }
+      ],
+      "synthetic": true,
+      "actualModel": "gemini-3.5-flash-lite",
+      "promptVersion": "ra6-receipt-v1.1",
+      "usage": {
+        "inputTokens": 2671,
+        "outputTokens": 1681,
+        "thinkingTokens": null,
+        "totalTokens": 4352
+      },
+      "checks": [
+        {
+          "field": "vendor",
+          "pass": true,
+          "actual": "RA6 Test Precision Supplier",
+          "expected": "RA6 Test Precision Supplier"
+        },
+        {
+          "field": "identifier",
+          "pass": true,
+          "actual": true,
+          "expected": true
+        },
+        {
+          "field": "date_correct_or_explicitly_unresolved",
+          "pass": true,
+          "actual": true,
+          "expected": true
+        },
+        {
+          "field": "currency",
+          "pass": true,
+          "actual": "USD",
+          "expected": "USD"
+        },
+        {
+          "field": "receipt_total_cents",
+          "pass": true,
+          "actual": 3949,
+          "expected": 3949
+        },
+        {
+          "field": "tax_cents",
+          "pass": true,
+          "actual": 0,
+          "expected": 0
+        },
+        {
+          "field": "material_total_cents",
+          "pass": true,
+          "actual": 3949,
+          "expected": 3949
+        },
+        {
+          "field": "line_count",
+          "pass": true,
+          "actual": 2,
+          "expected": 2
+        },
+        {
+          "field": "lines.0.qty",
+          "pass": true,
+          "actual": 1.005,
+          "expected": 1.005
+        },
+        {
+          "field": "lines.0.unit_cost_cents",
+          "pass": true,
+          "actual": 100,
+          "expected": 100
+        },
+        {
+          "field": "lines.0.extended_cost_cents",
+          "pass": true,
+          "actual": 101,
+          "expected": 101
+        },
+        {
+          "field": "lines.0.page_index",
+          "pass": true,
+          "actual": 0,
+          "expected": 0
+        },
+        {
+          "field": "lines.0.job_hint",
+          "pass": true,
+          "actual": "RA6 Test Customer 2",
+          "expected": "RA6 Test Customer 2"
+        },
+        {
+          "field": "lines.0.description",
+          "pass": true,
+          "actual": "synthetic test fractional material a",
+          "expected": "synthetic test fractional material a"
+        },
+        {
+          "field": "lines.1.qty",
+          "pass": true,
+          "actual": 10.125,
+          "expected": 10.125
+        },
+        {
+          "field": "lines.1.unit_cost_cents",
+          "pass": true,
+          "actual": 380,
+          "expected": 380
+        },
+        {
+          "field": "lines.1.extended_cost_cents",
+          "pass": true,
+          "actual": 3848,
+          "expected": 3848
+        },
+        {
+          "field": "lines.1.page_index",
+          "pass": true,
+          "actual": 1,
+          "expected": 1
+        },
+        {
+          "field": "lines.1.job_hint",
+          "pass": true,
+          "actual": "RA6 Test Customer 3",
+          "expected": "RA6 Test Customer 3"
+        },
+        {
+          "field": "lines.1.description",
+          "pass": true,
+          "actual": "synthetic test fractional material b",
+          "expected": "synthetic test fractional material b"
+        },
+        {
+          "field": "has_field_evidence",
+          "pass": true,
+          "actual": true,
+          "expected": true
+        }
+      ],
+      "passed": true,
+      "normalizedPrediction": {
+        "schema_version": 1,
+        "provider": "gemini",
+        "document_kind": "receipt",
+        "vendor": "RA6 Test Precision Supplier",
+        "purchase_date": null,
+        "invoice_number": null,
+        "ticket_number": "RA6-SYN-ROUNDING-005",
+        "currency": "USD",
+        "receipt_total_cents": 3949,
+        "tax_cents": 0,
+        "subtotal_cents": 3949,
+        "material_total_cents": 3949,
+        "lines": [
+          {
+            "source_index": 0,
+            "page_index": 0,
+            "description": "SYNTHETIC TEST fractional material A",
+            "qty": 1.005,
+            "uom": "ton",
+            "unit_cost_cents": 100,
+            "extended_cost_cents": 101,
+            "printed_extended_cost_cents": 101,
+            "job_hint": "RA6 Test Customer 2"
+          },
+          {
+            "source_index": 1,
+            "page_index": 1,
+            "description": "SYNTHETIC TEST fractional material B",
+            "qty": 10.125,
+            "uom": "gal",
+            "unit_cost_cents": 380,
+            "extended_cost_cents": 3848,
+            "printed_extended_cost_cents": 3848,
+            "job_hint": "RA6 Test Customer 3"
+          }
+        ],
+        "job_hints": [
+          {
+            "text": "RA6 Test Customer 2",
+            "page_index": 0
+          },
+          {
+            "text": "RA6 Test Customer 3",
+            "page_index": 1
+          }
+        ],
+        "confidence": {
+          "vendor": 1,
+          "purchase_date": 1,
+          "ticket_number": 1,
+          "receipt_total_cents": 1,
+          "tax_cents": 1,
+          "subtotal_cents": 1,
+          "currency": 1,
+          "job_hints.0": 1,
+          "lines.0.description": 1,
+          "lines.0.qty": 1,
+          "lines.0.uom": 1,
+          "lines.0.unit_cost_cents": 1,
+          "lines.0.printed_extended_cost_cents": 1,
+          "lines.0.job_hint": 1,
+          "job_hints.1": 1,
+          "lines.1.description": 1,
+          "lines.1.qty": 1,
+          "lines.1.uom": 1,
+          "lines.1.unit_cost_cents": 1,
+          "lines.1.printed_extended_cost_cents": 1,
+          "lines.1.job_hint": 1
+        },
+        "warnings": [
+          {
+            "code": "ambiguous_date",
+            "field": "purchase_date",
+            "message": "The date has an ambiguous order or two-digit year; verify the purchase date."
+          }
+        ]
+      },
+      "completedAt": "2026-09-10T17:03:15.176Z"
+    },
+    {
+      "fixture": "select-fractional-exact-copy",
+      "startedAt": "2026-09-10T17:03:15.214Z",
+      "requestedModel": "gemini-3.5-flash-lite",
+      "images": [
+        {
+          "path": "images/select-fractional-exact-copy.png",
+          "pageIndex": 0,
+          "sha256": "84308cecc2f60e0062a6a949c89dcdf559f1bdff0907e47cff7a37ac6f777ca4",
+          "normalizedSha256": "caea12e8a34fa9a4375456971cfc207c8505f69c58bb18ea3e1f917009e2a412"
+        }
+      ],
+      "synthetic": true,
+      "actualModel": "gemini-3.5-flash-lite",
+      "promptVersion": "ra6-receipt-v1.1",
+      "usage": {
+        "inputTokens": 1613,
+        "outputTokens": 1079,
+        "thinkingTokens": null,
+        "totalTokens": 2692
+      },
+      "checks": [
+        {
+          "field": "vendor",
+          "pass": true,
+          "actual": "RA6 Test Stone Supplier",
+          "expected": "RA6 Test Stone Supplier"
+        },
+        {
+          "field": "identifier",
+          "pass": true,
+          "actual": true,
+          "expected": true
+        },
+        {
+          "field": "date_correct_or_explicitly_unresolved",
+          "pass": true,
+          "actual": true,
+          "expected": true
+        },
+        {
+          "field": "currency",
+          "pass": true,
+          "actual": "USD",
+          "expected": "USD"
+        },
+        {
+          "field": "receipt_total_cents",
+          "pass": true,
+          "actual": 2263,
+          "expected": 2263
+        },
+        {
+          "field": "tax_cents",
+          "pass": true,
+          "actual": 163,
+          "expected": 163
+        },
+        {
+          "field": "material_total_cents",
+          "pass": true,
+          "actual": 2100,
+          "expected": 2100
+        },
+        {
+          "field": "line_count",
+          "pass": true,
+          "actual": 1,
+          "expected": 1
+        },
+        {
+          "field": "lines.0.qty",
+          "pass": true,
+          "actual": 0.5,
+          "expected": 0.5
+        },
+        {
+          "field": "lines.0.unit_cost_cents",
+          "pass": true,
+          "actual": 4200,
+          "expected": 4200
+        },
+        {
+          "field": "lines.0.extended_cost_cents",
+          "pass": true,
+          "actual": 2100,
+          "expected": 2100
+        },
+        {
+          "field": "lines.0.page_index",
+          "pass": true,
+          "actual": 0,
+          "expected": 0
+        },
+        {
+          "field": "lines.0.job_hint",
+          "pass": true,
+          "actual": "RA6 Test Customer 2",
+          "expected": "RA6 Test Customer 2"
+        },
+        {
+          "field": "lines.0.description",
+          "pass": true,
+          "actual": "synthetic test #8 limestone bulk",
+          "expected": "synthetic test #8 limestone bulk"
+        },
+        {
+          "field": "has_field_evidence",
+          "pass": true,
+          "actual": true,
+          "expected": true
+        }
+      ],
+      "passed": true,
+      "normalizedPrediction": {
+        "schema_version": 1,
+        "provider": "gemini",
+        "document_kind": "invoice",
+        "vendor": "RA6 Test Stone Supplier",
+        "purchase_date": null,
+        "invoice_number": "RA6-SYN-SELECT-001",
+        "ticket_number": null,
+        "currency": "USD",
+        "receipt_total_cents": 2263,
+        "tax_cents": 163,
+        "subtotal_cents": 2100,
+        "material_total_cents": 2100,
+        "lines": [
+          {
+            "source_index": 0,
+            "page_index": 0,
+            "description": "SYNTHETIC TEST #8 limestone bulk",
+            "qty": 0.5,
+            "uom": "ton",
+            "unit_cost_cents": 4200,
+            "extended_cost_cents": 2100,
+            "printed_extended_cost_cents": 2100,
+            "job_hint": null
+          }
+        ],
+        "job_hints": [
+          {
+            "text": "RA6 Test Customer 2",
+            "page_index": 0
+          }
+        ],
+        "confidence": {
+          "vendor": 0.95,
+          "purchase_date": 0.95,
+          "invoice_number": 0.95,
+          "receipt_total_cents": 0.95,
+          "tax_cents": 0.95,
+          "subtotal_cents": 0.95,
+          "currency": 0.95,
+          "job_hints.0": 0.95,
+          "lines.0.description": 0.95,
+          "lines.0.qty": 0.95,
+          "lines.0.uom": 0.95,
+          "lines.0.unit_cost_cents": 0.95,
+          "lines.0.printed_extended_cost_cents": 0.95
+        },
+        "warnings": [
+          {
+            "code": "ambiguous_date",
+            "field": "purchase_date",
+            "message": "The date has an ambiguous order or two-digit year; verify the purchase date."
+          }
+        ]
+      },
+      "completedAt": "2026-09-10T17:03:18.165Z"
+    },
+    {
+      "fixture": "select-fractional-rephotographed",
+      "startedAt": "2026-09-10T17:03:18.194Z",
+      "requestedModel": "gemini-3.5-flash-lite",
+      "images": [
+        {
+          "path": "images/select-fractional-rephotographed.png",
+          "pageIndex": 0,
+          "sha256": "785d9019bbd7acda1d9adcc20b1653f8b675e257fe1a17a64a2237f7cae03809",
+          "normalizedSha256": "c9010f09b3bf59e4236e09e134bacc0ccb35f62ce99a5b1e81ca701cac442f41"
+        }
+      ],
+      "synthetic": true,
+      "actualModel": "gemini-3.5-flash-lite",
+      "promptVersion": "ra6-receipt-v1.1",
+      "usage": {
+        "inputTokens": 1613,
+        "outputTokens": 1064,
+        "thinkingTokens": null,
+        "totalTokens": 2677
+      },
+      "checks": [
+        {
+          "field": "vendor",
+          "pass": false,
+          "actual": "SYNTHETIC - RA6 TEST RA6 Test Stone Supplier",
+          "expected": "RA6 Test Stone Supplier"
+        },
+        {
+          "field": "identifier",
+          "pass": true,
+          "actual": true,
+          "expected": true
+        },
+        {
+          "field": "date_correct_or_explicitly_unresolved",
+          "pass": true,
+          "actual": true,
+          "expected": true
+        },
+        {
+          "field": "currency",
+          "pass": true,
+          "actual": "USD",
+          "expected": "USD"
+        },
+        {
+          "field": "receipt_total_cents",
+          "pass": true,
+          "actual": 2263,
+          "expected": 2263
+        },
+        {
+          "field": "tax_cents",
+          "pass": true,
+          "actual": 163,
+          "expected": 163
+        },
+        {
+          "field": "material_total_cents",
+          "pass": true,
+          "actual": 2100,
+          "expected": 2100
+        },
+        {
+          "field": "line_count",
+          "pass": true,
+          "actual": 1,
+          "expected": 1
+        },
+        {
+          "field": "lines.0.qty",
+          "pass": true,
+          "actual": 0.5,
+          "expected": 0.5
+        },
+        {
+          "field": "lines.0.unit_cost_cents",
+          "pass": true,
+          "actual": 4200,
+          "expected": 4200
+        },
+        {
+          "field": "lines.0.extended_cost_cents",
+          "pass": true,
+          "actual": 2100,
+          "expected": 2100
+        },
+        {
+          "field": "lines.0.page_index",
+          "pass": true,
+          "actual": 0,
+          "expected": 0
+        },
+        {
+          "field": "lines.0.job_hint",
+          "pass": true,
+          "actual": "RA6 Test Customer 2",
+          "expected": "RA6 Test Customer 2"
+        },
+        {
+          "field": "lines.0.description",
+          "pass": true,
+          "actual": "synthetic test #8 limestone bulk",
+          "expected": "synthetic test #8 limestone bulk"
+        },
+        {
+          "field": "has_field_evidence",
+          "pass": true,
+          "actual": true,
+          "expected": true
+        }
+      ],
+      "passed": false,
+      "normalizedPrediction": {
+        "schema_version": 1,
+        "provider": "gemini",
+        "document_kind": "invoice",
+        "vendor": "SYNTHETIC - RA6 TEST RA6 Test Stone Supplier",
+        "purchase_date": null,
+        "invoice_number": "RA6-SYN-SELECT-001",
+        "ticket_number": null,
+        "currency": "USD",
+        "receipt_total_cents": 2263,
+        "tax_cents": 163,
+        "subtotal_cents": 2100,
+        "material_total_cents": 2100,
+        "lines": [
+          {
+            "source_index": 0,
+            "page_index": 0,
+            "description": "SYNTHETIC TEST #8 limestone bulk",
+            "qty": 0.5,
+            "uom": "ton",
+            "unit_cost_cents": 4200,
+            "extended_cost_cents": 2100,
+            "printed_extended_cost_cents": 2100,
+            "job_hint": null
+          }
+        ],
+        "job_hints": [
+          {
+            "text": "RA6 Test Customer 2",
+            "page_index": 0
+          }
+        ],
+        "confidence": {
+          "vendor": 0.95,
+          "purchase_date": 0.99,
+          "invoice_number": 0.99,
+          "receipt_total_cents": 0.99,
+          "tax_cents": 0.99,
+          "subtotal_cents": 0.99,
+          "currency": 0.99,
+          "job_hints.0": 0.95,
+          "lines.0.description": 0.98,
+          "lines.0.qty": 0.99,
+          "lines.0.uom": 0.99,
+          "lines.0.unit_cost_cents": 0.99,
+          "lines.0.printed_extended_cost_cents": 0.99
+        },
+        "warnings": [
+          {
+            "code": "ambiguous_date",
+            "field": "purchase_date",
+            "message": "The date has an ambiguous order or two-digit year; verify the purchase date."
+          }
+        ]
+      },
+      "completedAt": "2026-09-10T17:03:21.600Z"
+    },
+    {
+      "fixture": "select-fractional-separate-purchase",
+      "startedAt": "2026-09-10T17:03:21.632Z",
+      "requestedModel": "gemini-3.5-flash-lite",
+      "images": [
+        {
+          "path": "images/select-fractional-separate-purchase.png",
+          "pageIndex": 0,
+          "sha256": "2847f1815c88a5894220f5f43352583c2923d432763d8de45a37809b759290d9",
+          "normalizedSha256": "974edd0a7f3a07bef4523f5f79513b5c99580fec387b6373795bda053f18e836"
+        }
+      ],
+      "synthetic": true,
+      "actualModel": "gemini-3.5-flash-lite",
+      "promptVersion": "ra6-receipt-v1.1",
+      "usage": {
+        "inputTokens": 1613,
+        "outputTokens": 1035,
+        "thinkingTokens": null,
+        "totalTokens": 2648
+      },
+      "checks": [
+        {
+          "field": "vendor",
+          "pass": true,
+          "actual": "RA6 Test Stone Supplier",
+          "expected": "RA6 Test Stone Supplier"
+        },
+        {
+          "field": "identifier",
+          "pass": true,
+          "actual": true,
+          "expected": true
+        },
+        {
+          "field": "date_correct_or_explicitly_unresolved",
+          "pass": true,
+          "actual": true,
+          "expected": true
+        },
+        {
+          "field": "currency",
+          "pass": true,
+          "actual": "USD",
+          "expected": "USD"
+        },
+        {
+          "field": "receipt_total_cents",
+          "pass": true,
+          "actual": 2263,
+          "expected": 2263
+        },
+        {
+          "field": "tax_cents",
+          "pass": true,
+          "actual": 163,
+          "expected": 163
+        },
+        {
+          "field": "material_total_cents",
+          "pass": true,
+          "actual": 2100,
+          "expected": 2100
+        },
+        {
+          "field": "line_count",
+          "pass": true,
+          "actual": 1,
+          "expected": 1
+        },
+        {
+          "field": "lines.0.qty",
+          "pass": true,
+          "actual": 0.5,
+          "expected": 0.5
+        },
+        {
+          "field": "lines.0.unit_cost_cents",
+          "pass": true,
+          "actual": 4200,
+          "expected": 4200
+        },
+        {
+          "field": "lines.0.extended_cost_cents",
+          "pass": true,
+          "actual": 2100,
+          "expected": 2100
+        },
+        {
+          "field": "lines.0.page_index",
+          "pass": true,
+          "actual": 0,
+          "expected": 0
+        },
+        {
+          "field": "lines.0.job_hint",
+          "pass": true,
+          "actual": "RA6 Test Customer 2",
+          "expected": "RA6 Test Customer 2"
+        },
+        {
+          "field": "lines.0.description",
+          "pass": true,
+          "actual": "synthetic test #8 limestone bulk",
+          "expected": "synthetic test #8 limestone bulk"
+        },
+        {
+          "field": "has_field_evidence",
+          "pass": true,
+          "actual": true,
+          "expected": true
+        }
+      ],
+      "passed": true,
+      "normalizedPrediction": {
+        "schema_version": 1,
+        "provider": "gemini",
+        "document_kind": "invoice",
+        "vendor": "RA6 Test Stone Supplier",
+        "purchase_date": null,
+        "invoice_number": "RA6-SYN-SELECT-006",
+        "ticket_number": null,
+        "currency": "USD",
+        "receipt_total_cents": 2263,
+        "tax_cents": 163,
+        "subtotal_cents": 2100,
+        "material_total_cents": 2100,
+        "lines": [
+          {
+            "source_index": 0,
+            "page_index": 0,
+            "description": "SYNTHETIC TEST #8 limestone bulk",
+            "qty": 0.5,
+            "uom": "ton",
+            "unit_cost_cents": 4200,
+            "extended_cost_cents": 2100,
+            "printed_extended_cost_cents": 2100,
+            "job_hint": null
+          }
+        ],
+        "job_hints": [
+          {
+            "text": "RA6 Test Customer 2",
+            "page_index": 0
+          }
+        ],
+        "confidence": {
+          "vendor": 1,
+          "purchase_date": 1,
+          "invoice_number": 1,
+          "receipt_total_cents": 1,
+          "tax_cents": 1,
+          "subtotal_cents": 1,
+          "currency": 1,
+          "job_hints.0": 1,
+          "lines.0.description": 1,
+          "lines.0.qty": 1,
+          "lines.0.uom": 1,
+          "lines.0.unit_cost_cents": 1,
+          "lines.0.printed_extended_cost_cents": 1
+        },
+        "warnings": [
+          {
+            "code": "ambiguous_date",
+            "field": "purchase_date",
+            "message": "The date has an ambiguous order or two-digit year; verify the purchase date."
+          }
+        ]
+      },
+      "completedAt": "2026-09-10T17:03:25.083Z"
+    }
+  ]
+}
