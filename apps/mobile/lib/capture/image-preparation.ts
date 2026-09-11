@@ -17,6 +17,7 @@ export type ReceiptImagePreparationErrorCode =
   | "source_too_large"
   | "final_too_large"
   | "processing_failed"
+  | "gallery_unavailable"
   | "rotation_failed";
 
 const ERROR_MESSAGES: Record<ReceiptImagePreparationErrorCode, string> = {
@@ -25,7 +26,10 @@ const ERROR_MESSAGES: Record<ReceiptImagePreparationErrorCode, string> = {
     "This photo is too large for safe on-device processing. Choose a smaller image or retake the page.",
   final_too_large:
     "The prepared photo is still too large to upload. Retake the page closer to the receipt.",
-  processing_failed: "The photo could not be prepared. Keep the receipt in place and try again.",
+  processing_failed:
+    "This photo could not be prepared. Choose a different image or take another photo.",
+  gallery_unavailable:
+    "Your phone could not open the photo library. Close any other photo picker and try again, or use Take receipt photo.",
   rotation_failed: "This photo could not be rotated. Try again or retake the page.",
 };
 

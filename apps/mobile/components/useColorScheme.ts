@@ -1,6 +1,2 @@
-import { useColorScheme as useColorSchemeCore } from "react-native";
-
-export const useColorScheme = () => {
-  const coreScheme = useColorSchemeCore();
-  return coreScheme === "unspecified" ? "light" : coreScheme;
-};
+// The SVL website uses the same paper-and-forest theme on every device.
+export const useColorScheme = (): "light" | "dark" => "light";

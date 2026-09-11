@@ -12,7 +12,7 @@ export default function ReceiptLocationScreen() {
   const { state, setLocation, skipLocation } = useReceiptCapture();
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
-  const backgroundColor = useThemeColor({ light: "#f6f8fb", dark: "#080b10" }, "background");
+  const backgroundColor = useThemeColor({ light: "#f6f7f2", dark: "#080b10" }, "background");
 
   if (state.pages.length === 0) {
     return <Redirect href={"/(tabs)" as Href} />;
@@ -131,7 +131,7 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   eyebrow: {
-    color: "#2563eb",
+    color: "#315b49",
     fontSize: 13,
     fontWeight: "800",
     letterSpacing: 1.1,
@@ -172,7 +172,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     borderRadius: 16,
     paddingHorizontal: 18,
-    backgroundColor: "#2563eb",
+    backgroundColor: "#315b49",
   },
   primaryButtonText: {
     fontSize: 17,
@@ -183,7 +183,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1.5,
-    borderColor: "#94a3b8",
+    borderColor: "#a4ae9b",
     borderRadius: 15,
     paddingHorizontal: 18,
   },

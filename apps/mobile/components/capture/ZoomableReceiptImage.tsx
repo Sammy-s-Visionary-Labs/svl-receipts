@@ -92,7 +92,7 @@ export function ZoomableReceiptImage({ uri, pageNumber }: { uri: string; pageNum
           <Text style={styles.zoomButtonText}>+</Text>
         </Pressable>
       </View>
-      <Text style={[styles.hint, { color: colorScheme === "dark" ? "#cbd5e1" : "#475569" }]}>
+      <Text style={[styles.hint, { color: colorScheme === "dark" ? "#d8dfd1" : "#737d70" }]}>
         Pinch or use the controls to inspect this page.
       </Text>
     </View>
@@ -128,10 +128,10 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#e8eef7",
+    backgroundColor: "#edf1e5",
   },
   zoomButtonText: {
-    color: "#13233a",
+    color: "#253c35",
     fontSize: 28,
     lineHeight: 30,
     fontWeight: "700",
@@ -141,10 +141,10 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: 16,
     borderRadius: 22,
-    backgroundColor: "#e8eef7",
+    backgroundColor: "#edf1e5",
   },
   resetButtonText: {
-    color: "#13233a",
+    color: "#253c35",
     fontSize: 15,
     fontWeight: "700",
   },

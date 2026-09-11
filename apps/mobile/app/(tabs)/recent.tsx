@@ -41,7 +41,7 @@ export default function RecentScreen() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const requestGenerationRef = useRef(0);
   const previewQueueIdsRef = useRef<Set<string>>(new Set());
-  const backgroundColor = useThemeColor({ light: "#f6f8fb", dark: "#080b10" }, "background");
+  const backgroundColor = useThemeColor({ light: "#f6f7f2", dark: "#080b10" }, "background");
   const receipts = useMemo(
     () => mergeRecentHistory({ cloud: cloudReceipts, device: deviceReceipts, devicePreviewUris }),
     [cloudReceipts, deviceReceipts, devicePreviewUris],
@@ -199,7 +199,7 @@ export default function RecentScreen() {
             style={[styles.secondaryButton, styles.footerButton]}
           >
             {loadingMore ? (
-              <ActivityIndicator color="#2563eb" />
+              <ActivityIndicator color="#315b49" />
             ) : (
               <Text style={styles.secondaryButtonText}>Load older receipts</Text>
             )}
@@ -207,8 +207,8 @@ export default function RecentScreen() {
         ) : null
       }
       ListHeaderComponent={
-        <View lightColor="#f6f8fb" darkColor="#080b10" style={styles.listHeader}>
-          <View lightColor="#f6f8fb" darkColor="#080b10" style={styles.headingBlock}>
+        <View lightColor="#f6f7f2" darkColor="#080b10" style={styles.listHeader}>
+          <View lightColor="#f6f7f2" darkColor="#080b10" style={styles.headingBlock}>
             <Text accessibilityRole="header" style={styles.title}>
               My recent uploads
             </Text>
@@ -239,7 +239,7 @@ export default function RecentScreen() {
               darkColor="#121821"
               style={styles.loadingCard}
             >
-              <ActivityIndicator color="#2563eb" />
+              <ActivityIndicator color="#315b49" />
               <Text style={styles.body}>Loading recent receipts…</Text>
             </View>
           ) : null}
@@ -251,7 +251,7 @@ export default function RecentScreen() {
         <RefreshControl
           onRefresh={() => void loadReceipts(true)}
           refreshing={refreshing}
-          tintColor="#2563eb"
+          tintColor="#315b49"
         />
       }
       renderItem={({ item: receipt }) => {
@@ -282,7 +282,7 @@ export default function RecentScreen() {
                 ) : (
                   <View
                     accessibilityLabel="Receipt preview unavailable"
-                    lightColor="#e2e8f0"
+                    lightColor="#e6e8e0"
                     darkColor="#263140"
                     style={styles.thumbnailPlaceholder}
                   >
@@ -419,7 +419,7 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: "transparent",
   },
-  highlightedCard: { borderColor: "#2563eb" },
+  highlightedCard: { borderColor: "#315b49" },
   cardHeading: {
     flexDirection: "row",
     alignItems: "flex-start",
@@ -429,7 +429,7 @@ const styles = StyleSheet.create({
   cardCopy: { flex: 1, gap: 3, backgroundColor: "transparent" },
   cardTitle: { fontSize: 17, lineHeight: 22, fontWeight: "800" },
   timestamp: { fontSize: 13, opacity: 0.65 },
-  thumbnail: { width: 64, height: 82, borderRadius: 8, backgroundColor: "#e2e8f0" },
+  thumbnail: { width: 64, height: 82, borderRadius: 8, backgroundColor: "#e6e8e0" },
   thumbnailPlaceholder: {
     width: 64,
     height: 82,
@@ -447,7 +447,7 @@ const styles = StyleSheet.create({
     gap: 4,
     alignItems: "center",
   },
-  infoChip: { backgroundColor: "#dbeafe" },
+  infoChip: { backgroundColor: "#e3e8ca" },
   warningChip: { backgroundColor: "#ffedd5" },
   successChip: { backgroundColor: "#dcfce7" },
   statusIcon: { color: "#172554", fontSize: 13, fontWeight: "900" },
@@ -461,7 +461,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     borderRadius: 13,
     paddingHorizontal: 16,
-    backgroundColor: "#2563eb",
+    backgroundColor: "#315b49",
   },
   primaryButtonText: { fontSize: 16, fontWeight: "800" },
   secondaryButton: {
@@ -469,7 +469,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1.5,
-    borderColor: "#94a3b8",
+    borderColor: "#a4ae9b",
     borderRadius: 12,
   },
   secondaryButtonText: { fontSize: 15, fontWeight: "700" },

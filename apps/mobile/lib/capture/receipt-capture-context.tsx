@@ -44,6 +44,8 @@ type ReceiptCaptureContextValue = {
   cancelRetake: () => void;
   savePage: (page: ReceiptPage) => void;
   replacePage: (index: number, page: ReceiptPage) => void;
+  removePage: (index: number) => void;
+  canEditPages: boolean;
   confirmPages: () => void;
   setLocation: (location: ReceiptLocationMetadata) => void;
   skipLocation: () => void;
@@ -278,6 +280,12 @@ export function ReceiptCaptureProvider({ children }: { children: ReactNode }) {
   const value = useMemo<ReceiptCaptureContextValue>(
     () => ({
       state,
+      canEditPages: submission.phase === "idle" && !queueItemIdRef.current && !busyRef.current,
+      removePage: (index) => {
+        if (submission.phase !== "idle" || queueItemIdRef.current || busyRef.current) return;
+        resetSubmission();
+        dispatch({ type: "remove-page", index });
+      },
       startNewReceipt: () => {
         resetSubmission();
         dispatch({ type: "start-new" });

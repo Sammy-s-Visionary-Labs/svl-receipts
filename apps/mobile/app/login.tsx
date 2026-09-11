@@ -1,7 +1,9 @@
 import { useState } from "react";
-import { Button, StyleSheet, TextInput } from "react-native";
+import { Pressable, StyleSheet, TextInput } from "react-native";
 import { AuthGate } from "@/components/AuthGate";
+import { BrandHeader } from "@/components/BrandHeader";
 import { Text, View } from "@/components/Themed";
+import { Brand } from "@/constants/Brand";
 import { useAuth } from "@/lib/auth/auth-context";
 
 export default function LoginScreen() {
@@ -24,6 +26,9 @@ export default function LoginScreen() {
   return (
     <AuthGate allow="login">
       <View style={styles.container}>
+        <View style={styles.brand}>
+          <BrandHeader onPaper />
+        </View>
         <Text style={styles.title}>Sign in</Text>
         <Text style={styles.body}>Use the email and password your manager set up.</Text>
         <TextInput
@@ -32,6 +37,7 @@ export default function LoginScreen() {
           autoComplete="email"
           keyboardType="email-address"
           placeholder="Email"
+          placeholderTextColor={Brand.muted}
           value={email}
           onChangeText={setEmail}
         />
@@ -39,22 +45,35 @@ export default function LoginScreen() {
           style={styles.input}
           autoComplete="password"
           placeholder="Password"
+          placeholderTextColor={Brand.muted}
           secureTextEntry
           value={password}
           onChangeText={setPassword}
         />
         {error ? <Text>{error}</Text> : null}
-        <Button
-          title={busy ? "Signing in…" : "Sign in"}
+        <Pressable
+          accessibilityRole="button"
           onPress={() => void onSubmit()}
           disabled={busy}
-        />
+          style={[styles.button, busy && { opacity: 0.5 }]}
+        >
+          <Text style={styles.buttonText}>{busy ? "Signing in…" : "Sign in"}</Text>
+        </Pressable>
       </View>
     </AuthGate>
   );
 }
 
 const styles = StyleSheet.create({
+  brand: { marginBottom: 22, backgroundColor: "transparent" },
+  button: {
+    minHeight: 52,
+    borderRadius: 10,
+    backgroundColor: Brand.green,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  buttonText: { color: Brand.white, fontWeight: "700", fontSize: 16 },
   container: {
     flex: 1,
     justifyContent: "center",
@@ -71,7 +90,9 @@ const styles = StyleSheet.create({
   },
   input: {
     borderWidth: 1,
-    borderColor: "#ccc",
+    borderColor: Brand.line,
+    backgroundColor: Brand.card,
+    color: Brand.ink,
     borderRadius: 8,
     paddingHorizontal: 12,
     height: 44,

@@ -29,8 +29,10 @@ export default function ReceiptReadyScreen() {
     cancelSubmission,
     startNewReceipt,
     beginRequiredRetakes,
+    removePage,
+    canEditPages,
   } = useReceiptCapture();
-  const backgroundColor = useThemeColor({ light: "#f6f8fb", dark: "#080b10" }, "background");
+  const backgroundColor = useThemeColor({ light: "#f6f7f2", dark: "#080b10" }, "background");
   const isBusy = ["preparing", "creating_session", "uploading", "confirming"].includes(
     submission.phase,
   );
@@ -156,7 +158,7 @@ export default function ReceiptReadyScreen() {
           <View style={styles.statusHeading}>
             <Text style={styles.cardTitle}>Submission</Text>
             <View style={styles.statusChip}>
-              <Text lightColor="#1d4ed8" darkColor="#bfdbfe" style={styles.statusChipText}>
+              <Text lightColor="#315b49" darkColor="#bfdbfe" style={styles.statusChipText}>
                 {WORKER_FACING_LABELS[workerStatus]}
               </Text>
             </View>
@@ -220,6 +222,16 @@ export default function ReceiptReadyScreen() {
                   style={styles.thumbnail}
                 />
                 <Text style={styles.thumbnailLabel}>Page {index + 1}</Text>
+                {canEditPages ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`Remove page ${index + 1}`}
+                    onPress={() => removePage(index)}
+                    style={styles.removePageButton}
+                  >
+                    <Text style={styles.removePageText}>× Remove</Text>
+                  </Pressable>
+                ) : null}
                 <Text style={styles.metadataText}>
                   {page.imageMetadata.finalWidth} × {page.imageMetadata.finalHeight}
                 </Text>
@@ -321,6 +333,16 @@ export default function ReceiptReadyScreen() {
 }
 
 const styles = StyleSheet.create({
+  removePageButton: {
+    minHeight: 44,
+    paddingHorizontal: 10,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#ded7ce",
+    borderRadius: 8,
+  },
+  removePageText: { color: "#a43d35", fontSize: 13, fontWeight: "700" },
   safeArea: {
     flex: 1,
   },
@@ -354,7 +376,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   body: {
-    color: "#64748b",
+    color: "#737d70",
     fontSize: 16,
     lineHeight: 24,
     textAlign: "center",
@@ -383,7 +405,7 @@ const styles = StyleSheet.create({
     width: 90,
     height: 112,
     borderRadius: 10,
-    backgroundColor: "#cbd5e1",
+    backgroundColor: "#d8dfd1",
   },
   thumbnailLabel: {
     fontSize: 13,
@@ -416,7 +438,7 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     paddingHorizontal: 12,
     paddingVertical: 6,
-    backgroundColor: "#dbeafe",
+    backgroundColor: "#e3e8ca",
   },
   statusChipText: {
     fontSize: 13,
@@ -438,7 +460,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1.5,
-    borderColor: "#94a3b8",
+    borderColor: "#a4ae9b",
     borderRadius: 14,
     paddingHorizontal: 18,
   },
@@ -452,7 +474,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     borderRadius: 16,
     paddingHorizontal: 18,
-    backgroundColor: "#2563eb",
+    backgroundColor: "#315b49",
   },
   doneButtonText: {
     fontSize: 18,

@@ -11,7 +11,7 @@ export default function CaptureScreen() {
   const router = useRouter();
   const { state, startNewReceipt, addPages } = useReceiptCapture();
   const [galleryBusy, setGalleryBusy] = useState(false);
-  const backgroundColor = useThemeColor({ light: "#f6f8fb", dark: "#080b10" }, "background");
+  const backgroundColor = useThemeColor({ light: "#f6f7f2", dark: "#080b10" }, "background");
 
   function startCamera() {
     startNewReceipt();
@@ -42,7 +42,7 @@ export default function CaptureScreen() {
       contentContainerStyle={styles.content}
       style={[styles.container, { backgroundColor }]}
     >
-      <View lightColor="#f6f8fb" darkColor="#080b10" style={styles.headingBlock}>
+      <View lightColor="#f6f7f2" darkColor="#080b10" style={styles.headingBlock}>
         <Text style={styles.eyebrow}>NEW RECEIPT</Text>
         <Text accessibilityRole="header" style={styles.title}>
           Take receipt photo
@@ -54,7 +54,7 @@ export default function CaptureScreen() {
       </View>
 
       {hasReceipt ? (
-        <View lightColor="#eaf3ff" darkColor="#14263d" style={styles.resumeCard}>
+        <View lightColor="#edf1e5" darkColor="#14263d" style={styles.resumeCard}>
           <Text style={styles.resumeTitle}>
             {state.confirmed ? "Receipt photos ready" : "Receipt in progress"}
           </Text>
@@ -125,7 +125,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   eyebrow: {
-    color: "#2563eb",
+    color: "#315b49",
     fontSize: 13,
     fontWeight: "800",
     letterSpacing: 1.2,
@@ -160,7 +160,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: 18,
     borderRadius: 12,
-    backgroundColor: "#2563eb",
+    backgroundColor: "#315b49",
   },
   resumeButtonText: {
     fontSize: 15,
@@ -189,7 +189,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 20,
-    backgroundColor: "#2563eb",
+    backgroundColor: "#315b49",
   },
   primaryButtonText: {
     fontSize: 18,
@@ -198,7 +198,7 @@ const styles = StyleSheet.create({
   secondaryButton: {
     minHeight: 52,
     borderWidth: 1.5,
-    borderColor: "#94a3b8",
+    borderColor: "#a4ae9b",
     borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",

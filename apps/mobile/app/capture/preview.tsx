@@ -23,8 +23,16 @@ import { useReceiptCapture } from "@/lib/capture/receipt-capture-context";
 export default function ReceiptPreviewScreen() {
   const router = useRouter();
   const { height } = useWindowDimensions();
-  const { state, addPages, beginRetake, cancelRetake, confirmPages, replacePage } =
-    useReceiptCapture();
+  const {
+    state,
+    addPages,
+    beginRetake,
+    cancelRetake,
+    confirmPages,
+    replacePage,
+    removePage,
+    canEditPages,
+  } = useReceiptCapture();
   const [activeIndex, setActiveIndex] = useState(state.previewIndex);
   const [galleryBusy, setGalleryBusy] = useState(false);
   const [rotatingIndex, setRotatingIndex] = useState<number | null>(null);
@@ -32,8 +40,8 @@ export default function ReceiptPreviewScreen() {
     kind: "error" | "success";
     message: string;
   } | null>(null);
-  const backgroundColor = useThemeColor({ light: "#f6f8fb", dark: "#080b10" }, "background");
-  const selectedPageColor = useThemeColor({ light: "#eaf3ff", dark: "#14263d" }, "background");
+  const backgroundColor = useThemeColor({ light: "#f6f7f2", dark: "#080b10" }, "background");
+  const selectedPageColor = useThemeColor({ light: "#edf1e5", dark: "#14263d" }, "background");
 
   useEffect(() => {
     setActiveIndex(Math.min(state.previewIndex, Math.max(0, state.pages.length - 1)));
@@ -151,6 +159,22 @@ export default function ReceiptPreviewScreen() {
           <View style={styles.headerSpacer} />
         </View>
 
+        {canEditPages ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Remove page ${activeIndex + 1}`}
+            accessibilityHint="Removes this photo from the receipt before it is sent"
+            disabled={interactionBusy}
+            onPress={() => {
+              setRotationFeedback(null);
+              removePage(activeIndex);
+            }}
+            style={[styles.removePageButton, interactionBusy && styles.disabled]}
+          >
+            <Text style={styles.removePageText}>× Remove page</Text>
+          </Pressable>
+        ) : null}
+
         <View
           style={[styles.previewPanel, { height: Math.max(360, Math.min(520, height * 0.48)) }]}
         >
@@ -259,7 +283,7 @@ export default function ReceiptPreviewScreen() {
           >
             {rotationBusy ? (
               <View style={styles.buttonContent}>
-                <ActivityIndicator color="#2563eb" />
+                <ActivityIndicator color="#315b49" />
                 <Text accessibilityLiveRegion="polite" style={styles.rotateButtonText}>
                   Rotating page {Number(rotatingIndex) + 1}…
                 </Text>
@@ -295,7 +319,7 @@ export default function ReceiptPreviewScreen() {
           </Pressable>
 
           {atPageCap ? (
-            <View lightColor="#edf2f7" darkColor="#1f2937" style={styles.capNotice}>
+            <View lightColor="#edf1e5" darkColor="#1f2937" style={styles.capNotice}>
               <Text style={styles.capNoticeText}>
                 {MAX_RECEIPT_PAGES}-page limit reached. Retake any page that needs replacing.
               </Text>
@@ -361,10 +385,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderRadius: 24,
-    backgroundColor: "#e8eef7",
+    backgroundColor: "#edf1e5",
   },
   backButtonText: {
-    color: "#13233a",
+    color: "#253c35",
     fontSize: 38,
     lineHeight: 40,
   },
@@ -379,7 +403,7 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
   subtitle: {
-    color: "#64748b",
+    color: "#737d70",
     fontSize: 14,
   },
   headerSpacer: {
@@ -389,6 +413,18 @@ const styles = StyleSheet.create({
   previewPanel: {
     backgroundColor: "transparent",
   },
+  removePageButton: {
+    alignSelf: "flex-end",
+    minHeight: 44,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    justifyContent: "center",
+    backgroundColor: "#fffefb",
+    borderColor: "#ded7ce",
+    borderWidth: 1,
+    elevation: 3,
+  },
+  removePageText: { color: "#a43d35", fontSize: 14, fontWeight: "700" },
   qualityCard: {
     gap: 9,
     borderRadius: 14,
@@ -454,13 +490,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   thumbnailButtonSelected: {
-    borderColor: "#2563eb",
+    borderColor: "#315b49",
   },
   thumbnail: {
     width: 66,
     height: 72,
     borderRadius: 8,
-    backgroundColor: "#cbd5e1",
+    backgroundColor: "#d8dfd1",
   },
   thumbnailLabel: {
     fontSize: 12,
@@ -476,7 +512,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     borderRadius: 14,
     borderWidth: 1.5,
-    borderColor: "#2563eb",
+    borderColor: "#315b49",
     paddingHorizontal: 18,
   },
   buttonContent: {
@@ -486,7 +522,7 @@ const styles = StyleSheet.create({
     backgroundColor: "transparent",
   },
   rotateButtonText: {
-    color: "#2563eb",
+    color: "#315b49",
     fontSize: 16,
     fontWeight: "800",
   },
@@ -525,11 +561,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderRadius: 14,
-    backgroundColor: "#e8eef7",
+    backgroundColor: "#edf1e5",
     paddingHorizontal: 12,
   },
   addButtonText: {
-    color: "#13233a",
+    color: "#253c35",
     fontSize: 15,
     fontWeight: "800",
     textAlign: "center",
@@ -541,7 +577,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     borderRadius: 14,
     borderWidth: 1.5,
-    borderColor: "#94a3b8",
+    borderColor: "#a4ae9b",
     paddingHorizontal: 12,
   },
   galleryButtonText: {
@@ -554,7 +590,7 @@ const styles = StyleSheet.create({
     padding: 14,
   },
   capNoticeText: {
-    color: "#475569",
+    color: "#737d70",
     fontSize: 14,
     lineHeight: 20,
     textAlign: "center",
@@ -565,7 +601,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     borderRadius: 16,
     paddingHorizontal: 18,
-    backgroundColor: "#2563eb",
+    backgroundColor: "#315b49",
   },
   useButtonText: {
     fontSize: 18,
