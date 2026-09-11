@@ -1,4 +1,5 @@
 import { EMPTY_REVIEW, type ReviewDraft } from "@svl/domain";
+import { housecallCatalogJobIsStale } from "@/lib/housecall/catalog-policy";
 import type { ExportStep, ManagerJob } from "./review-contract";
 
 type Row = Record<string, unknown>;
@@ -52,6 +53,13 @@ export function managerJob(row: Row): ManagerJob {
       : [],
     active: row.active !== false,
     source: textValue(row.source) || null,
+    unavailable: row.unavailable === true,
+    ...(row.source === "housecall"
+      ? {
+          syncedAt: textValue(row.synced_at) || null,
+          stale: housecallCatalogJobIsStale(row),
+        }
+      : {}),
     ...(typeof row.score === "number" ? { score: row.score } : {}),
     ...(Array.isArray(row.reasons) ? { reasons: row.reasons } : {}),
     ...(typeof row.source_index === "number" ? { sourceIndex: row.source_index } : {}),
@@ -96,6 +104,38 @@ export function buildSteps(
       retryQueued: commands.some(
         (c) =>
           c.attempt_id === latest?.id && ["pending", "processing"].includes(textValue(c.status)),
+      ),
+    };
+  });
+}
+/** Current steps have a separate immutable identity for every page and material line. */
+export function buildFrozenSteps(
+  intentId: string,
+  steps: Row[],
+  attempts: Row[],
+  commands: Row[],
+): ExportStep[] {
+  return steps.map((step) => {
+    const latest = attempts.find((attempt) => attempt.export_step_id === step.id);
+    const payload = step.payload as Row | null;
+    const image = payload?.image as Row | undefined;
+    return {
+      id: textValue(latest?.id) || textValue(step.id),
+      exportStepId: textValue(step.id),
+      intentId,
+      jobId: textValue(step.housecall_job_id),
+      lineId: textValue(step.receipt_line_id) || null,
+      pageId: textValue(step.receipt_page_id) || null,
+      ...(typeof image?.page_index === "number" ? { pageIndex: image.page_index } : {}),
+      step: textValue(step.step),
+      status: textValue(step.status),
+      externalId: textValue(step.external_id) || null,
+      error: textValue(step.last_error) || null,
+      createdAt: textValue(latest?.created_at ?? step.updated_at) || null,
+      retryQueued: commands.some(
+        (command) =>
+          command.attempt_id === latest?.id &&
+          ["pending", "processing"].includes(textValue(command.status)),
       ),
     };
   });

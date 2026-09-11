@@ -1,0 +1,19 @@
+Use case: text-localization / synthetic QA receipt fixture. Edit the supplied reference photograph into ONE realistic clearly synthetic receipt photograph. Preserve only its narrow warm yellow paper ticket aesthetic, green preprinted form lines, mild folds and overhead tabletop perspective. Replace the entire document contents. Remove ALL original logos, names, contacts, URLs, addresses, ticket numbers, dates, signatures, payment instructions and marks. Remove all surrounding papers and background documents; only a plain dark tabletop surrounds this one ticket. No hands.
+
+This is an internal software test receipt. At the very top, prominently print the exact banner "SYNTHETIC — RA6 TEST". Under it print the vendor exactly "RA6 Test Yard Supplier" and a modest "Material receipt" heading. Use green printed labels and realistic but clearly legible blue ballpoint handwriting for the receipt-specific values.
+
+Use ONLY these exact document values:
+Ticket ID: RA6-SYN-SANDMAN-003
+Date: 2026-09-03
+Job: RA6 Test Customer 2
+
+A green-lined item table with these columns: Qty | UOM | Description | Unit cost | Amount.
+Exactly ONE item row:
+2 | yd3 | SYNTHETIC TEST dark mulch | $40.00 | $80.00
+The description may wrap within its cell but all text must be readable and exact. Keep handwriting natural, not distorted or too faint.
+At the bottom write the exact totals:
+Subtotal $80.00
+Tax $0.00
+Total $80.00
+Print a small bottom note "Synthetic test data — zero tax chosen for this fixture." and "SYNTHETIC — RA6 TEST".
+No other customer, company, date, financial amount, document identifier or material line. Do not draw a signature or barcode. Frame the whole page, all edges visible, at high resolution in portrait orientation. Keep the photo realistic with slight paper texture and soft lighting, but ensure every field and digit is clear.

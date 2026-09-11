@@ -1,0 +1,24 @@
+Use case: photorealistic-natural
+Asset type: synthetic receipt photo for local RA-6 receipt extraction and safe export tests, page 2 of a two-page receipt.
+Input images: Image 1 is a STYLE AND DOCUMENT-TEMPLATE REFERENCE, the already generated synthetic page 1. Generate its matching page 2 as a separate new photograph; do not repeat page 1's line item.
+Primary request: Produce a realistic smartphone photograph of the matching second white paper receipt page on the same light gray tabletop. Preserve the reference's simple black typography, large black SYNTHETIC banner, bold supplier header, fine paper texture, soft daylight, nearly overhead portrait framing, complete page edges, and readable table style. This is expressly a synthetic test document, not a real receipt.
+Exact printed text (verbatim):
+SYNTHETIC — RA6 TEST
+RA6 Test Precision Supplier
+FICTIONAL TEST BUSINESS
+Receipt: RA6-SYN-ROUNDING-005
+Date: 09/05/2026
+Page 2 of 2
+
+Item description | Job / Customer | Qty | Unit | Unit cost | Line total
+SYNTHETIC TEST fractional material B | RA6 Test Customer 3 | 10.125 | gal | $3.80 | $38.48
+
+Page subtotal: $38.48
+Receipt subtotal: $39.49
+Tax: $0.00
+Receipt total: $39.49
+
+SYNTHETIC — RA6 TEST
+Page 2 of 2
+
+Constraints: Exactly ONE line item on page 2, the B material for Customer 3. The quantity must be exactly 10.125, unit cost exactly $3.80, and line total exactly $38.48 (half-up cent rounding of 38.475). The receipt subtotal and receipt total are the complete TWO-PAGE total $39.49, not this page's subtotal $38.48. Do not include material A, Customer 2, 1.005, $1.00, or a second line item. Preserve the invoice identifier RA6-SYN-ROUNDING-005 and date 09/05/2026 exactly. All text sharply legible. Page 2 of 2 must appear clearly in the footer. No signatures, logos, contact details, websites, payment links, bank details, QR codes, barcodes, unrelated documents, or real businesses or people.

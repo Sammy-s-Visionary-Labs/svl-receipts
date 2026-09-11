@@ -20,6 +20,10 @@ export async function GET(request: Request, context: RouteContext) {
       "GET /api/receipts/[id]/image",
       id,
     );
+    const pageParams = new URL(request.url).searchParams.getAll("page");
+    const page = pageParams[0] ?? "0";
+    if (pageParams.length > 1 || !/^[0-4]$/.test(page))
+      throw new HttpError(400, "invalid_request", "Choose a valid receipt page");
 
     const { data, error } = await supabase
       .from("receipts")
@@ -41,7 +45,19 @@ export async function GET(request: Request, context: RouteContext) {
       throw new HttpError(404, "not_found", "Receipt image is not available");
     }
 
-    const url = await createReceiptReadUrl(row.storage_key);
+    let storageKey = row.storage_key;
+    if (page !== "0") {
+      const { data: receiptPage, error: pageError } = await supabase
+        .from("receipt_pages")
+        .select("storage_key,confirmed_at")
+        .eq("receipt_id", id)
+        .eq("page_index", Number(page))
+        .maybeSingle();
+      if (pageError || !receiptPage?.storage_key || !receiptPage.confirmed_at)
+        throw new HttpError(404, "not_found", "Receipt page is not available");
+      storageKey = receiptPage.storage_key;
+    }
+    const url = await createReceiptReadUrl(storageKey);
     const expiresAt = new Date(Date.now() + SIGNED_READ_TTL_SECONDS * 1000).toISOString();
     console.info("[receipt-image-access]", { userId: actor.userId, receiptId: id });
     return Response.json({ url, expiresAt }, { headers: { "cache-control": "private, no-store" } });

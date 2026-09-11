@@ -23,8 +23,16 @@ export default function ProfileScreen() {
     <View style={styles.container}>
       <Text style={styles.title}>Profile</Text>
       {session?.user.email ? <Text>{session.user.email}</Text> : null}
-      <Button title={supportEmail ? "Email support" : "Get help"} onPress={onHelp} />
-      <Button title="Sign out" onPress={() => void confirmAndSignOut(() => signOut())} />
+      <Button
+        color="#315b49"
+        title={supportEmail ? "Email support" : "Get help"}
+        onPress={onHelp}
+      />
+      <Button
+        color="#315b49"
+        title="Sign out"
+        onPress={() => void confirmAndSignOut(() => signOut())}
+      />
     </View>
   );
 }

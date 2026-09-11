@@ -71,6 +71,9 @@ export function validateReview(draft: ReviewDraft, approval = false): ReviewErro
       (decimalUnits(line.qty, 3) === null || (decimalUnits(line.qty, 3) ?? 0) <= 0)
     )
       errors[`${key}.qty`] = "Use a positive quantity with up to three decimal places.";
+    if (approval && !errors[`${key}.qty`] && decimalUnits(line.qty, 2) === null)
+      errors[`${key}.qty`] =
+        "Housecall supports at most two decimal places. Keep this receipt in review until the quantity is resolved; it will not be rounded.";
     if (
       (approval || line.unitCost) &&
       (decimalUnits(line.unitCost, 2) === null ||

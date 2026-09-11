@@ -14,7 +14,7 @@ export default function ReceiptDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const requestGenerationRef = useRef(0);
-  const backgroundColor = useThemeColor({ light: "#f6f8fb", dark: "#080b10" }, "background");
+  const backgroundColor = useThemeColor({ light: "#f6f7f2", dark: "#080b10" }, "background");
 
   const loadDetail = useCallback(async () => {
     const accessToken = session?.access_token;
@@ -60,7 +60,7 @@ export default function ReceiptDetailScreen() {
           darkColor="#121821"
           style={styles.centerCard}
         >
-          <ActivityIndicator color="#2563eb" />
+          <ActivityIndicator color="#315b49" />
           <Text style={styles.body}>Loading receipt details…</Text>
         </View>
       ) : errorMessage || !detail ? (
@@ -83,7 +83,7 @@ export default function ReceiptDetailScreen() {
               Receipt •••{receiptSuffix(detail.id)}
             </Text>
             <Text style={styles.timestamp}>{formatReceiptDate(detail.submittedAt)}</Text>
-            <View lightColor="#dbeafe" darkColor="#172554" style={styles.statusChip}>
+            <View lightColor="#e3e8ca" darkColor="#172554" style={styles.statusChip}>
               <Text style={styles.statusText}>{WORKER_FACING_LABELS[detail.workerStatus]}</Text>
             </View>
             <Text style={styles.readOnlyNote}>Read-only submission record</Text>
@@ -177,14 +177,14 @@ const styles = StyleSheet.create({
     paddingVertical: 7,
   },
   statusText: { color: "#172554", fontSize: 13, fontWeight: "800" },
-  pageImage: { width: "100%", height: 430, borderRadius: 10, backgroundColor: "#e2e8f0" },
+  pageImage: { width: "100%", height: 430, borderRadius: 10, backgroundColor: "#e6e8e0" },
   secondaryButton: {
     minHeight: 46,
     minWidth: 150,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1.5,
-    borderColor: "#94a3b8",
+    borderColor: "#a4ae9b",
     borderRadius: 12,
   },
   secondaryButtonText: { fontSize: 15, fontWeight: "700" },

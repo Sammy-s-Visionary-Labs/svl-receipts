@@ -1,0 +1,45 @@
+{
+  "generationMode": "built-in image_gen.imagegen",
+  "reviewType": "visual comparison with fixtures/ra6/manifest.json",
+  "applicationOcrExecuted": false,
+  "housecallRequestsMade": false,
+  "images": [
+    {
+      "id": "sandman-handwritten",
+      "source": "/Users/kinghill/Downloads/PXL_20260723_182035167.jpg",
+      "toolOutput": "/Users/kinghill/.codex/generated_images/01a08726-03ed-77b2-a3d8-6448ce982e0d/exec-db64ffdf-dba5-4e6f-89fd-a3f020088f23.png",
+      "output": "fixtures/ra6/images/sandman-handwritten.png",
+      "prompt": "fixtures/ra6/prompts/sandman-handwritten.txt",
+      "sha256": "b5bba84b9d2b2288368d5c478744e7b36a99e5046af78b07471d10d92c2f6f82",
+      "width": 1088,
+      "height": 1445,
+      "visualReview": "pass",
+      "notes": [
+        "Clearly marked SYNTHETIC — RA6 TEST at top and bottom.",
+        "Exact synthetic vendor, document ID, 2026-09-03 date and RA6 Test Customer 2 job label.",
+        "One handwritten line: SYNTHETIC TEST dark mulch; quantity 2 yd3; $40.00 unit cost; $80.00 extended cost.",
+        "Subtotal $80.00; tax $0.00; total $80.00; note explicitly says zero tax chosen for fixture.",
+        "Original real business data, signatures, contacts and surrounding documents removed."
+      ]
+    },
+    {
+      "id": "sandman-shop-and-missing-job",
+      "source": "/Users/kinghill/Downloads/PXL_20260723_182024923.jpg",
+      "toolOutput": "/Users/kinghill/.codex/generated_images/01a08726-03ed-77b2-a3d8-6448ce982e0d/exec-d77b9ad8-f1c8-454b-9d31-9bb2cbc699a3.png",
+      "output": "fixtures/ra6/images/sandman-shop-and-missing-job.png",
+      "prompt": "fixtures/ra6/prompts/sandman-shop-and-missing-job.txt",
+      "sha256": "fa7a7d6f1892f402fda7d6e7d05e767041c8872608c303bdf9561d03afe0a9ec",
+      "width": 1088,
+      "height": 1445,
+      "visualReview": "pass",
+      "notes": [
+        "Clearly marked SYNTHETIC — RA6 TEST at top and bottom.",
+        "Exact synthetic vendor, document ID and 2026-09-04 date; no overall customer header.",
+        "Six printed rows match manifest descriptions, quantities, units, unit costs and amounts.",
+        "First row job hint cell is blank. Rows 2/3 show RA6 Test Customer 2; row 4 shows RA6 Test Customer 3; rows 5/6 show Shop.",
+        "Subtotal and total $1,321.00; tax $0.00; note explicitly says zero tax chosen for fixture.",
+        "Original real business data, signatures, contacts, payment instructions and surrounding documents removed."
+      ]
+    }
+  ]
+}

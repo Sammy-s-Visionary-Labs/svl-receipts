@@ -6,6 +6,7 @@ import { Icon } from "../manager/icons";
 import styles from "../manager/manager.module.css";
 import { ManagerShell } from "../manager/shell";
 import { CategorySettings } from "./categories";
+import { HousecallSettings } from "./housecall";
 
 export const dynamic = "force-dynamic";
 
@@ -47,6 +48,7 @@ export default async function SettingsPage() {
           </Link>
         </section>
         <CategorySettings />
+        <HousecallSettings />
       </main>
     </ManagerShell>
   );

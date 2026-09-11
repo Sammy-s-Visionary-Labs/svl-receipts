@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { readIntelligenceConfig } from "./intelligence";
 
 describe("controlled intelligence configuration", () => {
@@ -111,7 +111,16 @@ describe("extraction enrichment against the saved catalog", () => {
     confidence: {},
     warnings: [],
   };
-  function client(deleted = false) {
+  const defaultCatalog = [
+    {
+      id: "ra5-test-job-sullivan",
+      label: "Sullivan",
+      job_number: "TEST-1042",
+      active: true,
+    },
+    { id: "ra5-test-job-oak", label: "Oak", job_number: "TEST-2048", active: true },
+  ];
+  function client(deleted = false, catalogRows: Record<string, unknown>[] = defaultCatalog) {
     const rpc = vi.fn(async () => ({
       data: [
         {
@@ -131,28 +140,36 @@ describe("extraction enrichment against the saved catalog", () => {
       ],
       error: null,
     }));
+    const selections: { table: string; columns: string }[] = [];
     const from = vi.fn((table: string) => {
       const data =
         table === "receipt_categories"
           ? [{ id: "materials", label: "Materials", active: true, keywords: ["pipe"], version: 1 }]
-          : [
-              {
-                id: "ra5-test-job-sullivan",
-                label: "Sullivan",
-                job_number: "TEST-1042",
-                active: true,
-              },
-              { id: "ra5-test-job-oak", label: "Oak", job_number: "TEST-2048", active: true },
-            ];
+          : catalogRows;
       const chain: Record<string, unknown> = {};
-      for (const method of ["select", "order", "limit", "range"])
-        chain[method] = vi.fn(() => chain);
+      let start = 0;
+      let end = 999;
+      chain.select = vi.fn((columns: string) => {
+        selections.push({ table, columns });
+        return chain;
+      });
+      chain.range = vi.fn((from: number, to: number) => {
+        start = from;
+        end = to;
+        return chain;
+      });
+      for (const method of ["order", "limit"]) chain[method] = vi.fn(() => chain);
       // biome-ignore lint/suspicious/noThenProperty: Supabase query builders are awaitable.
-      chain.then = (resolve: (v: unknown) => void) => resolve({ data, error: null });
+      chain.then = (resolve: (v: unknown) => void) =>
+        resolve({ data: data.slice(start, end + 1), error: null });
       return chain;
     });
-    return { supabase: { rpc, from } as unknown as SupabaseClient, rpc, from };
+    return { supabase: { rpc, from } as unknown as SupabaseClient, rpc, from, selections };
   }
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
   it("maps only catalog IDs and preserves sparse line source indices in the atomic payload", async () => {
     const { supabase, rpc } = client();
     const result = await buildReceiptIntelligence(supabase, "receipt", receipt);
@@ -176,5 +193,95 @@ describe("extraction enrichment against the saved catalog", () => {
     await expect(
       buildReceiptIntelligence(client(true).supabase, "receipt", receipt),
     ).rejects.toThrow("receipt_content_unavailable");
+  });
+  const now = Date.parse("2026-09-09T16:00:00.000Z");
+  const staleMs = 26 * 60 * 60 * 1000;
+  const matchingJob = {
+    id: "job_exact_saved_hcp_id",
+    label: "Test job",
+    job_number: "TEST-1042",
+    customer: "RA6 Test Customer 2",
+    active: true,
+    source: "housecall",
+    unavailable: false,
+    synced_at: new Date(now).toISOString(),
+  };
+  it.each([
+    { unavailable: true },
+    { source: "manual", unavailable: true },
+    { synced_at: null },
+    { synced_at: "invalid timestamp" },
+    { synced_at: new Date(now - staleMs - 1).toISOString() },
+    { synced_at: new Date(now + 60_001).toISOString() },
+  ])("excludes unusable catalog rows before any receipt or line suggestion: %j", async (extra) => {
+    vi.spyOn(Date, "now").mockReturnValue(now);
+    const fetch = vi.fn(() => {
+      throw new Error("No provider requests are allowed during saved-catalog enrichment");
+    });
+    vi.stubGlobal("fetch", fetch);
+    const db = client(false, [
+      { ...matchingJob, ...extra },
+      { ...matchingJob, id: "job_line_reference", job_number: "TEST-2048", ...extra },
+    ]);
+    const result = await buildReceiptIntelligence(db.supabase, "receipt", receipt);
+    expect(result.jobCandidates).toEqual([]);
+    expect(fetch).not.toHaveBeenCalled();
+    const columns = db.selections.find((entry) => entry.table === "manager_job_catalog")?.columns;
+    expect(columns?.split(",")).toEqual(
+      expect.arrayContaining(["source", "synced_at", "unavailable"]),
+    );
+  });
+  it("preserves fresh exact IDs and legacy/manual catalog matches at the freshness boundary", async () => {
+    vi.spyOn(Date, "now").mockReturnValue(now);
+    const rows = [
+      { ...matchingJob, id: "job_fresh" },
+      { ...matchingJob, id: "job_boundary", synced_at: new Date(now - staleMs).toISOString() },
+      { ...matchingJob, id: "job_manual", source: "manual", synced_at: null },
+      { ...matchingJob, id: "job_legacy", source: undefined, synced_at: undefined },
+    ];
+    const result = await buildReceiptIntelligence(client(false, rows).supabase, "receipt", receipt);
+    const ids = result.jobCandidates
+      .filter((candidate) => candidate.sourceIndex === undefined)
+      .map((candidate) => candidate.jobId);
+    expect(ids.sort()).toEqual(rows.map((row) => row.id).sort());
+  });
+  it("keeps a fresh completed old job when its customer is explicitly named", async () => {
+    vi.spyOn(Date, "now").mockReturnValue(now);
+    const old = {
+      ...matchingJob,
+      active: false,
+      status: "complete",
+      scheduled_at: "2025-01-01T12:00:00Z",
+    };
+    const parsed = {
+      ...receipt,
+      job_hints: [{ text: "RA6 Test Customer 2", page_index: 0 }],
+      lines: [],
+    };
+    const result = await buildReceiptIntelligence(client(false, [old]).supabase, "receipt", parsed);
+    expect(result.jobCandidates).toEqual([
+      expect.objectContaining({
+        jobId: matchingJob.id,
+        reasons: expect.arrayContaining([expect.objectContaining({ code: "customer_name" })]),
+      }),
+    ]);
+  });
+  it("continues catalog pagination when an entire page is filtered out", async () => {
+    vi.spyOn(Date, "now").mockReturnValue(now);
+    const rows = [
+      ...Array.from({ length: 1000 }, (_, index) => ({
+        ...matchingJob,
+        id: `unavailable_${index}`,
+        unavailable: true,
+      })),
+      matchingJob,
+    ];
+    const db = client(false, rows);
+    const result = await buildReceiptIntelligence(db.supabase, "receipt", receipt);
+    expect(result.jobCandidates.map((candidate) => candidate.jobId)).toContain(matchingJob.id);
+    expect(
+      result.jobCandidates.some((candidate) => candidate.jobId.startsWith("unavailable_")),
+    ).toBe(false);
+    expect(db.selections.filter((entry) => entry.table === "manager_job_catalog")).toHaveLength(2);
   });
 });

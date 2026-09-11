@@ -6,6 +6,9 @@ node_modules/
 .env.*
 !.env.example
 
+# Private RA-6 account observations; never a live-write authorization.
+.local/ra6/
+
 # Builds / caches
 dist/
 build/
@@ -44,3 +47,4 @@ web-build/
 # Supabase CLI state (config.toml and migrations stay committed)
 supabase/.branches/
 supabase/.temp/
+.vercel

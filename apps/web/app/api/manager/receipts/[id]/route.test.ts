@@ -32,6 +32,7 @@ beforeEach(() => {
     housecall_outbox: null,
     manager_recovery_commands: [],
     receipt_lines: [],
+    manager_job_catalog: [],
   };
   from = vi.fn((table: string) => {
     const result = () => ({ data: rows[table], error: null });
@@ -54,6 +55,165 @@ beforeEach(() => {
   } as never);
 });
 describe("manager receipt detail API", () => {
+  function freshMatchedExtraction() {
+    rows.extractions = [
+      {
+        id: "e",
+        work_item_id: "work",
+        vendor: "Supply",
+        purchase_date: "2026-07-10",
+        lines: [{ source_index: 0, description: "Stone", qty: 2, unit_cost_cents: 4000 }],
+        normalized: { job_hints: [{ text: "Purshottam" }], confidence: { "job_hints.0": 0.95 } },
+      },
+    ];
+    rows.receipt_lines = [
+      { id: "generated", description: "Stone", qty: 2, unit_cost_cents: 4000, job_id: null },
+    ];
+    rows.job_candidates = [
+      {
+        id: "candidate",
+        extraction_id: "e",
+        housecall_job_id: "singh",
+        score: 42,
+        scoring_version: "ra5-rules-v2:g100:k10:m8",
+        source_index: null,
+        reasons: [{ code: "similar_customer", message: "Name match", evidence: ["Purshottam"] }],
+      },
+    ];
+    rows.manager_job_catalog = [
+      {
+        id: "singh",
+        label: "Purshottam Singh #1990",
+        customer: "Purshottam Singh",
+        source: "housecall",
+        active: true,
+        unavailable: false,
+        synced_at: new Date().toISOString(),
+      },
+    ];
+  }
+  it("fills an untouched extracted draft even when generated material projections exist, using read-only calls", async () => {
+    freshMatchedExtraction();
+    const response = await run();
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.draft).toMatchObject({ purchaseDate: "2026-07-10", lines: [{ jobId: "singh" }] });
+    expect(body.original.lines[0].jobId).toBe("");
+    expect(body.automaticJobAssignments[0].jobId).toBe("singh");
+    expect(rpc.mock.calls.map(([name]) => name)).toEqual([
+      "manager_legacy_review_edits",
+      "manager_receipt_timeline",
+    ]);
+  });
+  it.each(["saved", "legacy", "historical"])(
+    "does not autofill over %s manager decisions",
+    async (kind) => {
+      freshMatchedExtraction();
+      if (kind === "saved") {
+        rows.reviews = [
+          { snapshot: { vendor: "Supply", lines: [{ jobId: "" }] }, extraction_id: "e" },
+        ];
+        rows.receipts = { ...(rows.receipts as object), review_version: 1 };
+      } else if (kind === "legacy") {
+        rpc.mockImplementation(async (name) => ({
+          data: name === "manager_legacy_review_edits" ? { vendor: "Edited" } : [],
+          error: null,
+        }));
+      } else rows.receipts = { ...(rows.receipts as object), status: "exported" };
+      const body = await (await run()).json();
+      expect(body.draft.lines[0].jobId).toBe("");
+      expect(body.automaticJobAssignments).toBeUndefined();
+    },
+  );
+  it("hydrates historical suggestions and saved assignments using current exact catalog IDs", async () => {
+    rows.reviews = [{ snapshot: { vendor: "Saved", lines: [{ jobId: "saved-only" }] } }];
+    rows.job_candidates = [
+      {
+        id: "suggestion",
+        housecall_job_id: "job",
+        label: "Old label",
+        source: "receipt_intelligence",
+        score: 999,
+      },
+    ];
+    rows.manager_job_catalog = [
+      {
+        id: "job",
+        label: "Current label",
+        source: "housecall",
+        active: false,
+        unavailable: true,
+        synced_at: "2020-01-01T00:00:00Z",
+        customer: "Current customer",
+      },
+      {
+        id: "saved-only",
+        label: "Saved job",
+        source: "housecall",
+        active: true,
+        synced_at: new Date().toISOString(),
+      },
+    ];
+    const body = await (await run()).json();
+    expect(body.suggestions[0]).toMatchObject({
+      id: "job",
+      label: "Current label",
+      suggestionId: "suggestion",
+      score: 999,
+      active: false,
+      unavailable: true,
+      stale: true,
+      customer: "Current customer",
+    });
+    expect(body.assignedJobs).toHaveLength(1);
+    expect(body.assignedJobs[0]).toMatchObject({ id: "saved-only", stale: false });
+  });
+  it("shows each frozen page separately instead of reusing one successful attachment for the job", async () => {
+    rows.housecall_outbox = { intent_id: "current-intent", status: "pending" };
+    rows.housecall_intents = {
+      id: "current-intent",
+      payload_hash: "a".repeat(64),
+      attachment_job_ids: ["job"],
+      job_cost_lines: [],
+    };
+    rows.housecall_export_steps = [
+      {
+        id: "step-0",
+        housecall_job_id: "job",
+        step: "attachment",
+        receipt_page_id: "page-0",
+        status: "succeeded",
+        external_id: "external-page-0",
+        payload: { image: { page_index: 0, storage_key: "private-object-0" } },
+      },
+      {
+        id: "step-1",
+        housecall_job_id: "job",
+        step: "attachment",
+        receipt_page_id: "page-1",
+        status: "reconcile_required",
+        payload: { image: { page_index: 1, storage_key: "private-object-1" } },
+      },
+    ];
+    rows.housecall_links = [
+      { housecall_job_id: "job", step: "attachment", external_id: "legacy-image" },
+    ];
+    const response = await run();
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.steps).toHaveLength(2);
+    expect(body.steps[0]).toMatchObject({
+      pageIndex: 0,
+      status: "succeeded",
+      externalId: "external-page-0",
+    });
+    expect(body.steps[1]).toMatchObject({
+      pageIndex: 1,
+      status: "reconcile_required",
+      externalId: null,
+    });
+    expect(JSON.stringify(body)).not.toMatch(/private-object|legacy-image/);
+  });
   it("uses authenticated reads and excludes storage/provider payloads", async () => {
     const res = await run();
     expect(res.status).toBe(200);

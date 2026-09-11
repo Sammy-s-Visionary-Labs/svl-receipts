@@ -1,0 +1,6 @@
+Use case: text-localization. Make a synthetic supplier invoice photograph for software QA based on this reference layout. Keep single white paper, invoice table, natural shadow and slight perspective on dark tabletop. Remove all surrounding documents and every original real name, address,contact,signature,logo,payment link,barcode and reference identifier. Do not reproduce real business identifiers.
+Prominent exact header "SYNTHETIC — RA6 TEST". Fictional supplier "RA6 Test Landscape Supplier". Title "INVOICE". Bill to and ship to: "RA6 Test Business". Invoice no "RA6-SYN-KLUMM-002", invoice date "09/02/2026". Page "1 of 1".
+Exactly two material lines, with a separate Job reference column or clearly readable line description references:
+1: Description "SYNTHETIC TEST recycled aggregate"; Job "RA6 Test Customer 4"; Qty "6"; Unit "ton"; Rate "$16.50"; Amount "$99.00".
+2: Description "SYNTHETIC TEST dirt disposal fee"; Job "RA6 Test Customer 2"; Qty "1"; Unit "ea"; Rate "$45.00"; Amount "$45.00".
+Footer: "Subtotal $144.00", "Tax $0.00", "Total $144.00". No additional product lines or totals, no payment or paid/unpaid status. Use spacious black printed typography fully readable, mildly weathered paper texture. All paper edges visible in portrait photo. Exact text and arithmetic are critical.

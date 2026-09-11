@@ -15,6 +15,9 @@ export type ManagerJob = {
   scheduledAt: string | null;
   technicians: string[];
   source: string | null;
+  syncedAt?: string | null;
+  stale?: boolean;
+  unavailable?: boolean;
   suggestionId?: string;
   active: boolean;
   score?: number;
@@ -37,6 +40,9 @@ export type ExportStep = {
   intentId: string;
   jobId: string;
   lineId: string | null;
+  exportStepId?: string;
+  pageId?: string | null;
+  pageIndex?: number;
   step: string;
   status: string;
   externalId: string | null;
@@ -45,6 +51,7 @@ export type ExportStep = {
   retryQueued: boolean;
 };
 export type ReceiptDetail = {
+  automaticJobAssignments?: import("./job-autofill").AutomaticJobAssignment[];
   id: string;
   status: string;
   submittedAt: string;
@@ -57,11 +64,13 @@ export type ReceiptDetail = {
   confidence: Record<string, number>;
   gps: { lat: number; lng: number } | null;
   pageCount: number;
+  automaticExport?: boolean;
   editable: boolean;
   steps: ExportStep[];
   events: ReviewEvent[];
   nextEventCursor: string | null;
   suggestions: ManagerJob[];
+  assignedJobs?: ManagerJob[];
   correctionPending: boolean;
   clarification: string | null;
   canonicalReceiptId: string | null;

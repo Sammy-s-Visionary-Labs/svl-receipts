@@ -467,6 +467,18 @@ test("receipt summaries open by keyboard, contain evidence, and remain read only
     await expect(dialog).toContainText(evidence);
   await expect(dialog.getByRole("textbox")).toHaveCount(0);
   await expect(dialog.getByRole("button", { name: /approve|send|save|decline/i })).toHaveCount(0);
+  const review = dialog.getByRole("link", { name: "Open full receipt review" });
+  await page.mouse.move(0, 0);
+  await expect(review).toBeVisible();
+  const appearance = await review.evaluate((element) => ({
+    background: getComputedStyle(element).backgroundColor,
+    color: getComputedStyle(element).color,
+    height: element.getBoundingClientRect().height,
+  }));
+  expect(appearance.background).not.toBe("rgba(0, 0, 0, 0)");
+  expect(appearance.color).not.toBe(appearance.background);
+  expect(appearance.height).toBeGreaterThanOrEqual(44);
+  await page.screenshot({ path: test.info().outputPath("summary-review-button.png") });
   await page.keyboard.press("Escape");
   await expect(dialog).not.toBeVisible();
   await expect(opener).toBeFocused();

@@ -8,6 +8,9 @@ import { expect, test } from "vitest";
 // Opt-in only. Receipt images are synthetic; credentials never enter reports.
 const enabled = process.env.RA5_LIVE_GEMINI === "1";
 const root = resolve("fixtures/ra5");
+const resultsPath = process.env.RA5_GEMINI_RESULTS_FILE
+  ? resolve(process.env.RA5_GEMINI_RESULTS_FILE)
+  : resolve(root, "evaluation", "gemini-results.json");
 type Expected = {
   vendorIncludes: string;
   identifier?: string;
@@ -21,7 +24,7 @@ const manifest = JSON.parse(await readFile(resolve(root, "manifest.json"), "utf8
 };
 const selection = process.env.RA5_FIXTURE_IDS?.split(",");
 const fixtures = manifest.fixtures.filter((f) => !selection || selection.includes(f.id));
-const previous = await readFile(resolve(root, "evaluation", "gemini-results.json"), "utf8")
+const previous = await readFile(resultsPath, "utf8")
   .then((text) => JSON.parse(text).results as Array<{ fixture: string }>)
   .catch(() => []);
 const results: unknown[] = previous.filter((row) => !fixtures.some((f) => f.id === row.fixture));
@@ -131,7 +134,7 @@ test.skipIf(!enabled).each(fixtures)("Gemini synthetic fixture: $id", async (fix
     report = { ...report, durationMs: Date.now() - started };
     results.push(report);
     await writeFile(
-      resolve(root, "evaluation", "gemini-results.json"),
+      resultsPath,
       `${JSON.stringify(
         {
           evaluatedAt: new Date().toISOString(),

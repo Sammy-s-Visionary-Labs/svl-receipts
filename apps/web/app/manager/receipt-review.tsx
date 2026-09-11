@@ -15,6 +15,7 @@ import type {
   ReviewEvent,
 } from "@/lib/manager/review-contract";
 import { ExtractionEvidence } from "./extraction-evidence";
+import { HousecallPreview } from "./housecall-preview";
 import { money } from "./queue-view";
 import styles from "./receipt-review.module.css";
 import { ManagerShell } from "./shell";
@@ -78,8 +79,10 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
   const [correction, setCorrection] = useState(false);
   const [jobs, setJobs] = useState<ManagerJob[]>([]);
   const [jobSearch, setJobSearch] = useState("");
-  const [olderJobs, setOlderJobs] = useState(false);
+  const [olderJobs, setOlderJobs] = useState(true);
   const [jobError, setJobError] = useState("");
+  const [refreshingJobs, setRefreshingJobs] = useState(false);
+  const [jobRefreshVersion, setJobRefreshVersion] = useState(0);
   const [events, setEvents] = useState<ReviewEvent[]>([]);
   const [eventCursor, setEventCursor] = useState<string | null>(null);
   const [eventBusy, setEventBusy] = useState(false);
@@ -148,6 +151,22 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
     return () => window.removeEventListener("beforeunload", before);
   }, [dirty]);
   useEffect(() => {
+    if (
+      !detail ||
+      !["approved", "exporting"].includes(detail.status) ||
+      dirty ||
+      correction ||
+      action ||
+      busy ||
+      loading
+    )
+      return;
+    const timer = setTimeout(() => {
+      void load();
+    }, 4000);
+    return () => clearTimeout(timer);
+  }, [detail, dirty, correction, action, busy, loading, load]);
+  useEffect(() => {
     if (action) {
       dialog.current?.showModal();
       setReason("");
@@ -166,6 +185,7 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
       pendingLineFocus.current = false;
     }
   }, [draft?.lines.length]);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: The explicit refresh version reloads the current search after a provider sync.
   useEffect(() => {
     const controller = new AbortController();
     const timer = setTimeout(async () => {
@@ -187,7 +207,33 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
       clearTimeout(timer);
       controller.abort();
     };
-  }, [jobSearch, olderJobs]);
+  }, [jobSearch, olderJobs, jobRefreshVersion]);
+  async function refreshJobs() {
+    if (refreshingJobs) return;
+    setRefreshingJobs(true);
+    setJobError("");
+    try {
+      const response = await fetch("/api/manager/jobs", { method: "POST" });
+      if (!response.ok) throw new Error();
+      const result = await response.json();
+      if (result.skipped) throw new Error();
+      const detailsResponse = await fetch(`/api/manager/receipts/${id}`, { cache: "no-store" });
+      if (!detailsResponse.ok) throw new Error();
+      const fresh: ReceiptDetail = await detailsResponse.json();
+      setDetail((current) =>
+        current
+          ? { ...current, assignedJobs: fresh.assignedJobs, suggestions: fresh.suggestions }
+          : current,
+      );
+      setJobRefreshVersion((value) => value + 1);
+    } catch {
+      setJobError(
+        "Jobs could not be refreshed. Your receipt edits are preserved; try again shortly.",
+      );
+    } finally {
+      setRefreshingJobs(false);
+    }
+  }
   async function intelligenceAction(path: string, payload?: Record<string, unknown>) {
     if (actionLock.current) return;
     actionLock.current = true;
@@ -241,6 +287,12 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
   function prepare(decision: string) {
     if (!draft) return;
     const next = validateReview(draft, decision === "approve");
+    if (decision === "approve")
+      draft.lines.forEach((line, index) => {
+        if (allJobs.find((job) => job.id === line.jobId)?.unavailable)
+          next[`lines.${index}.jobId`] =
+            "This Housecall job is unavailable. Choose an available job.";
+      });
     setErrors(next);
     if (Object.keys(next).length) {
       setError("Resolve the highlighted fields.");
@@ -286,7 +338,8 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
       if (!res.ok) {
         if (body.fields) setErrors(body.fields);
         throw new Error(
-          res.status === 409
+          res.status === 409 &&
+            !["test_export_scope", "test_export_budget"].includes(body.error?.code)
             ? "This receipt changed since you opened it. Your edits are preserved. Reload the latest receipt before saving again."
             : res.status === 401
               ? "Your session ended. Sign in again."
@@ -300,7 +353,9 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
           (decision === "save_draft"
             ? "Draft saved."
             : decision === "approve"
-              ? "Approved. Housecall export is queued."
+              ? body.exportAuthorized
+                ? "Receipt approved. Sending the receipt and material costs to the selected Housecall jobs. Check export status below for confirmation."
+                : "Receipt approved. Export is prepared; live Housecall writes require separate explicit approval."
               : decision === "request_clarification"
                 ? "Clarification recorded. Contact the worker using your agreed channel."
                 : "Decision recorded."),
@@ -313,7 +368,7 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
     }
   }
   function applyJob(job: ManagerJob) {
-    if (!draft) return;
+    if (!draft || job.unavailable) return;
     if (
       draft.lines.some((l) => l.jobId && l.jobId !== job.id) &&
       !window.confirm("Replace the existing job assignments on every line?")
@@ -349,11 +404,12 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
   const allJobs = [
     ...(detail?.suggestions ?? []).map((suggestion) => ({
       ...suggestion,
+      ...detail?.assignedJobs?.find((job) => job.id === suggestion.id),
       ...jobs.find((job) => job.id === suggestion.id),
       suggestionId: suggestion.suggestionId,
-      source: suggestion.source,
     })),
     ...jobs,
+    ...(detail?.assignedJobs ?? []),
   ].filter((j, i, rows) => rows.findIndex((x) => x.id === j.id) === i);
   return (
     <ManagerShell actorRole={actorRole} active={detail?.editable ? "inbox" : "history"}>
@@ -428,18 +484,12 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
             )}
             <div className={styles.twoPane}>
               <section className={styles.imagePane} aria-label="Original receipt">
-                <ReceiptImage id={id} />
+                <ReceiptPages key={id} id={id} pageCount={detail.pageCount} />
                 <p>
                   {detail.gps
                     ? `Location available · ${detail.gps.lat.toFixed(4)}, ${detail.gps.lng.toFixed(4)}`
                     : "No location was shared with this receipt."}
                 </p>
-                {detail.pageCount > 1 && (
-                  <p>
-                    {detail.pageCount} pages were submitted. This inspection view shows the first
-                    page.
-                  </p>
-                )}
               </section>
               <form
                 ref={form}
@@ -645,8 +695,15 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
                         checked={olderJobs}
                         onChange={(e) => setOlderJobs(e.target.checked)}
                       />{" "}
-                      Include older and unscheduled jobs
+                      Include all older jobs
                     </label>
+                    <button
+                      type="button"
+                      disabled={refreshingJobs || busy}
+                      onClick={() => void refreshJobs()}
+                    >
+                      {refreshingJobs ? "Refreshing jobs…" : "Refresh Housecall jobs"}
+                    </button>
                     {jobError && <p role="alert">{jobError}</p>}
                     {detail.suggestions.length > 0 && (
                       <div>
@@ -659,6 +716,11 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
                               <span>
                                 {job.label} · {job.id} · {job.source || "Stored suggestion"}
                                 {job.score !== undefined && ` · Evidence score ${job.score}`}
+                                {allJobs.find((current) => current.id === job.id)?.unavailable
+                                  ? " · Unavailable"
+                                  : allJobs.find((current) => current.id === job.id)?.stale
+                                    ? " · Refresh needed"
+                                    : ""}
                               </span>{" "}
                               {job.reasons?.map((reason) => (
                                 <details key={reason.code}>
@@ -670,7 +732,12 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
                               ))}
                               <button
                                 type="button"
-                                disabled={busy || !draft.lines.length}
+                                disabled={
+                                  busy ||
+                                  !draft.lines.length ||
+                                  allJobs.find((current) => current.id === job.id)?.unavailable ||
+                                  allJobs.find((current) => current.id === job.id)?.stale
+                                }
                                 onClick={() => applyJob(job)}
                               >
                                 Apply to all
@@ -703,6 +770,11 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
                         .map((job) => (
                           <div key={job.suggestionId}>
                             <strong>Suggested for this line: {job.label}</strong>
+                            {allJobs.find((current) => current.id === job.id)?.unavailable ? (
+                              <p>This job is unavailable.</p>
+                            ) : allJobs.find((current) => current.id === job.id)?.stale ? (
+                              <p>Refresh job details before using this suggestion.</p>
+                            ) : null}
                             <ul>
                               {job.reasons?.map((reason) => (
                                 <li key={reason.code}>
@@ -715,7 +787,12 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
                             </ul>
                             <button
                               type="button"
-                              disabled={!editable || busy}
+                              disabled={
+                                !editable ||
+                                busy ||
+                                allJobs.find((current) => current.id === job.id)?.unavailable ||
+                                allJobs.find((current) => current.id === job.id)?.stale
+                              }
                               onClick={() =>
                                 updateLine(index, { jobId: job.id, suggestionId: job.suggestionId })
                               }
@@ -759,6 +836,7 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
                         aria-invalid={!!errors[`lines.${index}.jobId`]}
                         onChange={(e) => {
                           const chosen = allJobs.find((j) => j.id === e.target.value);
+                          if (chosen?.unavailable) return;
                           updateLine(index, {
                             jobId: e.target.value,
                             suggestionId: chosen?.suggestionId ?? line.suggestionId,
@@ -773,19 +851,29 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
                           {allJobs
                             .filter((j) => j.suggestionId)
                             .map((j) => (
-                              <option key={j.id} value={j.id}>
+                              <option key={j.id} value={j.id} disabled={j.unavailable}>
                                 {j.label} · {j.number || j.id} ·{" "}
                                 {j.customer || "Customer unavailable"}
+                                {j.unavailable
+                                  ? " · Unavailable"
+                                  : j.stale
+                                    ? " · Refresh needed"
+                                    : ""}
                               </option>
                             ))}
                         </optgroup>
-                        <optgroup label={olderJobs ? "Search results" : "Active jobs"}>
+                        <optgroup label={olderJobs ? "Search results" : "Active and recent jobs"}>
                           {allJobs
                             .filter((j) => !j.suggestionId)
                             .map((j) => (
-                              <option key={j.id} value={j.id}>
+                              <option key={j.id} value={j.id} disabled={j.unavailable}>
                                 {j.label} · {j.number || j.id} ·{" "}
                                 {j.customer || "Customer unavailable"}
+                                {j.unavailable
+                                  ? " · Unavailable"
+                                  : j.stale
+                                    ? " · Refresh needed"
+                                    : ""}
                               </option>
                             ))}
                         </optgroup>
@@ -795,6 +883,17 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
                           {errors[`lines.${index}.jobId`]}
                         </small>
                       )}
+                      {detail.automaticJobAssignments
+                        ?.filter(
+                          (assignment) =>
+                            assignment.lineIndex === index &&
+                            (assignment.jobId ? assignment.jobId === line.jobId : !line.jobId),
+                        )
+                        .map((assignment) => (
+                          <p key={assignment.lineIndex} className={styles.notice}>
+                            {assignment.message}
+                          </p>
+                        ))}
                       {allJobs.find((j) => j.id === line.jobId) && (
                         <p className={styles.meta}>
                           {allJobs.find((j) => j.id === line.jobId)?.status || "Status unavailable"}{" "}
@@ -803,6 +902,17 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
                           {allJobs.find((j) => j.id === line.jobId)?.technicians.join(", ") ||
                             "Technicians unavailable"}{" "}
                           · ID {line.jobId}
+                          {allJobs.find((j) => j.id === line.jobId)?.syncedAt && (
+                            <>
+                              {" "}
+                              · Last checked {allJobs.find((j) => j.id === line.jobId)?.syncedAt}
+                            </>
+                          )}
+                          {allJobs.find((j) => j.id === line.jobId)?.unavailable
+                            ? " · This job is unavailable. Choose another destination."
+                            : allJobs.find((j) => j.id === line.jobId)?.stale
+                              ? " · Job details need refreshing. Ask an administrator to refresh Housecall jobs before export."
+                              : ""}
                         </p>
                       )}
                       <div className={styles.lineFooter}>
@@ -868,8 +978,17 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
                 )}
               </form>
             </div>
+            <HousecallPreview
+              key={`${id}:${detail.version}`}
+              receiptId={id}
+              isAdmin={actorRole === "admin"}
+            />
             <section className={styles.section}>
               <h2>Housecall progress</h2>
+              <p>
+                For the current frozen plan, the export preview above shows each receipt page and
+                material line separately.
+              </p>
               {!detail.steps.length && (
                 <p>No export intent. Only approval queues Housecall work.</p>
               )}
@@ -880,10 +999,11 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
               )}
               <div className={styles.steps}>
                 {detail.steps.map((step) => (
-                  <article key={`${step.step}:${step.jobId}:${step.lineId}`}>
+                  <article key={step.exportStepId ?? `${step.step}:${step.jobId}:${step.lineId}`}>
                     <h3>
                       {step.step === "attachment" ? "Receipt attachment" : "Job cost"} ·{" "}
                       {step.jobId}
+                      {step.pageIndex !== undefined ? ` · Page ${step.pageIndex + 1}` : ""}
                     </h3>
                     <p>
                       {nice(step.status)}
@@ -1022,7 +1142,7 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
                       disabled={busy}
                       onClick={() => prepare("approve")}
                     >
-                      Approve &amp; send to Housecall
+                      Approve receipt
                     </button>
                   </>
                 )}
@@ -1053,6 +1173,13 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
                     {summary?.lineCount} lines to {summary?.jobCount} jobs ·{" "}
                     {money(summary?.totalCents ?? 0)}
                   </p>
+                  {action === "approve" && (
+                    <p>
+                      {detail?.automaticExport
+                        ? "Approving sends the reviewed receipt images and material costs automatically to the selected Housecall jobs."
+                        : "Approval freezes this receipt's export plan. Live Housecall writes require separate explicit approval before any data is sent."}
+                    </p>
+                  )}
                   <ul>
                     {summary?.jobs.map((job) => (
                       <li key={job.id}>
@@ -1149,7 +1276,7 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
                   {busy
                     ? "Saving…"
                     : action === "approve"
-                      ? "Approve & send to Housecall"
+                      ? "Approve receipt"
                       : action === "correction"
                         ? "Record correction request"
                         : action === "retry"
@@ -1180,7 +1307,30 @@ function exportError(code: string) {
   };
   return known[code] || "This export step needs administrator review.";
 }
-function ReceiptImage({ id }: { id: string }) {
+function ReceiptPages({ id, pageCount }: { id: string; pageCount: number }) {
+  const [page, setPage] = useState(0);
+  const count = Math.max(1, pageCount);
+  return (
+    <>
+      {count > 1 && (
+        <nav aria-label="Receipt pages" className={styles.imageTools}>
+          <button type="button" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>
+            Previous page
+          </button>
+          <output aria-live="polite">
+            Page {page + 1} of {count}
+          </output>
+          <button type="button" disabled={page >= count - 1} onClick={() => setPage((p) => p + 1)}>
+            Next page
+          </button>
+        </nav>
+      )}
+      <ReceiptImage key={`${id}/${page}`} id={id} pageIndex={page} />
+    </>
+  );
+}
+
+function ReceiptImage({ id, pageIndex }: { id: string; pageIndex: number }) {
   const [url, setUrl] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -1196,7 +1346,9 @@ function ReceiptImage({ id }: { id: string }) {
     setBusy(true);
     setError("");
     try {
-      const res = await fetch(`/api/receipts/${id}/image`, { cache: "no-store" });
+      const res = await fetch(`/api/receipts/${id}/image${pageIndex ? `?page=${pageIndex}` : ""}`, {
+        cache: "no-store",
+      });
       if (!res.ok) throw new Error();
       const data = await res.json();
       if (sequence !== loadSequence.current) return;
@@ -1208,7 +1360,7 @@ function ReceiptImage({ id }: { id: string }) {
     } finally {
       if (sequence === loadSequence.current) setBusy(false);
     }
-  }, [id]);
+  }, [id, pageIndex]);
   useEffect(() => {
     setUrl("");
     void load();
@@ -1325,7 +1477,11 @@ function ReceiptImage({ id }: { id: string }) {
             {/* biome-ignore lint/performance/noImgElement: private originals must bypass shared caches. */}
             <img
               src={url}
-              alt="Original submitted receipt"
+              alt={
+                pageIndex
+                  ? `Original submitted receipt, page ${pageIndex + 1}`
+                  : "Original submitted receipt"
+              }
               draggable={false}
               referrerPolicy="no-referrer"
               style={{ transform: `rotate(${rotation}deg)`, width: imageWidth, maxWidth: "none" }}

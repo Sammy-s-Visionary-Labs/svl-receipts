@@ -255,3 +255,6 @@
   .footnote { font-size: 11px; }
   .detailGrid dd { font-size: 13px; }
 }
+
+.fullReviewButton { margin-bottom: 22px; min-height: 44px; padding: 11px 16px; text-decoration: none; }
+.fullReviewButton:focus-visible { outline: 3px solid #9aab66; outline-offset: 3px; }

@@ -138,6 +138,20 @@ describe("local job ranking", () => {
     );
     expect(result.topCandidate?.housecallJobId).toBe("ra5-test-job-oak");
   });
+  it("does not let a receipt-wide PO override a different customer's name on a material line", () => {
+    const result = rankJobCandidates(
+      {
+        sourceIndex: 1,
+        hints: [{ text: "TEST-1042" }, { text: "Sullivan" }, { text: "Sophia", sourceIndex: 1 }],
+      },
+      [job, { ...job, id: "sophia", number: "TEST-2048", customer: "Sophia Smith" }],
+    );
+    expect(result.topCandidate?.housecallJobId).toBe("sophia");
+    expect(result.topCandidate?.reasons).toContainEqual(
+      expect.objectContaining({ code: "similar_customer", evidence: ["Sophia"] }),
+    );
+    expect(result.candidates.some((candidate) => candidate.housecallJobId === job.id)).toBe(false);
+  });
   it("ignores missing/inaccurate GPS and invalid/missing service addresses", () => {
     const base = { hints: [{ text: "Sullivan" }] };
     const located = { ...job, serviceAddress: "123 Test Street", lat: 41, lng: -83 };

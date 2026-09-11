@@ -1,11 +1,13 @@
 import { useFonts } from "expo-font";
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
+import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import "react-native-reanimated";
 
 import { useColorScheme } from "@/components/useColorScheme";
+import Colors from "@/constants/Colors";
 import { AuthProvider, useAuth } from "@/lib/auth/auth-context";
 import { ReceiptCaptureProvider } from "@/lib/capture/receipt-capture-context";
 import { PushRegistrar } from "@/lib/push/register";
@@ -45,6 +47,8 @@ export default function RootLayout() {
 
 function RootLayoutNav() {
   const colorScheme = useColorScheme();
+  const palette = Colors[colorScheme];
+  const baseTheme = colorScheme === "dark" ? DarkTheme : DefaultTheme;
   const { phase, session } = useAuth();
 
   useEffect(() => {
@@ -55,8 +59,20 @@ function RootLayoutNav() {
 
   return (
     <ReceiptCaptureProvider key={session?.user.id ?? "signed-out"}>
-      <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
+      <ThemeProvider
+        value={{
+          ...baseTheme,
+          colors: {
+            ...baseTheme.colors,
+            primary: palette.tint,
+            background: palette.background,
+            text: palette.text,
+            card: palette.background,
+          },
+        }}
+      >
         <PushRegistrar />
+        <StatusBar style="dark" />
         <Stack>
           <Stack.Screen name="login" options={{ headerShown: false }} />
           <Stack.Screen name="session-ended" options={{ headerShown: false }} />

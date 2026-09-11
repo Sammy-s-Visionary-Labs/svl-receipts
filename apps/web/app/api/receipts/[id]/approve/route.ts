@@ -1,6 +1,7 @@
 import { POST as review } from "@/app/api/manager/receipts/[id]/review/route";
 import { HttpError, httpErrorResponse } from "@/lib/http";
 import { readReviewBody } from "@/lib/manager/review-request";
+export const maxDuration = 180;
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
     const body = await readReviewBody(request);

@@ -55,6 +55,7 @@ export type ReceiptCaptureAction =
   | { type: "cancel-retake" }
   | { type: "save-page"; page: ReceiptPage }
   | { type: "replace-page"; index: number; page: ReceiptPage }
+  | { type: "remove-page"; index: number }
   | { type: "confirm" }
   | { type: "set-location"; location: ReceiptLocationMetadata }
   | { type: "skip-location" };
@@ -105,6 +106,24 @@ export function receiptCaptureReducer(
   action: ReceiptCaptureAction,
 ): ReceiptCaptureState {
   switch (action.type) {
+    case "remove-page": {
+      if (!Number.isInteger(action.index) || action.index < 0 || action.index >= state.pages.length)
+        return state;
+      const pages = state.pages.filter((_, index) => index !== action.index);
+      if (!pages.length) return createInitialReceiptCaptureState();
+      return {
+        ...state,
+        pages,
+        replacementIndex: null,
+        requiredRetakeIndexes: state.requiredRetakeIndexes
+          .filter((index) => index !== action.index)
+          .map((index) => (index > action.index ? index - 1 : index)),
+        previewIndex: Math.min(action.index, pages.length - 1),
+        confirmed: false,
+        location: createEmptyReceiptLocation(),
+        locationDecision: "undecided",
+      };
+    }
     case "start-new":
       return createInitialReceiptCaptureState();
     case "add-pages": {

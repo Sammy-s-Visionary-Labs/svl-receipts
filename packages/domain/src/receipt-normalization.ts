@@ -10,6 +10,8 @@ import { decimalUnits } from "./review-draft";
 export type ReceiptNormalizationOptions = {
   /** A verified vendor/tenant date convention, never inferred from the model's guess. */
   dateOrder?: "MDY" | "DMY";
+  /** Current processing year: only recent two-digit dates (20 years back to next year) may expand. */
+  referenceYear?: number;
   lowConfidenceThreshold?: number;
   mismatchToleranceCents?: number;
 };
@@ -115,12 +117,26 @@ function calendarDate(year: number, month: number, day: number): Normalized<stri
 export function normalizeReceiptDate(
   value: string | null,
   order?: "MDY" | "DMY",
+  referenceYear?: number,
 ): Normalized<string> {
   const raw = text(value);
   if (!raw) return { value: null };
-  let match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(raw);
+  const yearValue = (printed: string | undefined): number | null => {
+    if (!printed) return null;
+    if (printed.length === 4) return Number(printed);
+    if (
+      !Number.isInteger(referenceYear) ||
+      Number(referenceYear) < 1000 ||
+      Number(referenceYear) > 9998
+    )
+      return null;
+    const year =
+      Number(printed) + 100 * Math.round((Number(referenceYear) - Number(printed)) / 100);
+    return year >= Number(referenceYear) - 20 && year <= Number(referenceYear) + 1 ? year : null;
+  };
+  let match = /^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/.exec(raw);
   if (match) return calendarDate(Number(match[1]), Number(match[2]), Number(match[3]));
-  match = /^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})$/.exec(raw);
+  match = /^(\d{1,2})(?:\s*[/.-]\s*|\s+)(\d{1,2})(?:\s*[/.-]\s*|\s+)(\d{4}|\d{2})$/.exec(raw);
   if (match) {
     const first = Number(match[1]);
     const second = Number(match[2]);
@@ -129,7 +145,10 @@ export function normalizeReceiptDate(
     if (!order && first <= 12 && second <= 12 && first !== second)
       return { value: null, issue: "ambiguous_date" };
     const dayFirst = order === "DMY" || (!order && first > 12);
-    return calendarDate(Number(match[3]), dayFirst ? second : first, dayFirst ? first : second);
+    const year = yearValue(match[3]);
+    if (year === null) return { value: null, issue: "ambiguous_date" };
+    const result = calendarDate(year, dayFirst ? second : first, dayFirst ? first : second);
+    return result.value && match[3]?.length === 2 ? { ...result, issue: "expanded_year" } : result;
   }
   const months = [
     ["jan", "january"],
@@ -145,12 +164,19 @@ export function normalizeReceiptDate(
     ["nov", "november"],
     ["dec", "december"],
   ];
-  match = /^([A-Za-z]+)\.?\s+(\d{1,2}),?\s+(\d{4})$/.exec(raw);
+  match = /^([A-Za-z]+)\.?\s+(\d{1,2}),?\s+(\d{4}|\d{2})$/.exec(raw);
   if (match) {
     const month = months.findIndex((names) => names.includes((match?.[1] ?? "").toLowerCase()));
-    if (month >= 0) return calendarDate(Number(match[3]), month + 1, Number(match[2]));
+    const year = yearValue(match[3]);
+    if (month >= 0) {
+      if (year === null) return { value: null, issue: "ambiguous_date" };
+      const result = calendarDate(year, month + 1, Number(match[2]));
+      return result.value && match[3]?.length === 2
+        ? { ...result, issue: "expanded_year" }
+        : result;
+    }
   }
-  // Two-digit years have no safe century convention in the extraction contract.
+  // Unsupported or unanchored dates remain visible for manager review.
   return {
     value: null,
     issue: /^\d{1,2}[/.-]\d{1,2}[/.-]\d{2}$/.test(raw) ? "ambiguous_date" : "invalid_date",
@@ -166,6 +192,8 @@ const messages: Record<string, string> = {
     "Return and credit amounts need separate review; automatic import is deferred.",
   ambiguous_date: "The date has an ambiguous order or two-digit year; verify the purchase date.",
   invalid_date: "This is not a supported calendar date.",
+  expanded_year:
+    "Expanded the printed two-digit year using the recent receipt date range; verify against the image.",
   unknown_unit: "The unit is unrecognized; verify it without converting the quantity.",
 };
 
@@ -207,7 +235,7 @@ export function normalizeReceiptObservation(
   const vendor = text(observation.vendor);
   if (!vendor) warn("missing_field", "vendor");
   const purchaseDate = take(
-    normalizeReceiptDate(observation.purchase_date, options.dateOrder),
+    normalizeReceiptDate(observation.purchase_date, options.dateOrder, options.referenceYear),
     "purchase_date",
     true,
   );

@@ -1,0 +1,11 @@
+.local
+.env*
+**/.env*
+**/node_modules
+**/.next
+**/.expo
+**/test-results
+**/playwright-report
+apps/mobile/android
+apps/mobile/ios
+fixtures

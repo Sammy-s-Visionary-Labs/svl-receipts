@@ -1,2 +1,5 @@
-/** Housecall Pro adapter — stub folder for RA-73. Real client comes later. */
-export {};
+/** Housecall Pro server adapter. Live writes need an exact, recorded human approval. */
+
+export * from "./client";
+export * from "./payloads";
+export * from "./types";

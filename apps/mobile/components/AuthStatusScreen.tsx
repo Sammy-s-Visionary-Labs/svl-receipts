@@ -17,8 +17,10 @@ export function AuthStatusScreen({
     <View style={styles.container}>
       <Text style={styles.title}>{copy.title}</Text>
       <Text style={styles.body}>{copy.body}</Text>
-      {onRetry ? <Button title="Try again" onPress={onRetry} /> : null}
-      {onSignOut ? <Button title={actionLabel ?? "Sign out"} onPress={onSignOut} /> : null}
+      {onRetry ? <Button color="#315b49" title="Try again" onPress={onRetry} /> : null}
+      {onSignOut ? (
+        <Button color="#315b49" title={actionLabel ?? "Sign out"} onPress={onSignOut} />
+      ) : null}
     </View>
   );
 }

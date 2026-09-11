@@ -27,6 +27,39 @@ function page(number: number, source: ReceiptPage["source"] = "camera"): Receipt
 }
 
 describe("receipt capture page set", () => {
+  it("removes only the selected page, retains order, shifts retake indexes and clears confirmation/location", () => {
+    const original = {
+      ...createInitialReceiptCaptureState(),
+      pages: [page(1), page(2), page(3), page(4)],
+      previewIndex: 3,
+      requiredRetakeIndexes: [1, 3],
+      confirmed: true,
+      locationDecision: "skipped" as const,
+    };
+    const result = receiptCaptureReducer(original, { type: "remove-page", index: 1 });
+    expect(result.pages.map((p) => p.uri)).toEqual([page(1).uri, page(3).uri, page(4).uri]);
+    expect(result).toMatchObject({
+      requiredRetakeIndexes: [2],
+      previewIndex: 1,
+      confirmed: false,
+      locationDecision: "undecided",
+      replacementIndex: null,
+    });
+    expect(original.pages).toHaveLength(4);
+  });
+  it("returns to an empty draft when the last mistaken photo is removed", () => {
+    const result = receiptCaptureReducer(
+      { ...createInitialReceiptCaptureState(), pages: [page(1)], confirmed: true },
+      { type: "remove-page", index: 0 },
+    );
+    expect(result).toEqual(createInitialReceiptCaptureState());
+  });
+  it("ignores invalid removal indexes and selects the preceding page when removing the last of several", () => {
+    const state = { ...createInitialReceiptCaptureState(), pages: [page(1), page(2)] };
+    for (const index of [-1, 2, 0.5, NaN])
+      expect(receiptCaptureReducer(state, { type: "remove-page", index })).toBe(state);
+    expect(receiptCaptureReducer(state, { type: "remove-page", index: 1 }).previewIndex).toBe(0);
+  });
   it("accepts pages in capture order up to the shared pilot cap", () => {
     const pages = appendReceiptPages(
       [],

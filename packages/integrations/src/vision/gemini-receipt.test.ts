@@ -51,6 +51,15 @@ function response(value: unknown = observation, extra: Record<string, unknown> =
 }
 
 describe("Gemini receipt parsing", () => {
+  it("passes legible short-year date observations through configured normalization without losing the source", async () => {
+    const result = await createGeminiReceiptAdapter({
+      apiKey: "test-key",
+      normalization: { dateOrder: "MDY", referenceYear: 2026 },
+      fetch: async () => response({ ...observation, purchase_date: "7-10-26" }),
+    }).parseReceipt([page]);
+    expect(result.receipt.purchase_date).toBe("2026-07-10");
+    expect(result.receipt.original_observation.purchase_date).toBe("7-10-26");
+  });
   it("requests structured raw observations, returns normalized cents with pinned provenance", async () => {
     const request = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
       const body = JSON.parse(String(init?.body));

@@ -1,0 +1,400 @@
+{
+  "schemaVersion": 1,
+  "synthetic": true,
+  "expectedFieldsManifest": "manifest.json",
+  "scope": "Generated synthetic image assets only; generation, visual review, OCR, and live HCP verification are separate evidence levels.",
+  "assets": [
+    {
+      "id": "select-fractional-base",
+      "caseId": "select-fractional-base",
+      "pageIndex": 0,
+      "documentKey": "RA6-SYN-SELECT-001",
+      "path": "images/select-fractional-base.png",
+      "status": "generated",
+      "plannedMethod": "imagegen",
+      "sourceAssetId": null,
+      "sha256": "84308cecc2f60e0062a6a949c89dcdf559f1bdff0907e47cff7a37ac6f777ca4",
+      "byteSize": 1939686,
+      "width": 1088,
+      "height": 1445,
+      "provenance": {
+        "method": "imagegen",
+        "tool": "image_gen.imagegen",
+        "recordedAt": "2026-09-09T17:50:19.547Z",
+        "toolOutputPath": "/Users/kinghill/.codex/generated_images/01a0870c-caa5-7fe0-9338-a5fbb245aead/exec-01de2fee-aebf-494b-b3e5-9c5465f49222.png",
+        "prompt": "Use case: text-localization. Make a synthetic receipt photograph for offline software QA from this reference photo. Preserve the single white paper sales-order layout, realistic paper texture, mild perspective/shadow and dark tabletop. Remove every other background document, signature, barcode, real business address/contact, and original customer/reference/order identifiers. This must be clearly a fictional test document.\nExact printed header: \"SYNTHETIC — RA6 TEST\" in a readable stamp above the form; supplier \"RA6 Test Stone Supplier\"; title \"Quick Sale Order\".\nExact order ID: \"RA6-SYN-SELECT-001\"; exact date: \"09/01/2026\"; exact Job / Your Ref: \"RA6 Test Customer 2\". Bill to and delivery to: \"RA6 Test Business\", with no addresses.\nOne line only: description \"SYNTHETIC TEST #8 limestone bulk\"; quantity \"0.5\"; UOM \"ton\"; unit price \"$42.00\"; amount \"$21.00\". Footer totals \"Subtotal $21.00\", \"Sales tax $1.63\", \"Order total $22.63\". Page \"1 of 1\". No paid/unpaid status, no QR or payment links. Crisp, exactly spelled readable text. Keep values and names exactly as specified. The image is a photograph of a test document, not a collage or digital app UI. Portrait image with all paper edges visible.",
+        "promptSha256": "283c7888b6dc5429a46240ee9371c13ffaeabc49528a2cc095757cd734585b63",
+        "promptFile": "prompts/select-fractional-base.txt"
+      },
+      "visualReview": {
+        "status": "accepted",
+        "reviewedAt": "2026-09-09T17:50:19.547Z",
+        "reviewedBy": "Codex /root: reported full visual inspection; base also inspected by /root/ra6_fixtures",
+        "checkedAgainstManifest": true,
+        "notes": [
+          "Supplier, test customer, synthetic order ID, date, description, 0.5 ton quantity, $42.00 unit price, $21.00 subtotal, $1.63 tax, $22.63 total, and one-page count checked against manifest; visible synthetic label and no real identifiers or unrelated background documents.",
+          "Visual review only; app-model extraction has not run."
+        ]
+      },
+      "extractionEvaluation": {
+        "status": "failed",
+        "evidencePath": "evaluation/gemini-results.json",
+        "evaluatedAt": "2026-09-10T17:16:13.220Z",
+        "promptVersion": "ra6-receipt-v1.3"
+      }
+    },
+    {
+      "id": "select-fractional-rephotographed",
+      "caseId": "select-fractional-rephotographed",
+      "pageIndex": 0,
+      "documentKey": "RA6-SYN-SELECT-001",
+      "path": "images/select-fractional-rephotographed.png",
+      "status": "generated",
+      "plannedMethod": "imagegen",
+      "sourceAssetId": "select-fractional-base",
+      "sha256": "785d9019bbd7acda1d9adcc20b1653f8b675e257fe1a17a64a2237f7cae03809",
+      "byteSize": 1950833,
+      "width": 1088,
+      "height": 1445,
+      "provenance": {
+        "method": "imagegen",
+        "tool": "image_gen.imagegen",
+        "recordedAt": "2026-09-09T17:50:19.547Z",
+        "toolOutputPath": "/Users/kinghill/.codex/generated_images/01a0870c-caa5-7fe0-9338-a5fbb245aead/exec-a2c94632-dbee-4678-8e4c-81a5b40bbd12.png",
+        "prompt": "Use case: lighting-weather. Reference is the exact synthetic test sales order to rephotograph. Produce a different realistic camera photo of this same physical document for duplicate-detection QA. Change ONLY camera angle mildly, paper position, tabletop lighting and shadow. Preserve every printed character, all prices/quantities/names/order ID/date, all form lines and relative content positions. Keep the paper fully in frame, plainly readable, portrait. The text must remain \"SYNTHETIC — RA6 TEST\", supplier \"RA6 Test Stone Supplier\", order \"RA6-SYN-SELECT-001\", date \"09/01/2026\", \"RA6 Test Customer 2\", one line \"SYNTHETIC TEST #8 limestone bulk\", 0.5 ton at $42.00 = $21.00, subtotal $21.00, tax $1.63, total $22.63, page1of1. No additional papers, annotations, signatures, paymentlinks or identifiers. This is the same purchase; no new document identifier.",
+        "promptSha256": "37bedfdec59246673baa61deae69817badf2d4ead491f92e0b0eca50cf7dee63",
+        "promptFile": "prompts/select-fractional-rephotographed.txt",
+        "referencedImagePaths": [
+          "/Users/kinghill/.codex/generated_images/01a0870c-caa5-7fe0-9338-a5fbb245aead/exec-01de2fee-aebf-494b-b3e5-9c5465f49222.png"
+        ]
+      },
+      "visualReview": {
+        "status": "accepted",
+        "reviewedAt": "2026-09-09T17:50:19.547Z",
+        "reviewedBy": "Codex /root: reported full visual inspection; base also inspected by /root/ra6_fixtures",
+        "checkedAgainstManifest": true,
+        "notes": [
+          "Supplier, test customer, synthetic order ID, date, description, 0.5 ton quantity, $42.00 unit price, $21.00 subtotal, $1.63 tax, $22.63 total, and one-page count checked against manifest; visible synthetic label and no real identifiers or unrelated background documents.",
+          "Visual review only; app-model extraction has not run."
+        ]
+      },
+      "extractionEvaluation": {
+        "status": "failed",
+        "evidencePath": "evaluation/gemini-results.json",
+        "evaluatedAt": "2026-09-10T17:16:39.178Z",
+        "promptVersion": "ra6-receipt-v1.3"
+      }
+    },
+    {
+      "id": "select-fractional-exact-copy",
+      "caseId": "select-fractional-exact-copy",
+      "pageIndex": 0,
+      "documentKey": "RA6-SYN-SELECT-001",
+      "path": "images/select-fractional-exact-copy.png",
+      "status": "generated",
+      "plannedMethod": "byte-copy",
+      "sourceAssetId": "select-fractional-base",
+      "sha256": "84308cecc2f60e0062a6a949c89dcdf559f1bdff0907e47cff7a37ac6f777ca4",
+      "byteSize": 1939686,
+      "width": 1088,
+      "height": 1445,
+      "provenance": {
+        "method": "byte-copy",
+        "tool": "filesystem.copy",
+        "recordedAt": "2026-09-09T17:50:19.547Z",
+        "toolOutputPath": null,
+        "prompt": null,
+        "promptSha256": null
+      },
+      "visualReview": {
+        "status": "accepted",
+        "reviewedAt": "2026-09-09T17:50:19.547Z",
+        "reviewedBy": "Codex /root/ra6_fixtures: exact-byte copy of visually accepted base",
+        "checkedAgainstManifest": true,
+        "notes": [
+          "Byte-identical to the visually accepted base; duplicate is not a second purchase.",
+          "Visual review only; app-model extraction has not run."
+        ]
+      },
+      "extractionEvaluation": {
+        "status": "failed",
+        "evidencePath": "evaluation/gemini-results.json",
+        "evaluatedAt": "2026-09-10T17:16:36.051Z",
+        "promptVersion": "ra6-receipt-v1.3"
+      }
+    },
+    {
+      "id": "select-fractional-separate-purchase",
+      "caseId": "select-fractional-separate-purchase",
+      "pageIndex": 0,
+      "documentKey": "RA6-SYN-SELECT-006",
+      "path": "images/select-fractional-separate-purchase.png",
+      "status": "generated",
+      "plannedMethod": "imagegen",
+      "sourceAssetId": null,
+      "sha256": "2847f1815c88a5894220f5f43352583c2923d432763d8de45a37809b759290d9",
+      "byteSize": 1713004,
+      "width": 1089,
+      "height": 1445,
+      "provenance": {
+        "method": "imagegen",
+        "tool": "image_gen.imagegen",
+        "recordedAt": "2026-09-09T17:57:28.556Z",
+        "toolOutputPath": "/Users/kinghill/.codex/generated_images/01a0870c-caa5-7fe0-9338-a5fbb245aead/exec-bcb6a9a7-8e2b-4f4f-8018-c62b788e9f07.png",
+        "prompt": "Use case: text-localization. Edit this SYNTHETIC test receipt photograph to represent a separate purchase with the same material and amount. Change only Order No from \"RA6-SYN-SELECT-001\" to \"RA6-SYN-SELECT-006\" and Order Date from \"09/01/2026\" to \"09/06/2026\". Preserve every other character, printed layout, photograph, paper, lighting, supplier, RA6 Test Customer 2, synthetic label, 0.5 ton at $42.00, amount $21.00, tax $1.63, total $22.63, Page 1 of 1. No new text. Exact order ID and date are crucial.",
+        "promptSha256": "28bd10f603a5ee6bccbcbe65ad4e4008e88b9b601f283459d588634aea6af7e5",
+        "promptFile": "prompts/select-fractional-separate-purchase.txt",
+        "referencedImagePaths": [
+          "/Users/kinghill/.codex/generated_images/01a0870c-caa5-7fe0-9338-a5fbb245aead/exec-01de2fee-aebf-494b-b3e5-9c5465f49222.png"
+        ]
+      },
+      "visualReview": {
+        "status": "accepted",
+        "reviewedAt": "2026-09-09T17:57:28.556Z",
+        "reviewedBy": "Codex /root: reported full visual inspection",
+        "checkedAgainstManifest": true,
+        "notes": [
+          "Separate-purchase control uses RA6-SYN-SELECT-006 and 09/06/2026; supplier, Customer 2, material description, 0.5 ton × $42.00 = $21.00, tax $1.63, total $22.63 remain equal to base.",
+          "Prominent synthetic marking; no authentic purchase claim. Different document identity intentionally prevents classification as the base receipt solely from equal items and amounts.",
+          "Visual review only; app-model extraction has not run."
+        ]
+      },
+      "extractionEvaluation": {
+        "status": "failed",
+        "evidencePath": "evaluation/gemini-results.json",
+        "evaluatedAt": "2026-09-10T17:16:42.527Z",
+        "promptVersion": "ra6-receipt-v1.3"
+      }
+    },
+    {
+      "id": "klumm-two-jobs",
+      "caseId": "klumm-two-jobs",
+      "pageIndex": 0,
+      "documentKey": "RA6-SYN-KLUMM-002",
+      "path": "images/klumm-two-jobs.png",
+      "status": "generated",
+      "plannedMethod": "imagegen",
+      "sourceAssetId": null,
+      "sha256": "33321121e4e1ae5162b22b90e12a55d7b9a7331823639a0669810b4f707d229b",
+      "byteSize": 1681120,
+      "width": 1089,
+      "height": 1445,
+      "provenance": {
+        "method": "imagegen",
+        "tool": "image_gen.imagegen",
+        "recordedAt": "2026-09-09T17:57:28.556Z",
+        "toolOutputPath": "/Users/kinghill/.codex/generated_images/01a0870c-caa5-7fe0-9338-a5fbb245aead/exec-161f3ac7-e570-4a74-98e0-b86151e9e30d.png",
+        "prompt": "Use case: text-localization. Edit only two identical address blocks on this synthetic invoice: remove the lines \"123 Test Drive\" and \"Riverton, OH 43085\" under Bill to and Ship to, leaving clean blank paper in those four line positions. Retain both \"RA6 Test Business\" lines. Preserve absolutely all other content, text, type, paper, layout, quantities, totals, job names, invoice ID RA6-SYN-KLUMM-002 and date09/02/2026 unchanged. Do not add any address, contact or other text.",
+        "promptSha256": "0aece9486a4d58339e6f907c815585e61f60e01b19de70a0db7733460facba26",
+        "promptFile": "prompts/klumm-two-jobs-remove-address.txt",
+        "referencedImagePaths": [
+          "/Users/kinghill/.codex/generated_images/01a0870c-caa5-7fe0-9338-a5fbb245aead/exec-87578510-ff32-4454-985a-e744fd62f2e8.png"
+        ],
+        "intermediateOutputs": [
+          {
+            "tool": "image_gen.imagegen",
+            "toolOutputPath": "/Users/kinghill/.codex/generated_images/01a0870c-caa5-7fe0-9338-a5fbb245aead/exec-87578510-ff32-4454-985a-e744fd62f2e8.png",
+            "sha256": "2b4b4506fa15351da075823f317745e890743b4e3cb2bf57d2f06673b2396237",
+            "prompt": "Use case: text-localization. Make a synthetic supplier invoice photograph for software QA based on this reference layout. Keep single white paper, invoice table, natural shadow and slight perspective on dark tabletop. Remove all surrounding documents and every original real name, address,contact,signature,logo,payment link,barcode and reference identifier. Do not reproduce real business identifiers.\nProminent exact header \"SYNTHETIC — RA6 TEST\". Fictional supplier \"RA6 Test Landscape Supplier\". Title \"INVOICE\". Bill to and ship to: \"RA6 Test Business\". Invoice no \"RA6-SYN-KLUMM-002\", invoice date \"09/02/2026\". Page \"1 of 1\".\nExactly two material lines, with a separate Job reference column or clearly readable line description references:\n1: Description \"SYNTHETIC TEST recycled aggregate\"; Job \"RA6 Test Customer 4\"; Qty \"6\"; Unit \"ton\"; Rate \"$16.50\"; Amount \"$99.00\".\n2: Description \"SYNTHETIC TEST dirt disposal fee\"; Job \"RA6 Test Customer 2\"; Qty \"1\"; Unit \"ea\"; Rate \"$45.00\"; Amount \"$45.00\".\nFooter: \"Subtotal $144.00\", \"Tax $0.00\", \"Total $144.00\". No additional product lines or totals, no payment or paid/unpaid status. Use spacious black printed typography fully readable, mildly weathered paper texture. All paper edges visible in portrait photo. Exact text and arithmetic are critical.",
+            "promptSha256": "c838e99474179761da62e9fa79fbc1edcf19c5dc8ad497c1458b014002845a3d",
+            "promptFile": "prompts/klumm-two-jobs.txt",
+            "reviewStatus": "rejected",
+            "notes": [
+              "Initial image contained generator-invented address text. Final imagegen edit removed it before visual acceptance."
+            ]
+          }
+        ]
+      },
+      "visualReview": {
+        "status": "accepted",
+        "reviewedAt": "2026-09-09T17:57:28.556Z",
+        "reviewedBy": "Codex /root: reported full visual inspection",
+        "checkedAgainstManifest": true,
+        "notes": [
+          "Final image checked: RA6 Test Landscape Supplier, RA6-SYN-KLUMM-002, 09/02/2026.",
+          "Customer 4: recycled aggregate, 6 ton × $16.50 = $99.00. Customer 2: dirt disposal fee, 1 ea × $45.00 = $45.00. Tax $0.00, total $144.00.",
+          "Initial generation contained invented address text; a recorded imagegen correction removed it. Final image contains no addresses, signatures, payment links, or real customer names.",
+          "Visual review only; app-model extraction has not run."
+        ]
+      },
+      "extractionEvaluation": {
+        "status": "passed",
+        "evidencePath": "evaluation/gemini-results.json",
+        "evaluatedAt": "2026-09-10T17:16:17.760Z",
+        "promptVersion": "ra6-receipt-v1.3"
+      }
+    },
+    {
+      "id": "sandman-handwritten",
+      "caseId": "sandman-handwritten",
+      "pageIndex": 0,
+      "documentKey": "RA6-SYN-SANDMAN-003",
+      "path": "images/sandman-handwritten.png",
+      "status": "generated",
+      "plannedMethod": "imagegen",
+      "sourceAssetId": null,
+      "sha256": "b5bba84b9d2b2288368d5c478744e7b36a99e5046af78b07471d10d92c2f6f82",
+      "byteSize": 2344955,
+      "width": 1088,
+      "height": 1445,
+      "provenance": {
+        "method": "imagegen",
+        "tool": "image_gen.imagegen",
+        "recordedAt": "2026-09-09T17:55:43.353Z",
+        "toolOutputPath": "/Users/kinghill/.codex/generated_images/01a08726-03ed-77b2-a3d8-6448ce982e0d/exec-db64ffdf-dba5-4e6f-89fd-a3f020088f23.png",
+        "prompt": "Use case: text-localization / synthetic QA receipt fixture. Edit the supplied reference photograph into ONE realistic clearly synthetic receipt photograph. Preserve only its narrow warm yellow paper ticket aesthetic, green preprinted form lines, mild folds and overhead tabletop perspective. Replace the entire document contents. Remove ALL original logos, names, contacts, URLs, addresses, ticket numbers, dates, signatures, payment instructions and marks. Remove all surrounding papers and background documents; only a plain dark tabletop surrounds this one ticket. No hands.\n\nThis is an internal software test receipt. At the very top, prominently print the exact banner \"SYNTHETIC — RA6 TEST\". Under it print the vendor exactly \"RA6 Test Yard Supplier\" and a modest \"Material receipt\" heading. Use green printed labels and realistic but clearly legible blue ballpoint handwriting for the receipt-specific values.\n\nUse ONLY these exact document values:\nTicket ID: RA6-SYN-SANDMAN-003\nDate: 2026-09-03\nJob: RA6 Test Customer 2\n\nA green-lined item table with these columns: Qty | UOM | Description | Unit cost | Amount.\nExactly ONE item row:\n2 | yd3 | SYNTHETIC TEST dark mulch | $40.00 | $80.00\nThe description may wrap within its cell but all text must be readable and exact. Keep handwriting natural, not distorted or too faint.\nAt the bottom write the exact totals:\nSubtotal $80.00\nTax $0.00\nTotal $80.00\nPrint a small bottom note \"Synthetic test data — zero tax chosen for this fixture.\" and \"SYNTHETIC — RA6 TEST\".\nNo other customer, company, date, financial amount, document identifier or material line. Do not draw a signature or barcode. Frame the whole page, all edges visible, at high resolution in portrait orientation. Keep the photo realistic with slight paper texture and soft lighting, but ensure every field and digit is clear.",
+        "promptSha256": "80ef379cf46925712c124f2f690397c4d9096a4396911c543dda9a1aa5105011",
+        "promptFile": "prompts/sandman-handwritten.txt",
+        "referencedImagePaths": ["/Users/kinghill/Downloads/PXL_20260723_182035167.jpg"]
+      },
+      "visualReview": {
+        "status": "accepted",
+        "reviewedAt": "2026-09-09T17:55:43.353Z",
+        "reviewedBy": "Codex /root/housecall_adapter: reported full visual inspection; consolidated image also inspected by /root/ra6_fixtures",
+        "checkedAgainstManifest": true,
+        "notes": [
+          "Clearly marked SYNTHETIC — RA6 TEST at top and bottom.",
+          "Exact synthetic vendor, document ID, 2026-09-03 date and RA6 Test Customer 2 job label.",
+          "One handwritten line: SYNTHETIC TEST dark mulch; quantity 2 yd3; $40.00 unit cost; $80.00 extended cost.",
+          "Subtotal $80.00; tax $0.00; total $80.00; note explicitly says zero tax chosen for fixture.",
+          "Original real business data, signatures, contacts and surrounding documents removed.",
+          "Visual review only; app-model extraction has not run."
+        ]
+      },
+      "extractionEvaluation": {
+        "status": "passed",
+        "evidencePath": "evaluation/gemini-results.json",
+        "evaluatedAt": "2026-09-10T17:16:21.100Z",
+        "promptVersion": "ra6-receipt-v1.3"
+      }
+    },
+    {
+      "id": "sandman-shop-and-missing-job",
+      "caseId": "sandman-shop-and-missing-job",
+      "pageIndex": 0,
+      "documentKey": "RA6-SYN-SANDMAN-004",
+      "path": "images/sandman-shop-and-missing-job.png",
+      "status": "generated",
+      "plannedMethod": "imagegen",
+      "sourceAssetId": null,
+      "sha256": "fa7a7d6f1892f402fda7d6e7d05e767041c8872608c303bdf9561d03afe0a9ec",
+      "byteSize": 1750700,
+      "width": 1088,
+      "height": 1445,
+      "provenance": {
+        "method": "imagegen",
+        "tool": "image_gen.imagegen",
+        "recordedAt": "2026-09-09T17:55:43.353Z",
+        "toolOutputPath": "/Users/kinghill/.codex/generated_images/01a08726-03ed-77b2-a3d8-6448ce982e0d/exec-d77b9ad8-f1c8-454b-9d31-9bb2cbc699a3.png",
+        "prompt": "Use case: text-localization / synthetic QA receipt fixture. Edit the supplied reference photograph into ONE clearly synthetic printed supplier invoice photograph. Keep the original white invoice paper on a dark tabletop, subtle realistic paper texture, soft indoor lighting and slight overhead-photo perspective. REMOVE all surrounding documents completely. Remove ALL original names, brands, logos, addresses, contacts, URLs, signatures, payment terms, original ticket IDs, original invoice ID, original dates and handwritten marks. Replace the entire printed document contents with exactly the synthetic data below.\n\nProminent top banner: \"SYNTHETIC — RA6 TEST\".\nVendor title EXACTLY: \"RA6 Test Yard Supplier\".\nHeading: \"Invoice\".\nInvoice ID: \"RA6-SYN-SANDMAN-004\".\nDate: \"2026-09-04\".\nDo NOT put any overall customer name, bill-to or job name in the header. This is a consolidated multi-job invoice; only row-specific Job hint cells identify jobs. Do not add any address, phone, email, barcode, payment information, logo or other identifiers.\n\nUse a generously sized, very clear printed table with exactly SIX rows and these columns:\nDescription | Qty | UOM | Unit cost | Amount | Job hint\nMake the description column wide, wrap longer descriptions across lines naturally, and allow the row height needed for all exact text. Customer labels may wrap but must remain complete and legible. Do not shorten or misspell descriptions.\n\nExact rows in order:\nROW 1\nDescription: SYNTHETIC TEST gray granite groundcover stone\nQty: 1.5\nUOM: ton\nUnit cost: $150.00\nAmount: $225.00\nJob hint: LEAVE THIS CELL COMPLETELY EMPTY. Do not print the words \"empty\", \"unknown\", \"missing\", a dash, or any customer name there.\n\nROW 2\nDescription: SYNTHETIC TEST polymeric sand\nQty: 7\nUOM: ea\nUnit cost: $80.00\nAmount: $560.00\nJob hint: RA6 Test Customer 2\n\nROW 3\nDescription: SYNTHETIC TEST topsoil\nQty: 2\nUOM: yd3\nUnit cost: $40.00\nAmount: $80.00\nJob hint: RA6 Test Customer 2\n\nROW 4\nDescription: SYNTHETIC TEST #6 limestone\nQty: 6\nUOM: ton\nUnit cost: $33.00\nAmount: $198.00\nJob hint: RA6 Test Customer 3\n\nROW 5\nDescription: SYNTHETIC TEST #8 limestone (Shop)\nQty: 1\nUOM: ton\nUnit cost: $33.00\nAmount: $33.00\nJob hint: Shop\n\nROW 6\nDescription: SYNTHETIC TEST landscape fabric (Shop)\nQty: 1\nUOM: ea\nUnit cost: $225.00\nAmount: $225.00\nJob hint: Shop\n\nBelow the table, exact summary:\nSubtotal $1,321.00\nTax $0.00\nTotal $1,321.00\n\nSmall bottom note: \"Synthetic test data — zero tax chosen for this fixture.\"\nThen repeat \"SYNTHETIC — RA6 TEST\".\n\nDo not assign the blank first row to a customer. Do not replace Shop with a customer name or imply a confirmed overhead allocation. Do not add other item rows. Preserve every stated quantity, unit cost, amount, job hint, subtotal, tax and total exactly. Clean black text and thin gray table borders on white paper; no graphic watermarks obscuring data. Portrait image, full page visible including edges, high resolution and enough font size to verify every character.",
+        "promptSha256": "d7efd8f2e01ae0672971f78924d449caad032e7a5d3b10fe296aadc7ea5503b7",
+        "promptFile": "prompts/sandman-shop-and-missing-job.txt",
+        "referencedImagePaths": ["/Users/kinghill/Downloads/PXL_20260723_182024923.jpg"]
+      },
+      "visualReview": {
+        "status": "accepted",
+        "reviewedAt": "2026-09-09T17:55:43.353Z",
+        "reviewedBy": "Codex /root/housecall_adapter: reported full visual inspection; consolidated image also inspected by /root/ra6_fixtures",
+        "checkedAgainstManifest": true,
+        "notes": [
+          "Clearly marked SYNTHETIC — RA6 TEST at top and bottom.",
+          "Exact synthetic vendor, document ID and 2026-09-04 date; no overall customer header.",
+          "Six printed rows match manifest descriptions, quantities, units, unit costs and amounts.",
+          "First row job hint cell is blank. Rows 2/3 show RA6 Test Customer 2; row 4 shows RA6 Test Customer 3; rows 5/6 show Shop.",
+          "Subtotal and total $1,321.00; tax $0.00; note explicitly says zero tax chosen for fixture.",
+          "Original real business data, signatures, contacts, payment instructions and surrounding documents removed.",
+          "Visual review only; app-model extraction has not run."
+        ]
+      },
+      "extractionEvaluation": {
+        "status": "passed",
+        "evidencePath": "evaluation/gemini-results.json",
+        "evaluatedAt": "2026-09-10T17:16:28.529Z",
+        "promptVersion": "ra6-receipt-v1.3"
+      }
+    },
+    {
+      "id": "half-up-two-pages-page-1",
+      "caseId": "half-up-two-pages",
+      "pageIndex": 0,
+      "documentKey": "RA6-SYN-ROUNDING-005",
+      "path": "images/half-up-two-pages-page-1.png",
+      "status": "generated",
+      "plannedMethod": "imagegen",
+      "sourceAssetId": null,
+      "sha256": "a30099ef4cde2ffc7d1e636e03f0507ef76a0d9abbaa9591217f7771ac19c86f",
+      "byteSize": 2310156,
+      "width": 1024,
+      "height": 1536,
+      "provenance": {
+        "method": "imagegen",
+        "tool": "image_gen.imagegen",
+        "recordedAt": "2026-09-09T17:51:50.154Z",
+        "toolOutputPath": "/Users/kinghill/.codex/generated_images/01a08726-2f5f-7b42-a403-22d7022e83fe/exec-57618e8d-5e33-4333-9579-b4127338b922.png",
+        "prompt": "Use case: photorealistic-natural\nAsset type: synthetic receipt photo for local RA-6 receipt extraction and safe export tests, page 1 of a two-page receipt.\nPrimary request: Generate one realistic smartphone photograph of a fictional printed white paper receipt on a plain light gray tabletop. Show the entire single page, nearly overhead with a tiny natural skew, soft daylight, fine paper texture and slight realistic edge shadow. Text must be sharply legible, not stylized. Portrait framing. This is expressly a synthetic test document, not a real receipt.\nLayout: Simple black typography, large bold supplier header, an obvious prominent top banner reading \"SYNTHETIC — RA6 TEST\", clear receipt identifier and date under the header, one clean line-item table across the page, generous blank white area below, page number in footer. The paper fills most of the photograph. No other documents or objects.\nExact printed text (verbatim):\nSYNTHETIC — RA6 TEST\nRA6 Test Precision Supplier\nFICTIONAL TEST BUSINESS\nReceipt: RA6-SYN-ROUNDING-005\nDate: 09/05/2026\nPage 1 of 2\n\nItem description | Job / Customer | Qty | Unit | Unit cost | Line total\nSYNTHETIC TEST fractional material A | RA6 Test Customer 2 | 1.005 | ton | $1.00 | $1.01\n\nPage subtotal: $1.01\nContinued on page 2\nSYNTHETIC — RA6 TEST\nPage 1 of 2\n\nConstraints: Only the ONE specified line item appears on this page. The quantity must be exactly 1.005, unit cost exactly $1.00, and displayed line total exactly $1.01. This explicitly tests half-up cent rounding. Do not add whole-receipt totals to page 1. Every word and digit above must render accurately. Customer 2 is the only job/customer on this page. Keep the document simple and believable. Do not add logos, addresses, phone numbers, websites, emails, signatures, payment links, account numbers, barcodes, QR codes, extra financial values, or real people/business names.",
+        "promptSha256": "998b2ccbbb6076497ad932c7af5f644e0ef4572d3c6cda365bf3b8d074114bfc",
+        "promptFile": "prompts/half-up-two-pages-page-1.txt"
+      },
+      "visualReview": {
+        "status": "accepted",
+        "reviewedAt": "2026-09-09T17:51:50.154Z",
+        "reviewedBy": "Codex /root/export_database: reported full visual inspection",
+        "checkedAgainstManifest": true,
+        "notes": [
+          "Both pages share RA6 Test Precision Supplier, RA6-SYN-ROUNDING-005, 09/05/2026, visible synthetic/test-business markings; no real contact, signature, or payment information.",
+          "Page 1 of 2 contains only material A assigned to Customer 2: 1.005 ton × $1.00 = $1.01; page subtotal $1.01.",
+          "Visual review only; app-model extraction has not run."
+        ]
+      },
+      "extractionEvaluation": {
+        "status": "passed",
+        "evidencePath": "evaluation/gemini-results.json",
+        "evaluatedAt": "2026-09-10T17:16:33.128Z",
+        "promptVersion": "ra6-receipt-v1.3"
+      }
+    },
+    {
+      "id": "half-up-two-pages-page-2",
+      "caseId": "half-up-two-pages",
+      "pageIndex": 1,
+      "documentKey": "RA6-SYN-ROUNDING-005",
+      "path": "images/half-up-two-pages-page-2.png",
+      "status": "generated",
+      "plannedMethod": "imagegen",
+      "sourceAssetId": null,
+      "sha256": "d3eac69c67578e174746d75c933d1a97ceb8988c6ae161561e28b0af55075596",
+      "byteSize": 2195641,
+      "width": 1024,
+      "height": 1536,
+      "provenance": {
+        "method": "imagegen",
+        "tool": "image_gen.imagegen",
+        "recordedAt": "2026-09-09T17:51:50.154Z",
+        "toolOutputPath": "/Users/kinghill/.codex/generated_images/01a08726-2f5f-7b42-a403-22d7022e83fe/exec-e139c744-57db-42cf-8250-d4ab215c7773.png",
+        "prompt": "Use case: photorealistic-natural\nAsset type: synthetic receipt photo for local RA-6 receipt extraction and safe export tests, page 2 of a two-page receipt.\nInput images: Image 1 is a STYLE AND DOCUMENT-TEMPLATE REFERENCE, the already generated synthetic page 1. Generate its matching page 2 as a separate new photograph; do not repeat page 1's line item.\nPrimary request: Produce a realistic smartphone photograph of the matching second white paper receipt page on the same light gray tabletop. Preserve the reference's simple black typography, large black SYNTHETIC banner, bold supplier header, fine paper texture, soft daylight, nearly overhead portrait framing, complete page edges, and readable table style. This is expressly a synthetic test document, not a real receipt.\nExact printed text (verbatim):\nSYNTHETIC — RA6 TEST\nRA6 Test Precision Supplier\nFICTIONAL TEST BUSINESS\nReceipt: RA6-SYN-ROUNDING-005\nDate: 09/05/2026\nPage 2 of 2\n\nItem description | Job / Customer | Qty | Unit | Unit cost | Line total\nSYNTHETIC TEST fractional material B | RA6 Test Customer 3 | 10.125 | gal | $3.80 | $38.48\n\nPage subtotal: $38.48\nReceipt subtotal: $39.49\nTax: $0.00\nReceipt total: $39.49\n\nSYNTHETIC — RA6 TEST\nPage 2 of 2\n\nConstraints: Exactly ONE line item on page 2, the B material for Customer 3. The quantity must be exactly 10.125, unit cost exactly $3.80, and line total exactly $38.48 (half-up cent rounding of 38.475). The receipt subtotal and receipt total are the complete TWO-PAGE total $39.49, not this page's subtotal $38.48. Do not include material A, Customer 2, 1.005, $1.00, or a second line item. Preserve the invoice identifier RA6-SYN-ROUNDING-005 and date 09/05/2026 exactly. All text sharply legible. Page 2 of 2 must appear clearly in the footer. No signatures, logos, contact details, websites, payment links, bank details, QR codes, barcodes, unrelated documents, or real businesses or people.",
+        "promptSha256": "8bd52099c3d1f3a22f1c451ba235919ce758edf1d5a2ab463433b5beda12f740",
+        "promptFile": "prompts/half-up-two-pages-page-2.txt",
+        "referencedImagePaths": [
+          "/Users/kinghill/Documents/Marcy SVL flow hcp reciepts/working/svl-receipts-ra6/fixtures/ra6/images/half-up-two-pages-page-1.png"
+        ]
+      },
+      "visualReview": {
+        "status": "accepted",
+        "reviewedAt": "2026-09-09T17:51:50.154Z",
+        "reviewedBy": "Codex /root/export_database: reported full visual inspection",
+        "checkedAgainstManifest": true,
+        "notes": [
+          "Both pages share RA6 Test Precision Supplier, RA6-SYN-ROUNDING-005, 09/05/2026, visible synthetic/test-business markings; no real contact, signature, or payment information.",
+          "Page 2 of 2 contains only material B assigned to Customer 3: 10.125 gal × $3.80 = $38.48; page subtotal $38.48, receipt subtotal/total $39.49, tax $0.00.",
+          "Visual review only; app-model extraction has not run."
+        ]
+      },
+      "extractionEvaluation": {
+        "status": "passed",
+        "evidencePath": "evaluation/gemini-results.json",
+        "evaluatedAt": "2026-09-10T17:16:33.128Z",
+        "promptVersion": "ra6-receipt-v1.3"
+      }
+    }
+  ]
+}

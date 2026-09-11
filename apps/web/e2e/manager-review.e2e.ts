@@ -1,4 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
+import type { HousecallExportPreview } from "../lib/housecall/preview";
 import type { ManagerJob, ReceiptDetail } from "../lib/manager/review-contract";
 import { fixtureCookie, fixtureSession } from "./fixture-auth.mjs";
 
@@ -210,6 +211,34 @@ test("edits a versioned draft and preserves original evidence across reload", as
   await expect(page.getByText("Extracted: Copperfield Supply")).toBeVisible();
   await expect(page.getByText("save draft", { exact: true })).toBeVisible();
 });
+test("shows autofilled date and per-line jobs as editable choices without saving on open", async ({
+  page,
+}) => {
+  const state = await setup(page);
+  state.detail.draft.purchaseDate = "2026-07-10";
+  state.detail.automaticJobAssignments = [
+    {
+      lineIndex: 0,
+      jobId: "job-a",
+      sourceText: "River",
+      message: "Automatically matched from “River”. Verify the job before approval.",
+    },
+  ];
+  await page.reload();
+  await expect(page.getByLabel("Purchase date *", { exact: true })).toHaveValue("2026-07-10");
+  const selected = page.getByLabel("Housecall job", { exact: true }).first();
+  await expect(selected).toHaveValue("job-a");
+  await expect(
+    page.getByText("Automatically matched from “River”. Verify the job before approval."),
+  ).toBeVisible();
+  expect(state.requests).toHaveLength(0);
+  await selected.selectOption("job-b");
+  await expect(selected).toHaveValue("job-b");
+  await expect(
+    page.getByText("Automatically matched from “River”. Verify the job before approval."),
+  ).toHaveCount(0);
+  expect(state.requests).toHaveLength(0);
+});
 test("stale and failed saves preserve local edits and never show success", async ({ page }) => {
   const state = await setup(page);
   state.conflict = true;
@@ -231,27 +260,122 @@ test("checks decimal amounts, missing job and exact two-job approval", async ({ 
   const state = await setup(page);
   await expect(page.getByRole("status", { name: "Material 1 extended cost" })).toHaveText("$1.01");
   await page.getByLabel("Quantity", { exact: true }).first().fill("-1");
-  await page.getByRole("button", { name: "Approve & send to Housecall", exact: true }).click();
+  await page.getByRole("button", { name: "Approve receipt", exact: true }).click();
   await expect(
     page.getByText("Use a positive quantity with up to three decimal places."),
   ).toBeVisible();
   expect(state.requests).toHaveLength(0);
   await page.getByLabel("Quantity", { exact: true }).first().fill("1.005");
+  await page.getByRole("button", { name: "Approve receipt", exact: true }).click();
+  await expect(page.getByText(/Housecall supports at most two decimal places/)).toBeVisible();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  expect(state.requests).toHaveLength(0);
+  await page.getByLabel("Quantity", { exact: true }).first().fill("1.01");
   await page.getByLabel("Housecall job", { exact: true }).first().selectOption("");
-  await page.getByRole("button", { name: "Approve & send to Housecall", exact: true }).click();
+  await page.getByRole("button", { name: "Approve receipt", exact: true }).click();
   await expect(page.getByText("Choose a Housecall job. Overhead is not enabled.")).toBeVisible();
   await page.getByLabel("Housecall job", { exact: true }).first().selectOption("job-a");
-  await page.getByRole("button", { name: "Approve & send to Housecall", exact: true }).click();
+  await page.getByRole("button", { name: "Approve receipt", exact: true }).click();
   const dialog = page.getByRole("dialog");
   await expect(dialog).toContainText("2 lines to 2 jobs");
-  await expect(
-    dialog.getByRole("button", { name: "Approve & send to Housecall", exact: true }),
-  ).toBeDisabled();
+  await expect(dialog).toContainText(
+    "Live Housecall writes require separate explicit approval before any data is sent.",
+  );
+  await expect(dialog.getByRole("button", { name: "Approve receipt", exact: true })).toBeDisabled();
   await dialog.getByRole("checkbox").check();
-  await dialog.getByRole("button", { name: "Approve & send to Housecall", exact: true }).click();
-  await expect(page.getByText("Approved. Housecall export is queued.")).toBeVisible();
+  await dialog.getByRole("button", { name: "Approve receipt", exact: true }).click();
+  await expect(
+    page.getByText(
+      "Receipt approved. Export is prepared; live Housecall writes require separate explicit approval.",
+    ),
+  ).toBeVisible();
   expect(state.requests).toHaveLength(1);
   expect(state.requests[0].taxExcluded).toBe(true);
+});
+test("loads the frozen export preview on demand and checks uncertain results without a send action", async ({
+  page,
+}) => {
+  await setup(page, { historical: true });
+  const calls: string[] = [];
+  const preview: HousecallExportPreview = {
+    receiptId: id,
+    intentId,
+    payloadHash: "a".repeat(64),
+    previewOnly: true,
+    liveWritesEnabled: false,
+    separateApprovalRequired: true,
+    taxExcluded: true,
+    totalMaterialCostCents: 202,
+    blockedReasons: ["live_writes_disabled", "destination_not_approved"],
+    jobs: ["job-a", "job-b"].map((jobId, index) => ({
+      id: jobId,
+      label: "Same synthetic customer",
+      destinationAllowed: index === 0,
+      unavailable: false,
+      materialCostCents: 101,
+      images: [
+        {
+          stepId: `${jobId}-page-0`,
+          pageIndex: 0,
+          status: "succeeded",
+          externalId: `${jobId}-image`,
+        },
+        { stepId: `${jobId}-page-1`, pageIndex: 1, status: "reconcile_required", externalId: null },
+      ],
+      lines: [
+        {
+          stepId: `${jobId}-line`,
+          description: "Synthetic fractional material",
+          qty: 1.005,
+          uom: "ton",
+          unitCostCents: 100,
+          extendedCostCents: 101,
+          status: "ready",
+          externalId: null,
+        },
+      ],
+    })),
+  };
+  await page.route(`**/api/manager/receipts/${id}/export-preview`, (route) => {
+    calls.push(route.request().method());
+    return route.fulfill({ json: preview });
+  });
+  await page.route(`**/api/manager/receipts/${id}/export-reconcile`, (route) => {
+    calls.push(`reconcile:${route.request().method()}`);
+    return route.fulfill({ json: { completed: 0, unresolved: 2 } });
+  });
+  expect(calls).toEqual([]);
+  const section = page.getByRole("region", { name: "Housecall export preview" });
+  await section.getByRole("button", { name: "Load export preview", exact: true }).click();
+  await expect(section).toContainText("Live Housecall writes are disabled.");
+  await expect(section).toContainText("$2.02 material costs · Tax excluded");
+  await expect(section.getByRole("heading", { name: "Same synthetic customer" })).toHaveCount(2);
+  await expect(section.getByText("job-a", { exact: true })).toBeVisible();
+  await expect(section.getByText("job-b", { exact: true })).toBeVisible();
+  await expect(section.getByText("Page 1 · Verified", { exact: false })).toHaveCount(2);
+  await expect(section.getByText("Page 2 · Verification required", { exact: false })).toHaveCount(
+    2,
+  );
+  await expect(section.getByText("1.005 ton × $1.00 = $1.01", { exact: true })).toHaveCount(2);
+  expect(calls).toEqual(["GET"]);
+  await expect(section.getByRole("button", { name: /send|approve|upload/i })).toHaveCount(0);
+  await section.getByText("Frozen plan reference for approval", { exact: true }).click();
+  await expect(section.getByText("a".repeat(64), { exact: true })).toBeVisible();
+  await section.getByRole("button", { name: "Check Housecall result", exact: true }).click();
+  await expect(section.getByRole("status")).toContainText("Housecall was checked.");
+  expect(calls).toEqual(["GET", "reconcile:POST", "GET"]);
+  // A worker killed mid-request can remain in_progress after its lease and
+  // approval expire. Read-only recovery must remain visible with writes disabled.
+  for (const job of preview.jobs) job.images[1].status = "in_progress";
+  await section.getByRole("button", { name: "Refresh export preview", exact: true }).click();
+  await expect(section.getByText("Page 2 · In progress", { exact: false })).toHaveCount(2);
+  await expect(
+    section.getByRole("button", { name: "Check Housecall result", exact: true }),
+  ).toBeVisible();
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1),
+  ).toBe(true);
 });
 test("job bulk assignment requires confirmation and adding/deleting keeps focus", async ({
   page,
@@ -269,6 +393,100 @@ test("job bulk assignment requires confirmation and adding/deleting keeps focus"
   await expect(page.getByLabel("Description", { exact: true })).toHaveCount(2);
   await expect(page.getByLabel("Description", { exact: true }).first()).toBeFocused();
 });
+test("keeps saved older jobs outside the search page and blocks unavailable or stale shortcuts", async ({
+  page,
+}) => {
+  const state = await setup(page);
+  const oldJob: ManagerJob = {
+    ...job("saved-outside-top-50", "Historic saved assignment"),
+    active: false,
+    status: "complete unrated",
+    source: "housecall",
+    syncedAt: "2026-09-09T12:00:00Z",
+    stale: false,
+    unavailable: false,
+  };
+  const removed: ManagerJob = {
+    ...job("removed-from-housecall", "Current unavailable destination"),
+    active: false,
+    status: "pro canceled",
+    source: "housecall",
+    syncedAt: "2026-09-09T12:00:00Z",
+    stale: false,
+    unavailable: true,
+  };
+  state.detail.draft.lines[0].jobId = oldJob.id;
+  state.detail.draft.lines[1].jobId = removed.id;
+  state.detail.assignedJobs = [oldJob, removed];
+  state.detail.suggestions = [
+    {
+      ...job("stale-suggestion", "Stale extracted suggestion"),
+      source: "housecall",
+      syncedAt: "2020-01-01T00:00:00Z",
+      stale: true,
+      unavailable: false,
+      suggestionId: "stale-suggestion-id",
+    },
+    {
+      ...job(removed.id, "Earlier extraction said this job was available"),
+      source: "Stored suggestion",
+      stale: false,
+      unavailable: false,
+      suggestionId: "removed-suggestion-id",
+      sourceIndex: 1,
+    },
+  ];
+  const searchPage = Array.from({ length: 50 }, (_, index) =>
+    job(`search-${index}`, `Search job ${index}`),
+  );
+  const scopes: string[] = [];
+  await page.route("**/api/manager/jobs?*", (route) => {
+    scopes.push(new URL(route.request().url()).searchParams.get("scope") ?? "");
+    return route.fulfill({ json: { jobs: searchPage } });
+  });
+  const mutations: string[] = [];
+  page.on("request", (request) => {
+    if (
+      new URL(request.url()).pathname.startsWith("/api/") &&
+      !["GET", "HEAD"].includes(request.method())
+    )
+      mutations.push(`${request.method()} ${new URL(request.url()).pathname}`);
+  });
+  await page.reload();
+  const firstJob = page.getByLabel("Housecall job", { exact: true }).first();
+  const secondJob = page.getByLabel("Housecall job", { exact: true }).nth(1);
+  await expect(firstJob).toHaveValue(oldJob.id);
+  await expect(firstJob.getByRole("option", { name: /Historic saved assignment/ })).toBeEnabled();
+  await expect(firstJob.getByRole("option", { name: /Search job 49/ })).toHaveCount(1);
+  expect(searchPage.some((candidate) => candidate.id === oldJob.id)).toBe(false);
+  await expect(secondJob).toHaveValue(removed.id);
+  await expect(
+    secondJob.getByRole("option", { name: /Current unavailable destination.*Unavailable/ }),
+  ).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Apply to all", exact: true })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Use for this line", exact: true })).toBeDisabled();
+  await expect(page.getByText("This job is unavailable.", { exact: true })).toBeVisible();
+  await expect(
+    firstJob.getByRole("option", { name: /Stale extracted suggestion.*Refresh needed/ }),
+  ).toHaveCount(1);
+  await page.getByLabel("Include all older jobs", { exact: true }).check();
+  await expect.poll(() => scopes.includes("all")).toBe(true);
+  await expect(firstJob).toHaveValue(oldJob.id);
+  await page.getByRole("button", { name: "Approve receipt", exact: true }).click();
+  await expect(
+    page.getByText("This Housecall job is unavailable. Choose an available job.", { exact: true }),
+  ).toBeVisible();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  expect(state.requests).toEqual([]);
+  expect(mutations).toEqual([]);
+  // A fresh replacement can reach review confirmation while preserving the saved older destination.
+  await secondJob.selectOption("search-0");
+  await page.getByLabel("Quantity", { exact: true }).first().fill("1.01");
+  await page.getByRole("button", { name: "Approve receipt", exact: true }).click();
+  await expect(page.getByRole("dialog")).toContainText("Historic saved assignment");
+  await expect(page.getByRole("dialog")).toContainText(oldJob.id);
+  expect(mutations).toEqual([]);
+});
 test("image refresh preserves edits, zoom and rotation", async ({ page }) => {
   const state = await setup(page);
   await page.getByLabel("Vendor *", { exact: true }).fill("Unsaved");
@@ -285,6 +503,55 @@ test("image refresh preserves edits, zoom and rotation", async ({ page }) => {
   );
   await expect(page.getByText("125%", { exact: true })).toBeVisible();
   await expect(page.getByLabel("Vendor *", { exact: true })).toHaveValue("Unsaved");
+});
+test("manager can inspect every receipt page without losing draft edits", async ({ page }) => {
+  const state = await setup(page);
+  state.detail.pageCount = 2;
+  const pages: string[] = [];
+  await page.route(`**/api/receipts/${id}/image?*`, (route) => {
+    pages.push(new URL(route.request().url()).searchParams.get("page") ?? "");
+    return route.fulfill({
+      json: { url: "/ra4-fixture-image.svg", expiresAt: "2099-01-01T00:00:00Z" },
+    });
+  });
+  await page.reload();
+  await page.getByLabel("Vendor *", { exact: true }).fill("Unsaved page review");
+  await expect(page.getByRole("button", { name: "Previous page" })).toBeDisabled();
+  await page.getByRole("button", { name: "Next page" }).click();
+  await expect(page.getByText("Page 2 of 2", { exact: true })).toBeVisible();
+  await expect(
+    page.getByAltText("Original submitted receipt, page 2", { exact: true }),
+  ).toBeVisible();
+  expect(pages.length).toBeGreaterThan(0);
+  expect(new Set(pages)).toEqual(new Set(["1"]));
+  await expect(page.getByRole("button", { name: "Next page" })).toBeDisabled();
+  await page.getByRole("button", { name: "Previous page" }).click();
+  await expect(page.getByAltText("Original submitted receipt", { exact: true })).toBeVisible();
+  await expect(page.getByLabel("Vendor *", { exact: true })).toHaveValue("Unsaved page review");
+  expect(state.requests).toHaveLength(0);
+});
+test("test-session approval explains automatic delivery and refreshes export completion", async ({
+  page,
+}) => {
+  const state = await setup(page);
+  state.detail.automaticExport = true;
+  state.detail.draft.lines[0].qty = "1.01";
+  await page.reload();
+  await page.route(`**/api/manager/receipts/${id}/review`, async (route) => {
+    state.requests.push(route.request().postDataJSON());
+    state.detail.editable = false;
+    state.detail.status = "approved";
+    return route.fulfill({ json: { id, status: "approved", exportAuthorized: true } });
+  });
+  await page.getByRole("button", { name: "Approve receipt", exact: true }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toContainText("automatically to the selected Housecall jobs");
+  await dialog.getByRole("checkbox").check();
+  await dialog.getByRole("button", { name: "Approve receipt", exact: true }).click();
+  await expect(page.getByText(/Receipt approved. Sending the receipt/)).toBeVisible();
+  state.detail.status = "exported";
+  await expect(page.getByText(`${id} · exported`, { exact: true })).toBeVisible({ timeout: 10000 });
+  expect(state.requests).toHaveLength(1);
 });
 for (const decision of ["Decline", "Mark duplicate", "Request clarification"])
   test(`${decision} requires a reason and creates no approval request`, async ({ page }) => {
@@ -355,9 +622,7 @@ test("narrow receipt review remains usable without horizontal page overflow", as
 test("desktop review visual and keyboard image pan", async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 1512, height: 982 });
   await setup(page);
-  await expect(
-    page.getByRole("button", { name: "Approve & send to Housecall", exact: true }),
-  ).toBeInViewport();
+  await expect(page.getByRole("button", { name: "Approve receipt", exact: true })).toBeInViewport();
   const viewport = page.getByRole("region", { name: "Receipt image. Use arrow keys to pan." });
   await viewport.focus();
   await page.keyboard.press("ArrowDown");
@@ -566,4 +831,91 @@ test("RA5 administrator configures stable category IDs and preserves deactivated
     await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1),
   ).toBe(true);
   await page.screenshot({ path: testInfo.outputPath("ra5-category-settings.png"), fullPage: true });
+});
+
+test("administrator confirms manual handoff and sees closed state without export success", async ({
+  page,
+}) => {
+  await setup(page, { historical: true, role: "admin" });
+  let closed = false;
+  const requests: unknown[] = [];
+  await page.route(`**/api/manager/receipts/${id}/export-preview`, (route) =>
+    route.fulfill({
+      json: {
+        receiptId: id,
+        intentId: closed ? null : intentId,
+        payloadHash: "a".repeat(64),
+        closedForManualHandling: closed,
+        previewOnly: true,
+        liveWritesEnabled: false,
+        separateApprovalRequired: true,
+        taxExcluded: true,
+        totalMaterialCostCents: 101,
+        blockedReasons: closed ? ["no_current_intent"] : ["unsupported_quantity_precision"],
+        jobs: closed
+          ? []
+          : [
+              {
+                id: "job-a",
+                label: "Synthetic test",
+                destinationAllowed: true,
+                materialCostCents: 101,
+                images: [],
+                lines: [
+                  {
+                    stepId: "line",
+                    description: "Synthetic material",
+                    qty: 1.005,
+                    unitCostCents: 100,
+                    extendedCostCents: 101,
+                    status: "reconcile_required",
+                    externalId: null,
+                  },
+                ],
+              },
+            ],
+      },
+    }),
+  );
+  await page.route(`**/api/admin/receipts/${id}/close-export`, (route) => {
+    requests.push(route.request().postDataJSON());
+    closed = true;
+    return route.fulfill({ json: { closed: true, exported: false } });
+  });
+  const region = page.getByRole("region", { name: "Housecall export preview" });
+  await region.getByRole("button", { name: "Load export preview", exact: true }).click();
+  await region.getByText("Stop this export for manual handling", { exact: true }).click();
+  const button = region.getByRole("button", { name: "Stop automatic export", exact: true });
+  await expect(button).toBeDisabled();
+  await region
+    .getByLabel("Manual handling reason", { exact: true })
+    .fill("Provider rounded the quantity; remaining synthetic costs handled manually.");
+  await expect(button).toBeDisabled();
+  await region.getByRole("checkbox").check();
+  await button.click();
+  await expect(region).toContainText("Automatic export stopped for manual handling.");
+  await expect(region).not.toContainText("Approve the receipt to freeze its export plan.");
+  expect(requests).toEqual([
+    expect.objectContaining({ intentId, payloadHash: "a".repeat(64), confirmStop: true }),
+  ]);
+});
+
+test("refreshes the job catalog without losing manager edits or approving the receipt", async ({
+  page,
+}) => {
+  const state = await setup(page);
+  let refreshed = false;
+  await page.route("**/api/manager/jobs", (route) => {
+    expect(route.request().method()).toBe("POST");
+    refreshed = true;
+    return route.fulfill({ json: { count: 990, scanned: 990 } });
+  });
+  await page.getByLabel("Vendor *", { exact: true }).fill("Manager's saved choice");
+  await page.getByRole("button", { name: "Refresh Housecall jobs", exact: true }).click();
+  await expect.poll(() => refreshed).toBe(true);
+  await expect(
+    page.getByRole("button", { name: "Refresh Housecall jobs", exact: true }),
+  ).toBeEnabled();
+  await expect(page.getByLabel("Vendor *", { exact: true })).toHaveValue("Manager's saved choice");
+  expect(state.requests).toEqual([]);
 });

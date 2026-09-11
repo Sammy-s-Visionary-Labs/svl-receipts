@@ -1,6 +1,10 @@
 {
   "crons": [
     {
+      "path": "/api/cron/housecall",
+      "schedule": "0 9 * * *"
+    },
+    {
       "path": "/api/cron/abandoned-uploads",
       "schedule": "0 8 * * *"
     },

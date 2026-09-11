@@ -1,0 +1,62 @@
+diff --git a/node_modules/expo-image-picker/android/src/main/java/expo/modules/imagepicker/ImagePickerModule.kt b/node_modules/expo-image-picker/android/src/main/java/expo/modules/imagepicker/ImagePickerModule.kt
+index 50663d8..ca2eaf0 100644
+--- a/node_modules/expo-image-picker/android/src/main/java/expo/modules/imagepicker/ImagePickerModule.kt
++++ b/node_modules/expo-image-picker/android/src/main/java/expo/modules/imagepicker/ImagePickerModule.kt
+@@ -22,6 +22,7 @@ import expo.modules.interfaces.permissions.PermissionsResponse
+ import expo.modules.interfaces.permissions.PermissionsResponseListener
+ import expo.modules.interfaces.permissions.PermissionsStatus
+ import expo.modules.kotlin.Promise
++import expo.modules.kotlin.activityresult.AppContextActivityResultCaller
+ import expo.modules.kotlin.activityresult.AppContextActivityResultLauncher
+ import expo.modules.kotlin.exception.Exceptions
+ import expo.modules.kotlin.functions.Coroutine
+@@ -84,7 +85,7 @@ class ImagePickerModule : Module() {
+ 
+     AsyncFunction("launchImageLibraryAsync") Coroutine { options: ImagePickerOptions ->
+       val contractOptions = options.toImageLibraryContractOptions()
+-      launchContract({ imageLibraryLauncher.launch(contractOptions) }, options)
++      launchContract({ launchImageLibraryWithRecovery(contractOptions) }, options)
+     }
+ 
+     AsyncFunction("getPendingResultAsync") Coroutine { ->
+@@ -98,6 +99,7 @@ class ImagePickerModule : Module() {
+     // endregion
+ 
+     RegisterActivityContracts {
++      activityResultCaller = this
+       cameraLauncher = registerForActivityResult(
+         CameraContract(this@ImagePickerModule)
+       ) { input, result -> handleResultUponActivityDestruction(result, input.options) }
+@@ -112,12 +114,32 @@ class ImagePickerModule : Module() {
+     }
+   }
+ 
++  // Android may recreate the Activity while retaining this module. In that case
++  // its old launcher can have been unregistered by the destroyed Activity.
++  // Repair only that pre-launch failure, on the UI thread, and retry once.
++  private suspend fun launchImageLibraryWithRecovery(
++    contractOptions: ImageLibraryContractOptions
++  ): ImagePickerContractResult = withContext(Dispatchers.Main) {
++    try {
++      imageLibraryLauncher.launch(contractOptions)
++    } catch (error: IllegalStateException) {
++      if (error.message?.startsWith("Attempting to launch an unregistered ActivityResultLauncher") != true) {
++        throw error
++      }
++      imageLibraryLauncher = activityResultCaller.registerForActivityResult(
++        ImageLibraryContract(this@ImagePickerModule)
++      ) { input, result -> handleResultUponActivityDestruction(result, input.options) }
++      imageLibraryLauncher.launch(contractOptions)
++    }
++  }
++
+   // TODO (@bbarthec): generalize it as almost every module re-declares this approach
+   val context: Context
+     get() = requireNotNull(appContext.reactContext) { "React Application Context is null" }
+ 
+   private val mediaHandler = MediaHandler(this)
+ 
++  private lateinit var activityResultCaller: AppContextActivityResultCaller
+   private lateinit var cameraLauncher: AppContextActivityResultLauncher<CameraContractOptions, ImagePickerContractResult>
+   private lateinit var imageLibraryLauncher: AppContextActivityResultLauncher<ImageLibraryContractOptions, ImagePickerContractResult>
+   private lateinit var cropImageLauncher: AppContextActivityResultLauncher<CropImageContractOptions, ImagePickerContractResult>

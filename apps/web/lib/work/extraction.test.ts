@@ -13,7 +13,7 @@ vi.mock("@svl/integrations", async (original) => ({
 vi.mock("@/lib/storage/receipts", () => ({ readReceiptObject: mocks.readObject }));
 vi.mock("@/lib/manager/intelligence", () => ({ buildReceiptIntelligence: mocks.intelligence }));
 
-import { normalizeExtractionPage, runExtraction } from "./extraction";
+import { normalizeExtractionPage, receiptDatePolicy, runExtraction } from "./extraction";
 
 function database(
   pages: Record<string, unknown>[],
@@ -41,6 +41,17 @@ beforeEach(() => {
   mocks.intelligence.mockResolvedValue({ jobCandidates: [], duplicateCandidates: [] });
 });
 describe("extraction worker", () => {
+  it("supplies the tenant date convention and current year, rejecting invalid deployment settings", () => {
+    const now = new Date("2026-09-11T12:00:00Z");
+    expect(receiptDatePolicy({}, now)).toEqual({ dateOrder: "MDY", referenceYear: 2026 });
+    expect(receiptDatePolicy({ RECEIPT_DATE_ORDER: "DMY" }, now)).toEqual({
+      dateOrder: "DMY",
+      referenceYear: 2026,
+    });
+    expect(() => receiptDatePolicy({ RECEIPT_DATE_ORDER: "auto" }, now)).toThrow(
+      "invalid_receipt_date_order",
+    );
+  });
   it("applies EXIF orientation and removes metadata before inference", async () => {
     const original = await sharp({
       create: { width: 12, height: 6, channels: 3, background: "white" },

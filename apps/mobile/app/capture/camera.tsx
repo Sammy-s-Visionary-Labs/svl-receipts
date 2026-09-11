@@ -123,7 +123,7 @@ export default function ReceiptCameraScreen() {
   if (!permission) {
     return (
       <View accessibilityLabel="Checking camera access" style={styles.loadingScreen}>
-        <ActivityIndicator size="large" color="#2563eb" />
+        <ActivityIndicator size="large" color="#315b49" />
         <Text style={styles.loadingText}>Checking camera access…</Text>
       </View>
     );
@@ -314,7 +314,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#ffffff",
   },
   loadingText: {
-    color: "#334155",
+    color: "#43594d",
     fontSize: 16,
   },
   cameraScreen: {
@@ -438,7 +438,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     padding: 24,
-    backgroundColor: "#f6f8fb",
+    backgroundColor: "#f6f7f2",
   },
   recoveryCard: {
     padding: 24,
@@ -448,13 +448,13 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   recoveryTitle: {
-    color: "#0f172a",
+    color: "#253c35",
     fontSize: 28,
     lineHeight: 34,
     fontWeight: "800",
   },
   recoveryDetail: {
-    color: "#475569",
+    color: "#737d70",
     fontSize: 16,
     lineHeight: 24,
     marginBottom: 4,
@@ -465,7 +465,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     borderRadius: 14,
     paddingHorizontal: 18,
-    backgroundColor: "#2563eb",
+    backgroundColor: "#315b49",
   },
   recoveryPrimaryText: {
     color: "#ffffff",
@@ -478,11 +478,11 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     borderRadius: 14,
     borderWidth: 1.5,
-    borderColor: "#94a3b8",
+    borderColor: "#a4ae9b",
     paddingHorizontal: 18,
   },
   recoverySecondaryText: {
-    color: "#0f172a",
+    color: "#253c35",
     fontSize: 16,
     fontWeight: "700",
   },
@@ -492,7 +492,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   backLinkText: {
-    color: "#475569",
+    color: "#737d70",
     fontSize: 15,
     fontWeight: "700",
   },

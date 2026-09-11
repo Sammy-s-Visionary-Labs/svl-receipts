@@ -1,8 +1,11 @@
 import { Tabs } from "expo-router";
+import { StatusBar } from "expo-status-bar";
 import { SymbolView } from "expo-symbols";
 import { AuthGate } from "@/components/AuthGate";
+import { BrandHeader } from "@/components/BrandHeader";
 import { useClientOnlyValue } from "@/components/useClientOnlyValue";
 import { useColorScheme } from "@/components/useColorScheme";
+import { Brand } from "@/constants/Brand";
 import Colors from "@/constants/Colors";
 
 export default function TabLayout() {
@@ -11,10 +14,17 @@ export default function TabLayout() {
 
   return (
     <AuthGate allow="tabs">
+      <StatusBar style="light" />
       <Tabs
         screenOptions={{
           tabBarActiveTintColor: Colors[colorScheme].tint,
           headerShown,
+          headerTitle: () => <BrandHeader />,
+          headerTitleAlign: "left",
+          headerStyle: { backgroundColor: Brand.forest },
+          headerTintColor: Brand.white,
+          tabBarStyle: { backgroundColor: Brand.card, borderTopColor: Brand.line },
+          tabBarInactiveTintColor: Brand.muted,
         }}
       >
         <Tabs.Screen
