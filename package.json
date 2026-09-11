@@ -30,7 +30,6 @@
   "devDependencies": {
     "@biomejs/biome": "^2.2.0",
     "@playwright/test": "1.62.1",
-    "patch-package": "8.0.1",
     "postgres": "3.4.7",
     "supabase": "2.115.0"
   },
@@ -42,5 +41,8 @@
   },
   "engines": {
     "node": ">=22"
+  },
+  "dependencies": {
+    "patch-package": "8.0.1"
   }
 }
