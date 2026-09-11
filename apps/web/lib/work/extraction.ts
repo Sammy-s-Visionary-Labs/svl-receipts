@@ -1,4 +1,8 @@
-import { type ReceiptContentType, WORK_LEASE_SECONDS } from "@svl/domain";
+import {
+  type ReceiptContentType,
+  type ReceiptNormalizationOptions,
+  WORK_LEASE_SECONDS,
+} from "@svl/domain";
 import {
   createGeminiReceiptAdapter,
   GEMINI_RECEIPT_MODEL,
@@ -9,6 +13,16 @@ import { buildReceiptIntelligence } from "@/lib/manager/intelligence";
 import { readReceiptObject } from "@/lib/storage/receipts";
 import type { createServiceRoleClient } from "@/lib/supabase/service";
 import type { WorkRow } from "./runner";
+
+/** This tenant operates in the U.S.; a configured DMY tenant remains explicit. */
+export function receiptDatePolicy(
+  env: Readonly<Record<string, string | undefined>> = process.env,
+  now = new Date(),
+): ReceiptNormalizationOptions {
+  const dateOrder = env.RECEIPT_DATE_ORDER || "MDY";
+  if (dateOrder !== "MDY" && dateOrder !== "DMY") throw new Error("invalid_receipt_date_order");
+  return { dateOrder, referenceYear: now.getUTCFullYear() };
+}
 
 export const EXTRACTION_PROVIDER_TIMEOUT_MS = 90_000;
 export class ExtractionDeferredError extends Error {
@@ -105,6 +119,7 @@ export async function runExtraction(
     apiKey: process.env.GEMINI_API_KEY || process.env.AI_API_KEY || "",
     model: process.env.GEMINI_EXTRACTION_MODEL || GEMINI_RECEIPT_MODEL,
     timeoutMs: providerBudget,
+    normalization: receiptDatePolicy(),
   });
   const result = await adapter.parseReceipt(providerPages);
   const intelligence = await buildReceiptIntelligence(supabase, row.receipt_id, result.receipt);

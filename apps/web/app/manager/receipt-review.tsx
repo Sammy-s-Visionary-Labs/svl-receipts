@@ -883,6 +883,17 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
                           {errors[`lines.${index}.jobId`]}
                         </small>
                       )}
+                      {detail.automaticJobAssignments
+                        ?.filter(
+                          (assignment) =>
+                            assignment.lineIndex === index &&
+                            (assignment.jobId ? assignment.jobId === line.jobId : !line.jobId),
+                        )
+                        .map((assignment) => (
+                          <p key={assignment.lineIndex} className={styles.notice}>
+                            {assignment.message}
+                          </p>
+                        ))}
                       {allJobs.find((j) => j.id === line.jobId) && (
                         <p className={styles.meta}>
                           {allJobs.find((j) => j.id === line.jobId)?.status || "Status unavailable"}{" "}

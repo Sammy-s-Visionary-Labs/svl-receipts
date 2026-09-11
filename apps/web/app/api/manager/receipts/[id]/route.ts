@@ -9,6 +9,7 @@ import {
   managerJob,
 } from "@/lib/manager/detail";
 import { categoryRow } from "@/lib/manager/intelligence";
+import { autofillReceiptJobs } from "@/lib/manager/job-autofill";
 import type { ReceiptDetail } from "@/lib/manager/review-contract";
 import { UUID, validId } from "@/lib/manager/review-request";
 
@@ -142,6 +143,7 @@ export async function GET(request: Request, context: Context) {
         "This receipt exceeds the 100-line review limit. Ask an administrator to split it before approval.",
       );
     let savedDraft = review?.snapshot ?? original;
+    let pristineDraft = !review?.snapshot && receipt.review_version === 0;
     if (!review?.snapshot) {
       const [patches, legacyLines] = await Promise.all([
         supabase.rpc("manager_legacy_review_edits", { p_receipt_id: id }),
@@ -153,6 +155,11 @@ export async function GET(request: Request, context: Context) {
           .limit(101),
       ]);
       if (patches.error) throw patches.error;
+      if (
+        Object.keys(patches.data ?? {}).length ||
+        (!extraction?.work_item_id && legacyLines.data?.length)
+      )
+        pristineDraft = false;
       if (legacyLines.error) throw legacyLines.error;
       if ((legacyLines.data?.length ?? 0) > 100)
         throw new HttpError(422, "review_limit", "This receipt exceeds the 100-line review limit.");
@@ -294,6 +301,11 @@ export async function GET(request: Request, context: Context) {
       clarification: review?.decision === "request_clarification" ? review.reason : null,
       canonicalReceiptId: review?.canonical_receipt_id ?? null,
     };
+    if (pristineDraft && data.editable && extraction?.normalized) {
+      const filled = autofillReceiptJobs(savedDraft, extraction.normalized, data.suggestions);
+      data.draft = filled.draft;
+      data.automaticJobAssignments = filled.assignments;
+    }
     return Response.json(data, { headers: { "cache-control": "private, no-store" } });
   } catch (error) {
     return error instanceof HttpError ? httpErrorResponse(error) : authErrorResponse(error);

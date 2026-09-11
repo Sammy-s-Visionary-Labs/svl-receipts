@@ -138,6 +138,32 @@ describe("deterministic US receipt normalization", () => {
     expect(normalizeReceiptDate("Marching 1 2026").issue).toBe("invalid_date");
     expect(normalizeReceiptDate("00/01/2026").issue).toBe("invalid_date");
   });
+  it.each(["7-10-26", "7/10/26", "7 10 26", "7 . 10 . 26", "July 10, 26"])(
+    "normalizes the visible short-year date %s using the explicit US recent-date policy",
+    (printed) => {
+      const result = normalizeReceiptObservation(observedReceipt({ purchase_date: printed }), {
+        dateOrder: "MDY",
+        referenceYear: 2026,
+      });
+      expect(result.purchase_date).toBe("2026-07-10");
+      expect(result.original_observation.purchase_date).toBe(printed);
+      expect(result.warnings).toContainEqual(
+        expect.objectContaining({ field: "purchase_date", code: "expanded_year" }),
+      );
+      expect(isParsedReceiptV1(result)).toBe(true);
+    },
+  );
+  it("keeps short-year expansion bounded and preserves calendar and locale validation", () => {
+    expect(normalizeReceiptDate("10/7/26", "DMY", 2026).value).toBe("2026-07-10");
+    expect(normalizeReceiptDate("2/29/24", "MDY", 2026).value).toBe("2024-02-29");
+    expect(normalizeReceiptDate("2026/7/10", "MDY", 2026).value).toBe("2026-07-10");
+    expect(normalizeReceiptDate("7/10/1999", "MDY", 2026).value).toBe("1999-07-10");
+    for (const printed of ["2/29/26", "13/10/26", "7/10/99", "7/10/28", "7/10", "7/?/26", null])
+      expect(normalizeReceiptDate(printed, "MDY", 2026).value).toBeNull();
+    expect(normalizeReceiptDate("3/4/26", undefined, 2026).value).toBeNull();
+    expect(normalizeReceiptDate("1/1/00", "MDY", 2099).value).toBe("2100-01-01");
+    expect(normalizeReceiptDate("7/10/26", "MDY", NaN).value).toBeNull();
+  });
   it.each([
     ["Select", "2.500", "Tons", "$40.00", "100.00", 10000, "ton"],
     ["Sandman", "6.090", "TON", "24.70", "150.42", 15042, "ton"],

@@ -878,7 +878,12 @@ function ReceiptSummary({
             </button>
           </div>
           <div className={styles.dialogBody}>
-            <Link href={`/receipts/${receipt.id}`}>Open full receipt review</Link>
+            <Link
+              className={`${styles.primaryButton} ${styles.fullReviewButton}`}
+              href={`/receipts/${receipt.id}`}
+            >
+              Open full receipt review <Icon name="chevron" size={16} />
+            </Link>
             <div className={styles.summaryHero}>
               <ReceiptThumbnail key={receipt.id} receipt={receipt} large />
               <div>

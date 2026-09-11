@@ -55,6 +55,76 @@ beforeEach(() => {
   } as never);
 });
 describe("manager receipt detail API", () => {
+  function freshMatchedExtraction() {
+    rows.extractions = [
+      {
+        id: "e",
+        work_item_id: "work",
+        vendor: "Supply",
+        purchase_date: "2026-07-10",
+        lines: [{ source_index: 0, description: "Stone", qty: 2, unit_cost_cents: 4000 }],
+        normalized: { job_hints: [{ text: "Purshottam" }], confidence: { "job_hints.0": 0.95 } },
+      },
+    ];
+    rows.receipt_lines = [
+      { id: "generated", description: "Stone", qty: 2, unit_cost_cents: 4000, job_id: null },
+    ];
+    rows.job_candidates = [
+      {
+        id: "candidate",
+        extraction_id: "e",
+        housecall_job_id: "singh",
+        score: 42,
+        scoring_version: "ra5-rules-v2:g100:k10:m8",
+        source_index: null,
+        reasons: [{ code: "similar_customer", message: "Name match", evidence: ["Purshottam"] }],
+      },
+    ];
+    rows.manager_job_catalog = [
+      {
+        id: "singh",
+        label: "Purshottam Singh #1990",
+        customer: "Purshottam Singh",
+        source: "housecall",
+        active: true,
+        unavailable: false,
+        synced_at: new Date().toISOString(),
+      },
+    ];
+  }
+  it("fills an untouched extracted draft even when generated material projections exist, using read-only calls", async () => {
+    freshMatchedExtraction();
+    const response = await run();
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.draft).toMatchObject({ purchaseDate: "2026-07-10", lines: [{ jobId: "singh" }] });
+    expect(body.original.lines[0].jobId).toBe("");
+    expect(body.automaticJobAssignments[0].jobId).toBe("singh");
+    expect(rpc.mock.calls.map(([name]) => name)).toEqual([
+      "manager_legacy_review_edits",
+      "manager_receipt_timeline",
+    ]);
+  });
+  it.each(["saved", "legacy", "historical"])(
+    "does not autofill over %s manager decisions",
+    async (kind) => {
+      freshMatchedExtraction();
+      if (kind === "saved") {
+        rows.reviews = [
+          { snapshot: { vendor: "Supply", lines: [{ jobId: "" }] }, extraction_id: "e" },
+        ];
+        rows.receipts = { ...(rows.receipts as object), review_version: 1 };
+      } else if (kind === "legacy") {
+        rpc.mockImplementation(async (name) => ({
+          data: name === "manager_legacy_review_edits" ? { vendor: "Edited" } : [],
+          error: null,
+        }));
+      } else rows.receipts = { ...(rows.receipts as object), status: "exported" };
+      const body = await (await run()).json();
+      expect(body.draft.lines[0].jobId).toBe("");
+      expect(body.automaticJobAssignments).toBeUndefined();
+    },
+  );
   it("hydrates historical suggestions and saved assignments using current exact catalog IDs", async () => {
     rows.reviews = [{ snapshot: { vendor: "Saved", lines: [{ jobId: "saved-only" }] } }];
     rows.job_candidates = [

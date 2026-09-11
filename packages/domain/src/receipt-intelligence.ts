@@ -1,5 +1,5 @@
 /** Deterministic RA-5 suggestions. Scores are evidence weights, never probabilities. */
-export const INTELLIGENCE_SCORING_VERSION = "ra5-rules-v1";
+export const INTELLIGENCE_SCORING_VERSION = "ra5-rules-v2";
 export type IntelligenceReason = { code: string; message: string; evidence?: string[] };
 const norm = (value: string | null | undefined) =>
   (value ?? "")
@@ -214,7 +214,11 @@ export function rankJobCandidates(
   if (![maxAccuracy, maxDistance, minScore].every((n) => Number.isFinite(n) && n >= 0))
     throw new Error("Invalid job scoring configuration");
   const scoringVersion = `${INTELLIGENCE_SCORING_VERSION}:g${maxAccuracy}:k${maxDistance}:m${minScore}`;
+  const hasOwnHint =
+    context.sourceIndex !== undefined &&
+    context.hints.some((h) => h.sourceIndex === context.sourceIndex && norm(h.text));
   const hints = context.hints
+    .filter((h) => !hasOwnHint || h.sourceIndex === context.sourceIndex)
     .filter((h) => h.sourceIndex === undefined || h.sourceIndex === context.sourceIndex)
     .filter((h) => norm(h.text));
   const entries = catalog.filter(

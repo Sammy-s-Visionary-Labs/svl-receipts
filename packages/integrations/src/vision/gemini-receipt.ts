@@ -12,7 +12,7 @@ import type { GeminiReadabilityPage, GeminiReadabilityUsage } from "./gemini-rea
 
 export const GEMINI_RECEIPT_PROVIDER = "google_gemini" as const;
 export const GEMINI_RECEIPT_MODEL = "gemini-3.5-flash-lite" as const;
-export const GEMINI_RECEIPT_PROMPT_VERSION = "ra6-receipt-v1.3" as const;
+export const GEMINI_RECEIPT_PROMPT_VERSION = "ra6-receipt-v1.4" as const;
 export type GeminiReceiptPage = GeminiReadabilityPage;
 export type GeminiReceiptResult = {
   receipt: ParsedReceiptV1;
@@ -241,8 +241,8 @@ function buildRequest(mediaParts: MediaPart[]) {
             "Extract material/product/fee charge lines; tax, subtotal, balance, tender, change and summary totals are reference fields, never material lines. Keep discounts or credits as printed negative strings for review.",
             "Identify receipt, invoice, weight_ticket, picking_list or unknown from the document's evidence. A picking list saying THIS IS NOT A RECEIPT remains picking_list.",
             "All images are one ordered document with zero-based page indexes. Merge continuation pages, include each actual charge once, and do not duplicate repeated headers, carried-forward totals or summary lines. Do not merge distinct identical purchases.",
-            "Use purchase/invoice date rather than card settlement date; if competing dates cannot be resolved, retain the competing date evidence and use null purchase_date.",
-            "Record printed and handwritten customer/job/PO/reference hints in job_hints and line-specific annotations in job_hint. These are document text, never Housecall IDs.",
+            "Look carefully for the purchase/invoice date in printed, handwritten, stamped, and faint date fields, including the top corners. Transcribe a legible date even when it uses spaces, numeric month/day order, or a two-digit year: for example 7 20 26 stays 7 20 26. Date normalization is performed separately; a two-digit year or ambiguous order alone is not a reason to omit visible date text. Use purchase/invoice date rather than card settlement date; if competing dates cannot be resolved, retain the competing date evidence and use null purchase_date.",
+            "Record printed and handwritten customer/job/PO/reference hints in job_hints and line-specific annotations in job_hint. Keep distinct job names separate. Repeat each applicable job name in the corresponding material line job_hint, including parenthetical names and handwritten grouping labels. Retain Shop, stock, and overhead annotations as line hints; never assign them to a customer. These are document text, never Housecall IDs.",
             "Include evidence for every non-null extracted field, with exact text, its page_index and confidence 0..1. Evidence field paths are vendor,purchase_date,invoice_number,ticket_number,receipt_total,tax,subtotal,currency,job_hints.N,lines.N.description,lines.N.qty,lines.N.uom,lines.N.unit_cost,lines.N.extended_cost,lines.N.job_hint.",
             "Omit evidence entries for null, missing or blank fields. Every evidence text and job_hints text must contain visible non-empty document text; never use an empty string as evidence of absence.",
             "raw_text should retain useful receipt transcription and handwriting, excluding full payment card numbers, bank account numbers, verification codes and unnecessary personal data. Do not output hidden reasoning.",

@@ -211,6 +211,34 @@ test("edits a versioned draft and preserves original evidence across reload", as
   await expect(page.getByText("Extracted: Copperfield Supply")).toBeVisible();
   await expect(page.getByText("save draft", { exact: true })).toBeVisible();
 });
+test("shows autofilled date and per-line jobs as editable choices without saving on open", async ({
+  page,
+}) => {
+  const state = await setup(page);
+  state.detail.draft.purchaseDate = "2026-07-10";
+  state.detail.automaticJobAssignments = [
+    {
+      lineIndex: 0,
+      jobId: "job-a",
+      sourceText: "River",
+      message: "Automatically matched from “River”. Verify the job before approval.",
+    },
+  ];
+  await page.reload();
+  await expect(page.getByLabel("Purchase date *", { exact: true })).toHaveValue("2026-07-10");
+  const selected = page.getByLabel("Housecall job", { exact: true }).first();
+  await expect(selected).toHaveValue("job-a");
+  await expect(
+    page.getByText("Automatically matched from “River”. Verify the job before approval."),
+  ).toBeVisible();
+  expect(state.requests).toHaveLength(0);
+  await selected.selectOption("job-b");
+  await expect(selected).toHaveValue("job-b");
+  await expect(
+    page.getByText("Automatically matched from “River”. Verify the job before approval."),
+  ).toHaveCount(0);
+  expect(state.requests).toHaveLength(0);
+});
 test("stale and failed saves preserve local edits and never show success", async ({ page }) => {
   const state = await setup(page);
   state.conflict = true;
