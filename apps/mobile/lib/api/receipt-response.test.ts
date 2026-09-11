@@ -147,4 +147,44 @@ describe("receipt API response parsing", () => {
     ).toBeUndefined();
     expect(parseWorkerReceiptDetail({ ...detail, pages: [...detail.pages].reverse() })).toBeNull();
   });
+
+  it("keeps a new upload visible alongside older records without photo pages", () => {
+    const uploaded = {
+      id,
+      status: "needs_review",
+      workerStatus: "in_review",
+      pageCount: 1,
+      thumbnail: null,
+      submittedAt: "2026-09-11T17:19:42.796605+00:00",
+      readability: null,
+    };
+    const older = {
+      ...uploaded,
+      id: "8bb96a3a-7a5c-4ec8-b4cf-b5a7463d78c2",
+      pageCount: 0,
+      submittedAt: "2026-09-08T17:52:04.354443+00:00",
+    };
+    const response = { receipts: [uploaded, older], nextCursor: "older-page" };
+
+    expect(parseRecentReceiptsResponse(response)).toEqual(response);
+  });
+
+  it.each([-1, 1.5, 6, "0"])("rejects an invalid history page count of %s", (pageCount) => {
+    expect(
+      parseRecentReceiptsResponse({
+        receipts: [
+          {
+            id,
+            status: "needs_review",
+            workerStatus: "in_review",
+            pageCount,
+            thumbnail: null,
+            submittedAt: null,
+            readability: null,
+          },
+        ],
+        nextCursor: null,
+      }),
+    ).toBeNull();
+  });
 });

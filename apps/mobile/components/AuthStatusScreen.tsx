@@ -3,11 +3,13 @@ import { Text, View } from "@/components/Themed";
 
 export function AuthStatusScreen({
   kind,
+  accountEmail,
   actionLabel,
   onRetry,
   onSignOut,
 }: {
   kind: "booting" | "revoked" | "offline" | "wrong_role" | "inactive";
+  accountEmail?: string;
   actionLabel?: string;
   onRetry?: () => void;
   onSignOut?: () => void;
@@ -16,6 +18,7 @@ export function AuthStatusScreen({
   return (
     <View style={styles.container}>
       <Text style={styles.title}>{copy.title}</Text>
+      {accountEmail ? <Text>Signed in as {accountEmail}</Text> : null}
       <Text style={styles.body}>{copy.body}</Text>
       {onRetry ? <Button color="#315b49" title="Try again" onPress={onRetry} /> : null}
       {onSignOut ? (

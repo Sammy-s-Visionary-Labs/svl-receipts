@@ -26,6 +26,7 @@ export type RecentReceipt = ReceiptReadabilityStatus & {
   id: string;
   submittedAt: string | null;
   workerStatus: WorkerFacingStatus;
+  // History may retain a record with no available confirmed photo pages.
   pageCount: number;
   thumbnail: SignedReceiptImage | null;
 };
@@ -158,7 +159,7 @@ export function parseRecentReceiptsResponse(value: unknown): RecentReceiptsPage 
       !isWorkerFacingStatus(candidate.workerStatus) ||
       typeof candidate.pageCount !== "number" ||
       !Number.isInteger(candidate.pageCount) ||
-      candidate.pageCount < 1 ||
+      candidate.pageCount < 0 ||
       candidate.pageCount > 5 ||
       thumbnail === undefined ||
       (submittedAt !== null &&
