@@ -2,16 +2,18 @@
   "expo": {
     "name": "SVL Receipts",
     "slug": "svl-receipts",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "svl-receipts",
     "userInterfaceStyle": "light",
     "ios": {
+      "bundleIdentifier": "com.visionarylabs.svlreceipts",
       "supportsTablet": true,
       "config": {
         "usesNonExemptEncryption": false
-      }
+      },
+      "buildNumber": "1"
     },
     "android": {
       "adaptiveIcon": {
@@ -23,7 +25,7 @@
       "predictiveBackGestureEnabled": false,
       "package": "com.visionarylabs.svlreceipts",
       "googleServicesFile": "./google-services.json",
-      "versionCode": 2
+      "versionCode": 3
     },
     "web": {
       "bundler": "metro",
@@ -31,6 +33,7 @@
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
+      "./plugins/with-ios-path-quoting",
       "expo-router",
       "expo-secure-store",
       [

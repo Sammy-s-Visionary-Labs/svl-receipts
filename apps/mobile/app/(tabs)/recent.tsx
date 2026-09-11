@@ -257,6 +257,7 @@ export default function RecentScreen() {
       renderItem={({ item: receipt }) => {
         const isHighlighted = receipt.id === highlightedReceiptId;
         const needsRetake = receipt.workerStatus === "needs_retake";
+        const canOpenDetails = receipt.source === "cloud" && receipt.pageCount > 0;
         return (
           <View
             lightColor="#ffffff"
@@ -264,12 +265,10 @@ export default function RecentScreen() {
             style={[styles.receiptCard, isHighlighted && styles.highlightedCard]}
           >
             <Pressable
-              accessibilityHint={
-                receipt.source === "cloud" ? "Opens read-only receipt details" : undefined
-              }
+              accessibilityHint={canOpenDetails ? "Opens read-only receipt details" : undefined}
               accessibilityLabel={isHighlighted ? "Receipt opened from notification" : undefined}
-              accessibilityRole={receipt.source === "cloud" ? "button" : undefined}
-              disabled={receipt.source !== "cloud"}
+              accessibilityRole={canOpenDetails ? "button" : undefined}
+              disabled={!canOpenDetails}
               onPress={() => router.push(`/receipts/${receipt.id}` as Href)}
             >
               <View style={styles.cardHeading}>
@@ -293,7 +292,9 @@ export default function RecentScreen() {
                   <Text style={styles.cardTitle}>Receipt •••{receiptSuffix(receipt.id)}</Text>
                   <Text style={styles.timestamp}>{formatReceiptDate(receipt.submittedAt)}</Text>
                   <Text style={styles.timestamp}>
-                    {receipt.pageCount} {receipt.pageCount === 1 ? "page" : "pages"}
+                    {receipt.pageCount === 0
+                      ? "Receipt photos unavailable"
+                      : `${receipt.pageCount} ${receipt.pageCount === 1 ? "page" : "pages"}`}
                   </Text>
                 </View>
                 <View style={[styles.statusChip, statusChipStyle(receipt.workerStatus)]}>

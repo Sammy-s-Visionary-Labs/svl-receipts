@@ -58,7 +58,11 @@ export async function fetchMe(
   try {
     response = await apiFetch("/api/me", {
       method: "GET",
-      headers: { Authorization: `Bearer ${accessToken}` },
+      cache: "no-store",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Cache-Control": "no-cache, no-store",
+      },
     });
   } catch {
     return { ok: false, error: "network" };
