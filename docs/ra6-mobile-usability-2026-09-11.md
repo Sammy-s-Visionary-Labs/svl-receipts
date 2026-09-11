@@ -30,12 +30,12 @@ launch on the Android UI thread, register a replacement image-library launcher
 if the old one was unregistered, then retry once. Other exceptions propagate.
 Cancellation and image processing do not cause another native launch.
 
-The package is pinned to 57.0.14, and root `postinstall` applies the patch with
-`--error-on-fail`. `patch-package` is a regular root dependency so this install
-hook also works when Vercel omits root development dependencies. Mobile Expo
-autolinking explicitly builds `expo-image-picker`
-from source. SDK 57 otherwise uses a precompiled Android library and ignores
-Kotlin source patches. See [Expo autolinking buildFromSource](https://docs.expo.dev/modules/autolinking/#buildfromsource).
+The package is pinned to 57.0.14. The mobile workspace's `postinstall` applies
+its patch with `--error-on-fail`, and `patch-package` is a regular mobile dependency.
+The hook belongs to the mobile workspace because Vercel installs the web workspace
+without the root/mobile build tools. Mobile Expo autolinking explicitly builds
+`expo-image-picker` from source. SDK 57 otherwise uses a precompiled Android
+library and ignores Kotlin source patches. See [Expo autolinking buildFromSource](https://docs.expo.dev/modules/autolinking/#buildfromsource).
 When upgrading this dependency, reassess/remove the patch and repeat physical
 Android gallery checks. Patch files must contain source changes only, never
 Gradle build outputs.
