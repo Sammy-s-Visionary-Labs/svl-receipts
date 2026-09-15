@@ -7,6 +7,7 @@ function isPublicPath(pathname: string): boolean {
 }
 
 export async function proxy(request: NextRequest) {
+  if (request.nextUrl.pathname === "/field/manifest.webmanifest") return NextResponse.next();
   const { supabaseResponse, signedIn } = await updateSession(request);
   const { pathname } = request.nextUrl;
   const hasBearer = request.headers.get("authorization")?.startsWith("Bearer ");

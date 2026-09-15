@@ -14,6 +14,8 @@ export default async function Home() {
     redirect("/login");
   }
 
+  if (actor.role === "worker") redirect("/field");
+
   if (!actorMayAccessManagerOps(actor) || (actor.role !== "admin" && actor.role !== "manager"))
     return (
       <div className={styles.page}>

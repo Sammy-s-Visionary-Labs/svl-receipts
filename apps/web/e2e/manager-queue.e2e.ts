@@ -552,7 +552,8 @@ test("real server auth denies workers, disabled users and anonymous requests", a
   await context.clearCookies();
   await context.addCookies([fixtureCookie("worker")]);
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "Manager access required" })).toBeVisible();
+  await expect(page).toHaveURL(/\/field$/);
+  await expect(page.getByRole("heading", { name: "Good work. Less paperwork." })).toBeVisible();
   await expect(page.getByRole("navigation", { name: "Receipt status" })).toHaveCount(0);
   const workerResponse = await page.request.get("/api/manager/queue");
   expect(workerResponse.status()).toBe(403);

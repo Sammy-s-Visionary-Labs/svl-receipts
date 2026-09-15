@@ -15,7 +15,8 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "SVL Receipts",
-  description: "Manager dashboard for receipt capture and review",
+  description: "Submit receipts, track their status, and manage office reviews.",
+  icons: { icon: "/field/icon-192.png", apple: "/field/icon-180.png" },
 };
 
 export default function RootLayout({
