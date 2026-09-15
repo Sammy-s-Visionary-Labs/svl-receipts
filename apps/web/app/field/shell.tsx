@@ -180,7 +180,7 @@ export function FieldShell({ actor, children }: { actor: AuthzActor; children: R
           </main>
           <footer className={styles.footer}>
             <span>SVL RECEIPTS</span>
-            <span>A little less paperwork. A little more time.</span>
+            <span>Need help? Contact your manager.</span>
             <button type="button" onClick={() => void signOut()} disabled={busy}>
               Sign out
             </button>

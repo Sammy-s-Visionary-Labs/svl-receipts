@@ -107,9 +107,7 @@ export function ReceiptDetail({ id }: { id: string }) {
                 alt={`Receipt page ${page + 1}`}
                 className={styles.detailImage}
                 onError={() =>
-                  setImageError(
-                    "The photo link expired or could not load. Refresh to get a new link.",
-                  )
+                  setImageError("This photo could not be loaded. Refresh to try again.")
                 }
               />
             ) : (
@@ -136,7 +134,7 @@ export function ReceiptDetail({ id }: { id: string }) {
           <aside>
             <section className={styles.tipCard}>
               {status && <StatusBadge status={status} />}
-              <h2 className={styles.detailTitle}>You’re in the loop.</h2>
+              <h2 className={styles.detailTitle}>Receipt status</h2>
               <p>{copy}</p>
               {detail.clarification && (
                 <div className={styles.officeNote}>

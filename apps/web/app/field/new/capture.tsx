@@ -222,8 +222,8 @@ export function CaptureReceipt() {
       <div className={styles.pageHeading}>
         <div>
           <p className={styles.eyebrow}>CAPTURE → CHECK → SEND</p>
-          <h1>Let’s get it off your hands.</h1>
-          <p>One receipt, all its pages. Your office takes it from here.</p>
+          <h1>New receipt</h1>
+          <p>Add all pages of one receipt, then send it to your office.</p>
         </div>
       </div>
       {error && <ApiNotice error={error} />}
@@ -278,7 +278,7 @@ export function CaptureReceipt() {
                 <div className={styles.cameraFrame}>
                   <Icon name="camera" size={45} />
                 </div>
-                <h2>A photo is all it takes.</h2>
+                <h2>Add your receipt photos</h2>
                 <p>
                   Place the receipt on a flat surface
                   <br />
@@ -378,7 +378,7 @@ export function CaptureReceipt() {
             )}
             {draft.started && (
               <p className={styles.lockedNote}>
-                Sending has started, so these photos are kept together for a safe retry.
+                These photos cannot be changed after sending starts. Retry to finish this upload.
               </p>
             )}
             {progress && (
@@ -392,7 +392,7 @@ export function CaptureReceipt() {
           <aside className={styles.captureAside}>
             <section className={styles.tipCard}>
               <span className={styles.eyebrow}>A QUICK CHECK</span>
-              <h2>Clear photo. Smooth review.</h2>
+              <h2>Check your photos</h2>
               <ul>
                 <li>
                   <Icon name="check" />
@@ -484,7 +484,7 @@ export function CaptureReceipt() {
               </button>
               <p>
                 <Icon name="shield" size={14} />
-                Sent only after every page is confirmed.
+                Keep the app open until sending is complete.
               </p>
               {draft.pages.length > 0 && (
                 <Link

@@ -6,21 +6,30 @@ The browser alternative lives at `/field` in the existing Next.js web applicatio
 
 Implemented on `worker-web-app`, based on production-mobile preparation commit `9724084`, in its own checkout. The production release checkout stays on `codex/production-mobile-builds`.
 
-No changes to `apps/mobile`, native manifests, Android/iOS build settings, EAS configuration, dependencies, the lockfile, shared packages, database schema, receipt lifecycle APIs, Housecall export settings, or existing deployment configuration are required. There are no migrations. Publishing or merging this branch is a separate release action; this build does not change the running production service.
+No changes to `apps/mobile`, native manifests, Android/iOS build settings, EAS configuration, dependencies, the lockfile, shared packages, database schema, receipt lifecycle APIs, or Housecall export settings are required. There are no migrations. The web release uses the existing Vercel production configuration.
 
-## Branch deployment
+## Production release
 
-`worker-web-app` is published as a public Vercel Preview deployment in the existing
-`svl-receipts-web` project. It uses `svl-receipts-dev` through the project's Preview
-configuration. Development accounts are required; production accounts and the
-local fixture account do not sign in to this hosted preview. The sign-in page
-identifies this branch as a development preview.
+The user authorized merging `worker-web-app` into `master` on September 15, 2026.
+The public worker entry is `https://svl-receipts-web.vercel.app/field`. This release
+uses the existing production Supabase configuration and requires an active
+production account. The office dashboard remains at `/`.
 
-The production branch remains `master`. Only production releases from `master`
-should use the production Supabase database. Do not promote this preview or merge
-it into `master` as part of branch deployment. No new production release or native
-build is involved. Before publishing, verify the branch's effective Supabase URL,
-public key, server key, and private receipt bucket all belong to development.
+Vercel Toolbar is disabled for both production and preview in this web project.
+The app contains no deployment or development-preview labels.
+
+After production is ready, assign the previously shared hostname
+`svl-receipts-web-git-worker-web-app-svl1.vercel.app` to that production deployment.
+Its production-only redirect forwards visitors to the canonical production host,
+preserving their path and query. Later production releases remain reachable through
+that redirect even if the old alias still points at the initial release. Retire
+`worker-web-app` as a preview branch after launch: pushing another preview to that
+branch can reclaim its automatic alias. Use a new branch for future previews.
+
+Only releases from `master` use production Supabase. Other branch deployments use
+development settings; no development credentials or receipts are copied to production.
+The existing browser-preview hostname acts as a route to the production deployment,
+not as a preview connected to the production database.
 
 ## Included
 

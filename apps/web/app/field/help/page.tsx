@@ -7,9 +7,9 @@ export default function HelpPage() {
     <>
       <div className={styles.pageHeading}>
         <div>
-          <p className={styles.eyebrow}>A LITTLE HELP IN THE FIELD</p>
-          <h1>Ready when you are.</h1>
-          <p>Keep receipts moving, right from your browser.</p>
+          <p className={styles.eyebrow}>SVL RECEIPTS</p>
+          <h1>Help & support</h1>
+          <p>Find help with photos, uploads, and receipt status.</p>
         </div>
       </div>
       <div className={styles.helpGrid}>
@@ -17,7 +17,7 @@ export default function HelpPage() {
           <span className={styles.helpIcon}>
             <Icon name="plus" size={28} />
           </span>
-          <h2>Give it a place on your Home Screen.</h2>
+          <h2>Add to your Home Screen</h2>
           <p>On your iPhone, open this app in Safari, then:</p>
           <ol>
             <li>
@@ -30,16 +30,13 @@ export default function HelpPage() {
               <span>3</span>Keep Open as Web App enabled if shown, then tap Add.
             </li>
           </ol>
-          <p>
-            Open the SVL Receipts icon whenever you have a receipt. Sign in with the same account
-            you use for the receipt app.
-          </p>
+          <p>Open SVL Receipts from your Home Screen and sign in with your SVL account.</p>
         </section>
         <section className={styles.helpCard}>
           <span className={styles.helpIcon}>
             <Icon name="camera" size={28} />
           </span>
-          <h2>Make every photo count.</h2>
+          <h2>Take a clear receipt photo</h2>
           <p>
             Place your receipt flat in good light. Keep all four corners in frame, hold still, and
             check that the total and date are readable.
@@ -57,7 +54,7 @@ export default function HelpPage() {
           <span className={styles.helpIcon}>
             <Icon name="wifi" size={28} />
           </span>
-          <h2>A weak signal can wait.</h2>
+          <h2>Saved drafts and uploads</h2>
           <p>
             Photos you prepare are saved as drafts in this browser on this device. If sending is
             interrupted, open your saved draft and retry.
@@ -75,18 +72,15 @@ export default function HelpPage() {
           <span className={styles.helpIcon}>
             <Icon name="receipt" size={28} />
           </span>
-          <h2>One receipt, one shared workflow.</h2>
-          <p>
-            Your web submissions appear in the same office review queue as receipts from the native
-            app.
-          </p>
+          <h2>Track your receipt</h2>
+          <p>Your office receives each submitted receipt for review and job matching.</p>
           <p>
             Check My receipts for Sent, In review, Approved, or Needs retake. If photos need a
             retake, follow the guidance and send a clearer receipt.
           </p>
           <p>
-            For account access or questions about a review, contact your manager. This web app
-            checks status when opened; it does not send push notifications.
+            Open My receipts to check for updates. For account access or questions about a review,
+            contact your manager.
           </p>
         </section>
       </div>
