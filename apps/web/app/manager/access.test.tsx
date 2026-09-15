@@ -33,10 +33,7 @@ describe("manager page access and role-aware navigation", () => {
 
   it("does not render the manager client or navigation for a worker", async () => {
     loadActor.mockResolvedValue(actor("worker"));
-    const html = renderToStaticMarkup(await Home());
-    expect(html).toContain("Manager access required");
-    expect(html).not.toContain("Authorized manager dashboard");
-    expect(html).not.toContain("Main navigation");
+    await expect(Home()).rejects.toThrow("redirect:/field");
   });
 
   it.each(["manager", "admin"] as const)("renders the dashboard for an active %s", async (role) => {

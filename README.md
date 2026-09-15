@@ -9,7 +9,7 @@ This is a **monorepo**: one Git repo with multiple packages that make up one pro
 | Path | Name | Purpose |
 | --- | --- | --- |
 | `apps/mobile` | `@svl/mobile` | Expo app for field workers |
-| `apps/web` | `@svl/web` | Next.js manager dashboard + API |
+| `apps/web` | `@svl/web` | Next.js manager dashboard, worker browser app + API |
 | `packages/domain` | `@svl/domain` | Shared business types (RA-75 contracts) |
 | `packages/integrations` | `@svl/integrations` | Housecall / vision adapters |
 
@@ -17,6 +17,7 @@ Read [docs/boundaries.md](docs/boundaries.md) before adding cross-package import
 Read [docs/tooling.md](docs/tooling.md) for lint/test command choices.
 Read [docs/domain-contracts.md](docs/domain-contracts.md) for shared `@svl/domain` types (RA-75).
 Read [docs/auth.md](docs/auth.md) for sign-in, roles, and API guards (RA-15).
+Read [docs/worker-web-app.md](docs/worker-web-app.md) for the iPhone-friendly browser app, isolated local preview, and native-release safeguards.
 Read [docs/architecture.md](docs/architecture.md) for retention, processing, storage, and API-mutation decisions (2026-08-14).
 Read [docs/ra6-housecall-integration.md](docs/ra6-housecall-integration.md) for Housecall synchronization, export previews, and the explicit live-write approval boundary.
 Read [docs/environments.md](docs/environments.md) for Vercel/Supabase setup, owners, rotation, quota checks, and retention/backup expiration (RA-19).

@@ -8,13 +8,14 @@ import styles from "./login.module.css";
 export function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  async function onSubmit(event: FormEvent) {
+  async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const email = String(form.get("email") ?? "").trim();
+    const password = String(form.get("password") ?? "");
     setBusy(true);
     setError(null);
     try {
@@ -25,10 +26,12 @@ export function LoginForm() {
         return;
       }
       const next = searchParams.get("next") ?? "/";
-      router.replace(next.startsWith("/") ? next : "/");
+      router.replace(
+        next.startsWith("/") && !next.startsWith("//") && !next.includes("\\") ? next : "/",
+      );
       router.refresh();
     } catch {
-      setError("Supabase is not configured in this environment");
+      setError("Sign-in is currently unavailable. Please try again or contact your manager.");
     } finally {
       setBusy(false);
     }
@@ -41,9 +44,8 @@ export function LoginForm() {
         <input
           className={styles.input}
           type="email"
+          name="email"
           autoComplete="username"
-          value={email}
-          onChange={(event) => setEmail(event.target.value)}
           required
         />
       </label>
@@ -52,9 +54,8 @@ export function LoginForm() {
         <input
           className={styles.input}
           type="password"
+          name="password"
           autoComplete="current-password"
-          value={password}
-          onChange={(event) => setPassword(event.target.value)}
           required
         />
       </label>
