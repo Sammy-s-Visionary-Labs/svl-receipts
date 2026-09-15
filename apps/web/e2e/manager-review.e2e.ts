@@ -653,6 +653,56 @@ test("real manager API guards deny worker and disabled-user requests", async ({ 
   }
 });
 
+test("refreshes an empty category catalog without discarding receipt edits or approving", async ({
+  page,
+}) => {
+  const state = await setup(page);
+  state.detail.categories = [];
+  state.detail.draft.category = "";
+  state.detail.original.category = "";
+  await page.reload();
+  const category = page.getByRole("combobox", { name: "Category *", exact: true });
+  await expect(category.locator("option")).toHaveCount(1);
+  await page.getByLabel("Manager notes", { exact: true }).fill("Keep these unsaved notes");
+  await page
+    .getByRole("group", { name: "Material 1", exact: true })
+    .getByLabel("Housecall job")
+    .selectOption("job-b");
+  let fail = true;
+  await page.route("**/api/manager/categories", (route) =>
+    fail
+      ? route.fulfill({ status: 503, json: { error: "Unavailable" } })
+      : route.fulfill({
+          json: {
+            categories: [
+              { id: "materials", label: "Materials", active: true, keywords: [], version: 1 },
+              { id: "old", label: "Old", active: false, keywords: [], version: 2 },
+            ],
+          },
+        }),
+  );
+  await page.getByRole("button", { name: "Refresh categories", exact: true }).click();
+  await expect(
+    page.getByRole("alert").filter({ hasText: "Could not refresh categories." }),
+  ).toHaveText("Could not refresh categories. Your receipt edits are preserved. Try again.");
+  await expect(page.getByLabel("Manager notes", { exact: true })).toHaveValue(
+    "Keep these unsaved notes",
+  );
+  fail = false;
+  await page.getByRole("button", { name: "Refresh categories", exact: true }).click();
+  await expect(category.locator("option")).toHaveText(["Select an approved category", "Materials"]);
+  await expect(category).toHaveValue("");
+  await expect(page.getByLabel("Manager notes", { exact: true })).toHaveValue(
+    "Keep these unsaved notes",
+  );
+  await expect(
+    page.getByRole("group", { name: "Material 1", exact: true }).getByLabel("Housecall job"),
+  ).toHaveValue("job-b");
+  await category.selectOption("materials");
+  await expect(category).toHaveValue("materials");
+  expect(state.requests).toEqual([]);
+});
+
 test("RA5 explains extraction and line matches, keeps duplicate decisions explicit, and uses category IDs", async ({
   page,
 }, testInfo) => {

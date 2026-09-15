@@ -25,7 +25,8 @@ export function CategorySettings() {
       <h2 id="categories-heading">Receipt categories</h2>
       <p>
         Configure Sam’s approved category list here. Categories keep stable IDs; deactivating a
-        category preserves historical reviews. No category list is enabled automatically.
+        category preserves historical reviews. Only approved active categories can be selected for
+        new approvals.
       </p>
       {!categories.length && <p>No categories configured.</p>}
       <ul>
