@@ -8,6 +8,20 @@ Implemented on `worker-web-app`, based on production-mobile preparation commit `
 
 No changes to `apps/mobile`, native manifests, Android/iOS build settings, EAS configuration, dependencies, the lockfile, shared packages, database schema, receipt lifecycle APIs, Housecall export settings, or existing deployment configuration are required. There are no migrations. Publishing or merging this branch is a separate release action; this build does not change the running production service.
 
+## Branch deployment
+
+`worker-web-app` is published as a public Vercel Preview deployment in the existing
+`svl-receipts-web` project. It uses `svl-receipts-dev` through the project's Preview
+configuration. Development accounts are required; production accounts and the
+local fixture account do not sign in to this hosted preview. The sign-in page
+identifies this branch as a development preview.
+
+The production branch remains `master`. Only production releases from `master`
+should use the production Supabase database. Do not promote this preview or merge
+it into `master` as part of branch deployment. No new production release or native
+build is involved. Before publishing, verify the branch's effective Supabase URL,
+public key, server key, and private receipt bucket all belong to development.
+
 ## Included
 
 - `/field`: overview, recent statuses, and resumable drafts on this device.

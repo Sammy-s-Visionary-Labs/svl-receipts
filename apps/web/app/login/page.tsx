@@ -4,6 +4,8 @@ import styles from "./login.module.css";
 import { LoginForm } from "./login-form";
 
 export default function LoginPage() {
+  const isWorkerPreview =
+    process.env.VERCEL_ENV === "preview" && process.env.VERCEL_GIT_COMMIT_REF === "worker-web-app";
   return (
     <div className={styles.page}>
       <main className={styles.card}>
@@ -15,10 +17,17 @@ export default function LoginPage() {
         </div>
         <div className={styles.intro}>
           <h1>Sign in</h1>
-          <p>
-            Use your SVL Receipts account. Your receipts and office workspace are ready when you
-            are.
-          </p>
+          {isWorkerPreview ? (
+            <p>
+              <strong>Development preview.</strong> Use your development account. Production
+              accounts and receipts are separate from this test website.
+            </p>
+          ) : (
+            <p>
+              Use your SVL Receipts account. Your receipts and office workspace are ready when you
+              are.
+            </p>
+          )}
         </div>
         <Suspense>
           <LoginForm />
