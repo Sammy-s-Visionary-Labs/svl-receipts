@@ -4,7 +4,7 @@ The browser alternative lives at `/field` in the existing Next.js web applicatio
 
 ## Isolation from native releases
 
-Implemented on `codex/worker-web-app`, based on production-mobile preparation commit `9724084`, in its own checkout. The production release checkout stays on `codex/production-mobile-builds`.
+Implemented on `worker-web-app`, based on production-mobile preparation commit `9724084`, in its own checkout. The production release checkout stays on `codex/production-mobile-builds`.
 
 No changes to `apps/mobile`, native manifests, Android/iOS build settings, EAS configuration, dependencies, the lockfile, shared packages, database schema, receipt lifecycle APIs, Housecall export settings, or existing deployment configuration are required. There are no migrations. Publishing or merging this branch is a separate release action; this build does not change the running production service.
 
