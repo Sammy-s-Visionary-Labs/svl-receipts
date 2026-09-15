@@ -1,6 +1,7 @@
 "use client";
 import {
   lineCostCents,
+  type ReceiptCategory,
   type ReviewDraft,
   type ReviewLine,
   reviewSummary,
@@ -82,6 +83,9 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
   const [olderJobs, setOlderJobs] = useState(true);
   const [jobError, setJobError] = useState("");
   const [refreshingJobs, setRefreshingJobs] = useState(false);
+  const [refreshingCategories, setRefreshingCategories] = useState(false);
+  const [categoryError, setCategoryError] = useState("");
+  const [categoryMessage, setCategoryMessage] = useState("");
   const [jobRefreshVersion, setJobRefreshVersion] = useState(0);
   const [events, setEvents] = useState<ReviewEvent[]>([]);
   const [eventCursor, setEventCursor] = useState<string | null>(null);
@@ -208,6 +212,34 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
       controller.abort();
     };
   }, [jobSearch, olderJobs, jobRefreshVersion]);
+  async function refreshCategories() {
+    if (refreshingCategories) return;
+    const sequence = loadSequence.current;
+    setRefreshingCategories(true);
+    setCategoryError("");
+    setCategoryMessage("");
+    try {
+      const response = await fetch("/api/manager/categories", { cache: "no-store" });
+      if (!response.ok) throw new Error();
+      const result: { categories: ReceiptCategory[] } = await response.json();
+      if (!Array.isArray(result.categories)) throw new Error();
+      if (sequence !== loadSequence.current) return;
+      // Only replace the catalog. Never reload the receipt or discard a draft.
+      setDetail((current) => (current ? { ...current, categories: result.categories } : current));
+      setCategoryMessage(
+        result.categories.some((category) => category.active)
+          ? "Categories refreshed. Your receipt edits are preserved."
+          : "No active categories are available yet. Contact an administrator.",
+      );
+    } catch {
+      if (sequence === loadSequence.current)
+        setCategoryError(
+          "Could not refresh categories. Your receipt edits are preserved. Try again.",
+        );
+    } finally {
+      setRefreshingCategories(false);
+    }
+  }
   async function refreshJobs() {
     if (refreshingJobs) return;
     setRefreshingJobs(true);
@@ -641,6 +673,19 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
                             configure them.
                           </small>
                         )}
+                      {key === "category" && editable && (
+                        <div>
+                          <button
+                            type="button"
+                            disabled={busy || refreshingCategories}
+                            onClick={() => void refreshCategories()}
+                          >
+                            {refreshingCategories ? "Refreshing categories…" : "Refresh categories"}
+                          </button>
+                          {categoryError && <small role="alert">{categoryError}</small>}
+                          {categoryMessage && <small role="status">{categoryMessage}</small>}
+                        </div>
+                      )}
                       {key === "category" &&
                         detail.categorySuggestion?.reasons.map((reason) => (
                           <small key={reason.code}>{reason.message}</small>
