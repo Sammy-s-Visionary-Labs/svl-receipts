@@ -975,3 +975,20 @@ test("refreshes the job catalog without losing manager edits or approving the re
   await expect(page.getByLabel("Vendor *", { exact: true })).toHaveValue("Manager's saved choice");
   expect(state.requests).toEqual([]);
 });
+
+test("bulk job selection has the same named destinations as materials and only updates the draft", async ({
+  page,
+}) => {
+  const state = await setup(page);
+  page.on("dialog", (dialog) => dialog.accept());
+  const bulk = page.getByRole("combobox", { name: "Job for all materials", exact: true });
+  await expect(
+    bulk.getByRole("option", { name: "Kitchen renovation #1043", exact: true }),
+  ).toHaveCount(1);
+  await bulk.selectOption("job-b");
+  await page.getByRole("button", { name: "Apply selected job to all", exact: true }).click();
+  const fields = page.getByRole("combobox", { name: "Housecall job", exact: true });
+  await expect(fields.nth(0)).toHaveValue("job-b");
+  await expect(fields.nth(1)).toHaveValue("job-b");
+  expect(state.requests).toEqual([]);
+});

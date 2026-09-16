@@ -82,6 +82,7 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
   const [correction, setCorrection] = useState(false);
   const [jobs, setJobs] = useState<ManagerJob[]>([]);
   const [jobSearch, setJobSearch] = useState("");
+  const [bulkJobId, setBulkJobId] = useState("");
   const [olderJobs, setOlderJobs] = useState(true);
   const [jobError, setJobError] = useState("");
   const [refreshingJobs, setRefreshingJobs] = useState(false);
@@ -402,7 +403,7 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
     }
   }
   function applyJob(job: ManagerJob) {
-    if (!draft || job.unavailable) return;
+    if (!draft || job.unavailable || job.stale) return;
     if (
       draft.lines.some((l) => l.jobId && l.jobId !== job.id) &&
       !window.confirm("Replace the existing job assignments on every line?")
@@ -413,7 +414,7 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
       lines: draft.lines.map((l) => ({
         ...l,
         jobId: job.id,
-        ...(job.suggestionId ? { suggestionId: job.suggestionId } : {}),
+        suggestionId: job.suggestionId,
       })),
     });
   }
@@ -741,6 +742,41 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
                       {refreshingJobs ? "Refreshing jobs…" : "Refresh Housecall jobs"}
                     </button>
                     {jobError && <p role="alert">{jobError}</p>}
+                    <label htmlFor="bulk-housecall-job">Job for all materials</label>
+                    <select
+                      id="bulk-housecall-job"
+                      value={bulkJobId}
+                      disabled={busy}
+                      onChange={(event) => setBulkJobId(event.target.value)}
+                    >
+                      <option value="">Choose a job</option>
+                      {allJobs.map((job) => (
+                        <option key={job.id} value={job.id} disabled={job.unavailable || job.stale}>
+                          {jobLabel(job)}
+                          {job.unavailable
+                            ? " · Unavailable"
+                            : job.stale
+                              ? " · Refresh needed"
+                              : ""}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      disabled={
+                        busy ||
+                        !draft.lines.length ||
+                        !allJobs.some(
+                          (job) => job.id === bulkJobId && !job.unavailable && !job.stale,
+                        )
+                      }
+                      onClick={() => {
+                        const selected = allJobs.find((job) => job.id === bulkJobId);
+                        if (selected) applyJob(selected);
+                      }}
+                    >
+                      Apply selected job to all
+                    </button>
                     {detail.suggestions.length > 0 && (
                       <div>
                         <strong>Suggested jobs</strong>

@@ -6,6 +6,8 @@ Manager review groups repeated extraction warnings into concise checks with expa
 
 ## Housecall material presentation
 
+The bulk job selector exposes the same named destinations as the per-material selectors. Applying a job changes the draft only; manager approval still authorizes the eventual export.
+
 New frozen material steps carry `material_format_version: 2`. Their description is the approved vendor/invoice-or-ticket/date reference. The part number is `SVL-` plus 24 hexadecimal characters derived from SHA-256 of the original intent/line reference (96 bits). It preserves deterministic reconciliation without displaying receipt, intent or line UUIDs. Attachment identity and original image bytes are unchanged.
 
 Legacy frozen steps retain their exact original request hash and formatting. The original claim implementation is now private. The v2 worker uses a new service-only claim wrapper; the old claim wrapper refuses any intent containing a versioned material step, including its attachments. This makes a database-first deployment safe even if a previous Vercel deployment is still running. Rollback to old code pauses new-format exports; it must not rewrite or recreate their plans.
