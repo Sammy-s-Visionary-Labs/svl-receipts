@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Suspense } from "react";
 import { Icon } from "../field/glyph";
 import styles from "./login.module.css";
@@ -20,7 +21,10 @@ export default function LoginPage() {
         <Suspense>
           <LoginForm />
         </Suspense>
-        <p className={styles.help}>Need an account or help signing in? Contact your manager.</p>
+        <p className={styles.help}>
+          First time here? <Link href="/request-access">Request worker access</Link>.{" "}
+          <Link href="/worker-login">Worker sign in</Link>.
+        </p>
       </main>
     </div>
   );

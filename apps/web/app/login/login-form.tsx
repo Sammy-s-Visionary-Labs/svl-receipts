@@ -5,7 +5,7 @@ import { type FormEvent, useState } from "react";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 import styles from "./login.module.css";
 
-export function LoginForm() {
+export function LoginForm({ defaultNext = "/" }: { defaultNext?: string }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [error, setError] = useState<string | null>(null);
@@ -25,7 +25,18 @@ export function LoginForm() {
         setError("Sign in failed");
         return;
       }
-      const next = searchParams.get("next") ?? "/";
+      const access = await fetch("/api/account", { cache: "no-store" });
+      if (!access.ok) {
+        setError("Could not check account access. Please try again.");
+        return;
+      }
+      const profile = await access.json();
+      if (profile.disabled || profile.access_status !== "approved") {
+        router.replace("/access-status");
+        router.refresh();
+        return;
+      }
+      const next = searchParams.get("next") ?? defaultNext;
       router.replace(
         next.startsWith("/") && !next.startsWith("//") && !next.includes("\\") ? next : "/",
       );

@@ -1,8 +1,8 @@
 begin;
-insert into auth.users(id,aud,role,email) values
- ('89100000-0000-4000-8000-000000000001','authenticated','authenticated','role-worker@example.invalid'),
- ('89100000-0000-4000-8000-000000000002','authenticated','authenticated','role-manager@example.invalid'),
- ('89100000-0000-4000-8000-000000000003','authenticated','authenticated','role-admin@example.invalid');
+insert into auth.users(id,aud,role,email,raw_app_meta_data) values
+ ('89100000-0000-4000-8000-000000000001','authenticated','authenticated','role-worker@example.invalid','{"svl_access_approved":true}'::jsonb),
+ ('89100000-0000-4000-8000-000000000002','authenticated','authenticated','role-manager@example.invalid','{"svl_access_approved":true}'::jsonb),
+ ('89100000-0000-4000-8000-000000000003','authenticated','authenticated','role-admin@example.invalid','{"svl_access_approved":true}'::jsonb);
 update public.profiles set role='manager' where id='89100000-0000-4000-8000-000000000002';
 update public.profiles set role='admin' where id='89100000-0000-4000-8000-000000000003';
 insert into public.receipt_categories(id,label) values('role-materials','Role materials');
@@ -54,7 +54,7 @@ begin
  exception when others then if sqlerrm<>'invalid_export_approval' then raise;end if;end;
  begin perform public.manager_review_with_export(target_receipt,manager_id,0,null,'approve',snapshot);
   raise exception 'replay approved'; exception when others then if sqlerrm not like '%conflict%' then raise;end if;end;
- claim:=public.claim_housecall_export_step((result->>'intentId')::uuid,'role-test')->'step';
+ claim:=public.claim_housecall_export_step_v2((result->>'intentId')::uuid,'role-test')->'step';
  update public.profiles set role='worker' where id=manager_id;
  begin perform public.consume_housecall_write_approval((claim->>'id')::uuid,(claim->>'lease_token')::uuid);
   raise exception 'demoted manager dispatched'; exception when others then if sqlerrm<>'forbidden' then raise;end if;end;

@@ -1,8 +1,8 @@
 -- Local rollback-only recovery and scope tests; no provider access.
 begin;
-insert into auth.users(id,aud,role,email) values
- ('64900000-0000-4000-8000-000000000001','authenticated','authenticated','ra6resolution-worker@example.invalid'),
- ('64900000-0000-4000-8000-000000000002','authenticated','authenticated','ra6resolution-admin@example.invalid');
+insert into auth.users(id,aud,role,email,raw_app_meta_data) values
+ ('64900000-0000-4000-8000-000000000001','authenticated','authenticated','ra6resolution-worker@example.invalid','{"svl_access_approved":true}'::jsonb),
+ ('64900000-0000-4000-8000-000000000002','authenticated','authenticated','ra6resolution-admin@example.invalid','{"svl_access_approved":true}'::jsonb);
 update public.profiles set role='admin' where id='64900000-0000-4000-8000-000000000002';
 insert into public.receipt_categories(id,label) values('ra6resolution','Synthetic resolution');
 insert into public.manager_job_catalog(id,label) values('ra6resolution-job','Synthetic resolution');
@@ -24,10 +24,10 @@ begin
  if (result->>'lastSuccessfulCheckAt')::timestamptz is distinct from started or result->>'lastError'<>'authentication' then raise exception 'health history lost';end if;
  begin perform public.housecall_health_status(false,'raw secret details');raise exception 'raw error stored';exception when others then if sqlerrm<>'invalid_request' then raise;end if;end;
  -- First page succeeds; next material remains uncertain after one dispatch.
- claimed:=public.claim_housecall_export_step(intent,'resolution-test');s:=claimed->'step';
+ claimed:=public.claim_housecall_export_step_v2(intent,'resolution-test');s:=claimed->'step';
  perform public.consume_housecall_write_approval((s->>'id')::uuid,(s->>'lease_token')::uuid);
  perform public.finish_housecall_export_step((s->>'id')::uuid,(s->>'lease_token')::uuid,'succeeded','synthetic-attachment',null,jsonb_build_object('verified',true,'housecall_job_id','ra6resolution-job','payload_hash',s->>'payload_hash'));
- claimed:=public.claim_housecall_export_step(intent,'resolution-test');s:=claimed->'step';
+ claimed:=public.claim_housecall_export_step_v2(intent,'resolution-test');s:=claimed->'step';
  perform public.consume_housecall_write_approval((s->>'id')::uuid,(s->>'lease_token')::uuid);
  perform public.finish_housecall_export_step((s->>'id')::uuid,(s->>'lease_token')::uuid,'uncertain',null,'precision_mismatch');
  select jsonb_agg(jsonb_build_object('step_id',id,'payload_hash',payload_hash,'updated_at',updated_at,'job_id',housecall_job_id,'observed_at',clock_timestamp(),'outcome','present','external_id',case when step='attachment' then 'synthetic-attachment' else 'synthetic-material' end,'observed',jsonb_build_object('quantity',1.01)) order by step) into evidence from public.housecall_export_steps where intent_id=intent;
@@ -42,7 +42,7 @@ begin
  if (select status from public.receipts where id=receipt)<>'partial_success' or public.both_housecall_steps_succeeded(receipt) then raise exception 'manual closure claimed export success';end if;
  if (select retention_started_at from public.receipts where id=receipt) is not null then raise exception 'manual closure started retention';end if;
  if exists(select 1 from public.housecall_write_approvals where intent_id=intent and revoked_at is null) then raise exception 'manual closure retained grant';end if;
- if public.claim_housecall_export_step(intent,'must-not-retry') is not null then raise exception 'cancelled export retried';end if;
+ if public.claim_housecall_export_step_v2(intent,'must-not-retry') is not null then raise exception 'cancelled export retried';end if;
  begin perform public.close_housecall_export_for_manual_handling(admin_id,receipt,intent,digest,'duplicate',evidence);raise exception 'duplicate closure accepted';exception when others then if sqlerrm<>'conflict' then raise;end if;end;
  -- A scoped full sync invalidates missing jobs only inside that scope.
  insert into public.manager_job_catalog(id,label,source,customer_id,active,unavailable) values('ra6resolution-outside','Outside scope','housecall','customer_other',true,false),('ra6resolution-missing','Missing in scope','housecall','customer_test',true,false);

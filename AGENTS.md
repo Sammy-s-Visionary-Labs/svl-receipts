@@ -16,8 +16,9 @@ the earlier four-customer restriction for the application and catalog reads.
 - Keep immutable payloads, destination/customer checks, quantity precision,
   durable reconciliation and duplicate-write prevention. Configuration must not
   silently authorize previously queued intents.
-- Account settings, unrelated customer edits and arbitrary business writes are
-  outside this receipt workflow's scope.
+- The user's 2026-09-16 request also authorizes worker access requests, manager
+  approval/disable controls, admin role changes, and readable export references.
+  Unrelated customer edits and arbitrary business writes remain outside scope.
 
 ## Preserved data handling rules
 

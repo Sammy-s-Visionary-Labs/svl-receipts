@@ -180,6 +180,8 @@ export async function GET(request: Request, context: Context) {
         .map((line: { jobId?: string }) => line.jobId)
         .filter((jobId: unknown): jobId is string => typeof jobId === "string" && jobId.length > 0),
     );
+    for (const jobId of intent?.attachment_job_ids ?? [])
+      if (typeof jobId === "string") assignedIds.add(jobId);
     const catalogIds = [
       ...new Set([...assignedIds, ...currentSuggestions.map((row) => row.housecall_job_id)]),
     ];

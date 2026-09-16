@@ -4,6 +4,7 @@ import { RECEIPT_STATUSES } from "@svl/domain";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { type FormEvent, useEffect, useRef, useState } from "react";
+import { jobLabel } from "@/lib/manager/presentation";
 import {
   DEFAULT_QUEUE_FILTERS,
   HOUSECALL_STATUSES,
@@ -760,14 +761,14 @@ function ReceiptRow({
       <td data-label="Job assignment / suggestion">
         <span className={receipt.suggestedJob ? styles.jobLabel : styles.unavailable}>
           {receipt.assignedJobs?.length
-            ? receipt.assignedJobs.map((job) => job.label || job.id).join(" · ")
+            ? receipt.assignedJobs.map(jobLabel).join(" · ")
             : receipt.suggestedJob
-              ? receipt.suggestedJob.label || `Job ${receipt.suggestedJob.id}`
+              ? jobLabel(receipt.suggestedJob)
               : "No suggestion yet"}
         </span>
         <span className={styles.secondaryText}>
           {receipt.assignedJobs?.length
-            ? `${receipt.assignedJobs.length} assigned jobs · ${receipt.assignedJobs.map((job) => job.id).join(", ")}`
+            ? `${receipt.assignedJobs.length} assigned jobs`
             : receipt.suggestedJob
               ? "Stored suggestion · ranking unavailable"
               : "Job match unavailable"}
@@ -919,11 +920,7 @@ function ReceiptSummary({
               </div>
               <div>
                 <dt>Stored job suggestion</dt>
-                <dd>
-                  {receipt.suggestedJob
-                    ? receipt.suggestedJob.label || `Job ${receipt.suggestedJob.id}`
-                    : "Unavailable"}
-                </dd>
+                <dd>{receipt.suggestedJob ? jobLabel(receipt.suggestedJob) : "Unavailable"}</dd>
                 {receipt.suggestedJob && (
                   <p className={styles.secondaryText}>Suggestion ranking is unavailable.</p>
                 )}

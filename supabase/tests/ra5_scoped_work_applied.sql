@@ -1,7 +1,7 @@
 -- Receipt-scoped immediacy: queue backlog, competing leases and retries cannot
 -- redirect a confirmation kick to another receipt. All fixtures roll back.
 begin;
-insert into auth.users(id,aud,role,email) values('56000000-0000-4000-8000-000000000001','authenticated','authenticated','ra5-scoped@example.invalid');
+insert into auth.users(id,aud,role,email,raw_app_meta_data) values('56000000-0000-4000-8000-000000000001','authenticated','authenticated','ra5-scoped@example.invalid','{"svl_access_approved":true}'::jsonb);
 insert into public.receipts(id,owner_user_id,status,submitted_at) values
  ('56100000-0000-4000-8000-000000000001','56000000-0000-4000-8000-000000000001','submitted',now()-interval '2 days'),
  ('56100000-0000-4000-8000-000000000002','56000000-0000-4000-8000-000000000001','submitted',now()),

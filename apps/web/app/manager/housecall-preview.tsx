@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import type { HousecallExportPreview } from "@/lib/housecall/preview";
+import { jobLabel } from "@/lib/manager/presentation";
 import { money } from "./queue-view";
 import styles from "./receipt-review.module.css";
 
@@ -202,10 +203,7 @@ export function HousecallPreview({
               <div className={styles.steps}>
                 {preview.jobs.map((job) => (
                   <article key={job.id}>
-                    <h3>{job.label}</h3>
-                    <p className={styles.meta}>
-                      Housecall job ID: <code>{job.id}</code>
-                    </p>
+                    <h3>{jobLabel(job)}</h3>
                     <p>
                       {job.destinationAllowed
                         ? "Destination available for approved exports"

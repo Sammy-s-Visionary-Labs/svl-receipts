@@ -114,7 +114,7 @@ function database(options: DbOptions = {}) {
     events.push(name);
     if (name === "list_ready_housecall_exports")
       return { data: options.readyReceipts ?? [], error: null };
-    if (name === "claim_housecall_export_step")
+    if (name === "claim_housecall_export_step_v2")
       return { data: claims.shift() ?? null, error: null };
     if (name === "consume_housecall_write_approval")
       return {

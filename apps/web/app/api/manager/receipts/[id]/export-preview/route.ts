@@ -61,7 +61,7 @@ export async function GET(request: Request, context: Context) {
           .limit(601),
         supabase
           .from("manager_job_catalog")
-          .select("id,label,unavailable")
+          .select("id,label,job_number,customer,unavailable")
           .in("id", intent.attachment_job_ids)
           .limit(101),
       ]);

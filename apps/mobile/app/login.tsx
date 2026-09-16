@@ -1,9 +1,10 @@
 import { useState } from "react";
-import { Pressable, StyleSheet, TextInput } from "react-native";
+import { Linking, Pressable, StyleSheet, TextInput } from "react-native";
 import { AuthGate } from "@/components/AuthGate";
 import { BrandHeader } from "@/components/BrandHeader";
 import { Text, View } from "@/components/Themed";
 import { Brand } from "@/constants/Brand";
+import { apiBaseUrl } from "@/lib/api/client";
 import { useAuth } from "@/lib/auth/auth-context";
 
 export default function LoginScreen() {
@@ -30,7 +31,7 @@ export default function LoginScreen() {
           <BrandHeader onPaper />
         </View>
         <Text style={styles.title}>Sign in</Text>
-        <Text style={styles.body}>Use the email and password your manager set up.</Text>
+        <Text style={styles.body}>Use your approved email and password.</Text>
         <TextInput
           style={styles.input}
           autoCapitalize="none"
@@ -59,12 +60,25 @@ export default function LoginScreen() {
         >
           <Text style={styles.buttonText}>{busy ? "Signing in…" : "Sign in"}</Text>
         </Pressable>
+        <Pressable
+          accessibilityRole="link"
+          onPress={() => {
+            void Linking.openURL(`${apiBaseUrl()}/request-access`).catch(() =>
+              setError("Could not open signup. Visit the SVL Receipts website to request access."),
+            );
+          }}
+          style={styles.signup}
+        >
+          <Text style={styles.signupText}>First time here? Request worker access</Text>
+        </Pressable>
       </View>
     </AuthGate>
   );
 }
 
 const styles = StyleSheet.create({
+  signup: { minHeight: 48, justifyContent: "center", alignItems: "center" },
+  signupText: { color: Brand.green, textDecorationLine: "underline" },
   brand: { marginBottom: 22, backgroundColor: "transparent" },
   button: {
     minHeight: 52,

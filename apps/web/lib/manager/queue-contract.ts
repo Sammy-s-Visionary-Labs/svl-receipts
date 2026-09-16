@@ -68,8 +68,19 @@ export type QueueReceipt = {
   pageCount: number;
   thumbnailUrl: string | null;
   /** Latest stored suggestion; no ranking or confidence is available yet. */
-  assignedJobs?: Array<{ id: string; label: string | null }>;
-  suggestedJob: { id: string; label: string | null; source: string | null } | null;
+  assignedJobs?: Array<{
+    id: string;
+    label: string | null;
+    number?: string | null;
+    customer?: string | null;
+  }>;
+  suggestedJob: {
+    id: string;
+    label: string | null;
+    source: string | null;
+    number?: string | null;
+    customer?: string | null;
+  } | null;
   /** Minimum valid per-field extraction confidence; not a job-match score. */
   confidence: number | null;
   duplicate: "marked" | "unmarked";

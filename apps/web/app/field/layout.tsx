@@ -21,6 +21,6 @@ export const viewport: Viewport = {
 
 export default async function FieldLayout({ children }: { children: ReactNode }) {
   const actor = await getActorFromCookies();
-  if (!actor) redirect("/login?next=/field");
+  if (!actor) redirect("/worker-login?next=/field");
   return <FieldShell actor={actor}>{children}</FieldShell>;
 }

@@ -1,10 +1,10 @@
 -- Full manager transactions, durable intents, role boundaries and recovery.
 begin;
-insert into auth.users(id,aud,role,email) values
-('44000000-0000-4000-8000-000000000001','authenticated','authenticated','ra4-worker@example.invalid'),
-('44000000-0000-4000-8000-000000000002','authenticated','authenticated','ra4-manager@example.invalid'),
-('44000000-0000-4000-8000-000000000003','authenticated','authenticated','ra4-admin@example.invalid'),
-('44000000-0000-4000-8000-000000000004','authenticated','authenticated','ra4-disabled@example.invalid');
+insert into auth.users(id,aud,role,email,raw_app_meta_data) values
+('44000000-0000-4000-8000-000000000001','authenticated','authenticated','ra4-worker@example.invalid','{"svl_access_approved":true}'::jsonb),
+('44000000-0000-4000-8000-000000000002','authenticated','authenticated','ra4-manager@example.invalid','{"svl_access_approved":true}'::jsonb),
+('44000000-0000-4000-8000-000000000003','authenticated','authenticated','ra4-admin@example.invalid','{"svl_access_approved":true}'::jsonb),
+('44000000-0000-4000-8000-000000000004','authenticated','authenticated','ra4-disabled@example.invalid','{"svl_access_approved":true}'::jsonb);
 update public.profiles set role='manager' where id in ('44000000-0000-4000-8000-000000000002','44000000-0000-4000-8000-000000000004');
 update public.profiles set role='admin' where id='44000000-0000-4000-8000-000000000003';
 update public.profiles set disabled=true where id='44000000-0000-4000-8000-000000000004';

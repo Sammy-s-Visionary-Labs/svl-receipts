@@ -1,11 +1,11 @@
 begin;
-insert into auth.users(id,aud,role,email) values
- ('79100000-0000-4000-8000-000000000001','authenticated','authenticated','ra6-flow-worker@example.invalid'),
- ('79100000-0000-4000-8000-000000000002','authenticated','authenticated','ra6-flow-manager@example.invalid'),
- ('79100000-0000-4000-8000-000000000003','authenticated','authenticated','ra6-flow-admin@example.invalid'),
- ('79100000-0000-4000-8000-000000000004','authenticated','authenticated','ra6-flow-other@example.invalid'),
- ('79100000-0000-4000-8000-000000000005','authenticated','authenticated','ra6-flow-added-manager@example.invalid'),
- ('79100000-0000-4000-8000-000000000006','authenticated','authenticated','ra6-flow-other-admin@example.invalid');
+insert into auth.users(id,aud,role,email,raw_app_meta_data) values
+ ('79100000-0000-4000-8000-000000000001','authenticated','authenticated','ra6-flow-worker@example.invalid','{"svl_access_approved":true}'::jsonb),
+ ('79100000-0000-4000-8000-000000000002','authenticated','authenticated','ra6-flow-manager@example.invalid','{"svl_access_approved":true}'::jsonb),
+ ('79100000-0000-4000-8000-000000000003','authenticated','authenticated','ra6-flow-admin@example.invalid','{"svl_access_approved":true}'::jsonb),
+ ('79100000-0000-4000-8000-000000000004','authenticated','authenticated','ra6-flow-other@example.invalid','{"svl_access_approved":true}'::jsonb),
+ ('79100000-0000-4000-8000-000000000005','authenticated','authenticated','ra6-flow-added-manager@example.invalid','{"svl_access_approved":true}'::jsonb),
+ ('79100000-0000-4000-8000-000000000006','authenticated','authenticated','ra6-flow-other-admin@example.invalid','{"svl_access_approved":true}'::jsonb);
 update public.profiles set role='manager' where id in ('79100000-0000-4000-8000-000000000002','79100000-0000-4000-8000-000000000005');
 update public.profiles set role='admin' where id in ('79100000-0000-4000-8000-000000000003','79100000-0000-4000-8000-000000000006');
 insert into public.receipt_categories(id,label) values('ra6-flow-materials','Flow materials');
@@ -90,7 +90,7 @@ begin
   raise exception 'approval replay accepted';exception when others then if sqlerrm not like '%conflict%' and sqlerrm not like '%approved%' then raise;end if;end;
  if (select reserved_receipts from public.housecall_test_sessions where id=session_id)<>1
   or (select reserved_cents from public.housecall_test_sessions where id=session_id)<>2100 then raise exception 'replay increased budget';end if;
- claimed_step:=public.claim_housecall_export_step(test_intent,'session-test')->'step';
+ claimed_step:=public.claim_housecall_export_step_v2(test_intent,'session-test')->'step';
  grant_result:=public.consume_housecall_write_approval((claimed_step->>'id')::uuid,(claimed_step->>'lease_token')::uuid);
  if grant_result->>'test_session_id' is distinct from session_id::text then raise exception 'session missing at dispatch';end if;
  perform public.finish_housecall_export_step((claimed_step->>'id')::uuid,(claimed_step->>'lease_token')::uuid,'succeeded','flow-page-one',null,
@@ -98,7 +98,7 @@ begin
  perform public.revoke_housecall_test_session(admin_id,session_id,'Stop test session');
  begin perform public.authorize_housecall_test_reviewer(admin_id,session_id,manager_id,'Revoked session');
   raise exception 'revoked session admitted a reviewer';exception when others then if sqlerrm<>'test_export_scope' then raise;end if;end;
- claimed_step:=public.claim_housecall_export_step(test_intent,'revoked-session')->'step';
+ claimed_step:=public.claim_housecall_export_step_v2(test_intent,'revoked-session')->'step';
  begin perform public.consume_housecall_write_approval((claimed_step->>'id')::uuid,(claimed_step->>'lease_token')::uuid);
   raise exception 'revoked session dispatched';exception when others then if sqlerrm<>'live_write_approval_required' then raise;end if;end;
  if (select used_writes from public.housecall_write_approvals where intent_id=test_intent)<>1 then raise exception 'revoked dispatch consumed budget';end if;

@@ -97,7 +97,7 @@ begin
     now(),
     now(),
     now(),
-    '{"provider":"email","providers":["email"]}'::jsonb,
+    '{"svl_access_approved":true,"provider":"email","providers":["email"]}'::jsonb,
     '{}'::jsonb,
     false,
     false,

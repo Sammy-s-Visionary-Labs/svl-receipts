@@ -9,6 +9,7 @@ import {
 } from "@svl/domain";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { jobLabel } from "@/lib/manager/presentation";
 import type {
   ExportStep,
   ManagerJob,
@@ -16,6 +17,7 @@ import type {
   ReviewEvent,
 } from "@/lib/manager/review-contract";
 import { ExtractionEvidence } from "./extraction-evidence";
+import { ExtractionNotes } from "./extraction-notes";
 import { HousecallPreview } from "./housecall-preview";
 import { money } from "./queue-view";
 import styles from "./receipt-review.module.css";
@@ -545,18 +547,7 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
                     extractionId={detail.extractionId}
                   />
                 )}
-                {!!detail.warnings?.length && (
-                  <section className={styles.intelligencePanel} aria-label="Extraction warnings">
-                    <strong>Check before approval</strong>
-                    <ul>
-                      {detail.warnings.map((warning) => (
-                        <li key={`${warning.field}-${warning.code}-${warning.message}`}>
-                          {warning.message} <small>({warning.field})</small>
-                        </li>
-                      ))}
-                    </ul>
-                  </section>
-                )}
+                <ExtractionNotes warnings={detail.warnings ?? []} editable={editable} />
                 {!!detail.duplicates?.length && (
                   <section className={styles.intelligencePanel} aria-label="Duplicate candidates">
                     <h3>Possible duplicates</h3>
@@ -759,7 +750,7 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
                           .map((job) => (
                             <div key={job.suggestionId}>
                               <span>
-                                {job.label} · {job.id} · {job.source || "Stored suggestion"}
+                                {jobLabel(allJobs.find((current) => current.id === job.id) ?? job)}
                                 {job.score !== undefined && ` · Evidence score ${job.score}`}
                                 {allJobs.find((current) => current.id === job.id)?.unavailable
                                   ? " · Unavailable"
@@ -814,7 +805,10 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
                         )
                         .map((job) => (
                           <div key={job.suggestionId}>
-                            <strong>Suggested for this line: {job.label}</strong>
+                            <strong>
+                              Suggested for this line:{" "}
+                              {jobLabel(allJobs.find((current) => current.id === job.id) ?? job)}
+                            </strong>
                             {allJobs.find((current) => current.id === job.id)?.unavailable ? (
                               <p>This job is unavailable.</p>
                             ) : allJobs.find((current) => current.id === job.id)?.stale ? (
@@ -890,15 +884,14 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
                       >
                         <option value="">Choose a job</option>
                         {line.jobId && !allJobs.some((j) => j.id === line.jobId) && (
-                          <option value={line.jobId}>{line.jobId} (saved assignment)</option>
+                          <option value={line.jobId}>Saved job — refresh details</option>
                         )}
                         <optgroup label="Suggested">
                           {allJobs
                             .filter((j) => j.suggestionId)
                             .map((j) => (
                               <option key={j.id} value={j.id} disabled={j.unavailable}>
-                                {j.label} · {j.number || j.id} ·{" "}
-                                {j.customer || "Customer unavailable"}
+                                {jobLabel(j)}
                                 {j.unavailable
                                   ? " · Unavailable"
                                   : j.stale
@@ -912,8 +905,7 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
                             .filter((j) => !j.suggestionId)
                             .map((j) => (
                               <option key={j.id} value={j.id} disabled={j.unavailable}>
-                                {j.label} · {j.number || j.id} ·{" "}
-                                {j.customer || "Customer unavailable"}
+                                {jobLabel(j)}
                                 {j.unavailable
                                   ? " · Unavailable"
                                   : j.stale
@@ -946,7 +938,6 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
                           ·{" "}
                           {allJobs.find((j) => j.id === line.jobId)?.technicians.join(", ") ||
                             "Technicians unavailable"}{" "}
-                          · ID {line.jobId}
                           {allJobs.find((j) => j.id === line.jobId)?.syncedAt && (
                             <>
                               {" "}
@@ -1047,7 +1038,7 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
                   <article key={step.exportStepId ?? `${step.step}:${step.jobId}:${step.lineId}`}>
                     <h3>
                       {step.step === "attachment" ? "Receipt attachment" : "Job cost"} ·{" "}
-                      {step.jobId}
+                      {jobLabel(allJobs.find((job) => job.id === step.jobId))}
                       {step.pageIndex !== undefined ? ` · Page ${step.pageIndex + 1}` : ""}
                     </h3>
                     <p>
@@ -1122,11 +1113,11 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
                         <div className={styles.diff}>
                           <div>
                             <strong>Before</strong>
-                            <pre>{formatChange(change.before)}</pre>
+                            <pre>{formatChange(change.before, allJobs, field)}</pre>
                           </div>
                           <div>
                             <strong>After</strong>
-                            <pre>{formatChange(change.after)}</pre>
+                            <pre>{formatChange(change.after, allJobs, field)}</pre>
                           </div>
                         </div>
                       </details>
@@ -1228,8 +1219,8 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
                   <ul>
                     {summary?.jobs.map((job) => (
                       <li key={job.id}>
-                        {allJobs.find((j) => j.id === job.id)?.label || job.id || "Unassigned"} ·{" "}
-                        {job.id} · {job.lines} lines · {money(job.totalCents)}
+                        {jobLabel(allJobs.find((j) => j.id === job.id))} · {job.lines} lines ·{" "}
+                        {money(job.totalCents)}
                       </li>
                     ))}
                   </ul>
@@ -1243,11 +1234,11 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
                       <div className={styles.diff}>
                         <div>
                           <strong>Posted review</strong>
-                          <pre>{formatChange(detail.draft.lines)}</pre>
+                          <pre>{formatChange(detail.draft.lines, allJobs)}</pre>
                         </div>
                         <div>
                           <strong>Proposed review</strong>
-                          <pre>{formatChange(draft.lines)}</pre>
+                          <pre>{formatChange(draft.lines, allJobs)}</pre>
                         </div>
                       </div>
                     </>
@@ -1267,8 +1258,9 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
               {action === "retry" && (
                 <p>
                   Retry only the failed {retry?.step === "attachment" ? "attachment" : "job cost"}{" "}
-                  for {retry?.jobId}. Existing successful work is preserved. Reconciliation must
-                  check for a committed external record before a new write.
+                  for {jobLabel(allJobs.find((job) => job.id === retry?.jobId))}. Existing
+                  successful work is preserved. Reconciliation must check for a committed external
+                  record before a new write.
                 </p>
               )}
               {action !== "approve" && (
@@ -1336,12 +1328,26 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
     </ManagerShell>
   );
 }
-function formatChange(value: unknown) {
-  return value === null || value === undefined
+function formatChange(value: unknown, jobs: ManagerJob[], field = ""): string {
+  function readable(item: unknown, key = ""): unknown {
+    if (typeof item === "string" && (/job_?id$/i.test(key) || /^job_[a-z0-9]+$/i.test(item)))
+      return jobLabel(jobs.find((job) => job.id === item));
+    if (Array.isArray(item)) return item.map((entry) => readable(entry));
+    if (item && typeof item === "object")
+      return Object.fromEntries(
+        Object.entries(item).map(([name, entry]) => [
+          name === "jobId" || name === "job_id" ? "Housecall job" : name,
+          readable(entry, name),
+        ]),
+      );
+    return item;
+  }
+  const result = readable(value, field);
+  return result === null || result === undefined
     ? "Not available"
-    : typeof value === "string"
-      ? value
-      : JSON.stringify(value, null, 2);
+    : typeof result === "string"
+      ? result
+      : JSON.stringify(result, null, 2);
 }
 function exportError(code: string) {
   const known: Record<string, string> = {
@@ -1458,7 +1464,12 @@ function ReceiptImage({ id, pageIndex }: { id: string; pageIndex: number }) {
           Refresh image
         </button>
         {url && (
-          <a href={url} target="_blank" rel="noopener noreferrer" referrerPolicy="no-referrer">
+          <a
+            href={`/api/receipts/${id}/image?page=${pageIndex}&open=1`}
+            target="_blank"
+            rel="noopener noreferrer"
+            referrerPolicy="no-referrer"
+          >
             Open original
           </a>
         )}

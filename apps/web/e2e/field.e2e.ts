@@ -41,7 +41,7 @@ test("worker enters the field workspace; manager dashboard and bearer guards sta
   await expect(page.getByRole("heading", { name: "Receipt inbox" })).toBeVisible();
   await context.clearCookies();
   await page.goto("/field/new");
-  await expect(page).toHaveURL(/\/login\?next=/);
+  await expect(page).toHaveURL(/\/worker-login\?next=/);
 });
 
 test("full browser upload uses real session, signed storage, checksum confirmation, history and manager APIs", async ({

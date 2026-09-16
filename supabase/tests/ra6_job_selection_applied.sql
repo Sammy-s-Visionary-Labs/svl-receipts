@@ -1,8 +1,8 @@
 -- RA-43 local search/approval regressions. Entire suite rolls back; no HTTP.
 begin;
-insert into auth.users(id,aud,role,email) values
- ('67000000-0000-4000-8000-000000000001','authenticated','authenticated','ra6select-worker@example.invalid'),
- ('67000000-0000-4000-8000-000000000002','authenticated','authenticated','ra6select-manager@example.invalid');
+insert into auth.users(id,aud,role,email,raw_app_meta_data) values
+ ('67000000-0000-4000-8000-000000000001','authenticated','authenticated','ra6select-worker@example.invalid','{"svl_access_approved":true}'::jsonb),
+ ('67000000-0000-4000-8000-000000000002','authenticated','authenticated','ra6select-manager@example.invalid','{"svl_access_approved":true}'::jsonb);
 update public.profiles set role='manager' where id='67000000-0000-4000-8000-000000000002';
 insert into public.receipt_categories(id,label) values('ra6select-materials','RA6 selection test materials');
 insert into public.receipts(id,owner_user_id,status,submitted_at) values

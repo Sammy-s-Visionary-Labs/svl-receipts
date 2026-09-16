@@ -20,6 +20,9 @@ export async function GET(request: Request, context: RouteContext) {
       "GET /api/receipts/[id]/image",
       id,
     );
+    const openParams = new URL(request.url).searchParams.getAll("open");
+    if (openParams.length > 1 || (openParams.length === 1 && openParams[0] !== "1"))
+      throw new HttpError(400, "invalid_request", "Invalid image request");
     const pageParams = new URL(request.url).searchParams.getAll("page");
     const page = pageParams[0] ?? "0";
     if (pageParams.length > 1 || !/^[0-4]$/.test(page))
@@ -60,6 +63,15 @@ export async function GET(request: Request, context: RouteContext) {
     const url = await createReceiptReadUrl(storageKey);
     const expiresAt = new Date(Date.now() + SIGNED_READ_TTL_SECONDS * 1000).toISOString();
     console.info("[receipt-image-access]", { userId: actor.userId, receiptId: id });
+    if (openParams[0] === "1")
+      return new Response(null, {
+        status: 303,
+        headers: {
+          Location: url,
+          "Cache-Control": "private, no-store",
+          "Referrer-Policy": "no-referrer",
+        },
+      });
     return Response.json({ url, expiresAt }, { headers: { "cache-control": "private, no-store" } });
   } catch (error) {
     if (error instanceof HttpError) {

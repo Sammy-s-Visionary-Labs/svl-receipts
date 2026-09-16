@@ -3,7 +3,10 @@ import { type NextRequest, NextResponse } from "next/server";
 import { updateSession } from "./lib/supabase/proxy-session";
 
 function isPublicPath(pathname: string): boolean {
-  return pathname === "/login" || pathname.startsWith("/login/");
+  return (
+    ["/login", "/worker-login", "/request-access", "/api/access-requests"].includes(pathname) ||
+    pathname.startsWith("/login/")
+  );
 }
 
 export async function proxy(request: NextRequest) {
@@ -24,7 +27,7 @@ export async function proxy(request: NextRequest) {
   }
 
   const login = request.nextUrl.clone();
-  login.pathname = "/login";
+  login.pathname = pathname.startsWith("/field") ? "/worker-login" : "/login";
   login.searchParams.set("next", pathname);
   return NextResponse.redirect(login);
 }

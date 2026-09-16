@@ -310,6 +310,7 @@ test("loads the frozen export preview on demand and checks uncertain results wit
     jobs: ["job-a", "job-b"].map((jobId, index) => ({
       id: jobId,
       label: "Same synthetic customer",
+      number: String(1042 + index),
       destinationAllowed: index === 0,
       unavailable: false,
       materialCostCents: 101,
@@ -349,9 +350,13 @@ test("loads the frozen export preview on demand and checks uncertain results wit
   await section.getByRole("button", { name: "Load export preview", exact: true }).click();
   await expect(section).toContainText("Live Housecall writes are disabled.");
   await expect(section).toContainText("$2.02 material costs · Tax excluded");
-  await expect(section.getByRole("heading", { name: "Same synthetic customer" })).toHaveCount(2);
-  await expect(section.getByText("job-a", { exact: true })).toBeVisible();
-  await expect(section.getByText("job-b", { exact: true })).toBeVisible();
+  await expect(
+    section.getByRole("heading", { name: "Same synthetic customer #1042" }),
+  ).toBeVisible();
+  await expect(
+    section.getByRole("heading", { name: "Same synthetic customer #1043" }),
+  ).toBeVisible();
+  await expect(section.getByText("job-a", { exact: true })).toHaveCount(0);
   await expect(section.getByText("Page 1 · Verified", { exact: false })).toHaveCount(2);
   await expect(section.getByText("Page 2 · Verification required", { exact: false })).toHaveCount(
     2,
@@ -484,7 +489,7 @@ test("keeps saved older jobs outside the search page and blocks unavailable or s
   await page.getByLabel("Quantity", { exact: true }).first().fill("1.01");
   await page.getByRole("button", { name: "Approve receipt", exact: true }).click();
   await expect(page.getByRole("dialog")).toContainText("Historic saved assignment");
-  await expect(page.getByRole("dialog")).toContainText(oldJob.id);
+  await expect(page.getByRole("dialog")).toContainText("Historic saved assignment #1043");
   expect(mutations).toEqual([]);
 });
 test("image refresh preserves edits, zoom and rotation", async ({ page }) => {
@@ -787,6 +792,7 @@ test("RA5 explains extraction and line matches, keeps duplicate decisions explic
   await page.getByText("Source evidence for this extraction", { exact: true }).click();
   await page.getByRole("button", { name: "Load source evidence", exact: true }).click();
   await expect(page.locator("blockquote", { hasText: "COPPERFIELD SUPPLY" })).toBeVisible();
+  await page.getByText("View extraction details (1)", { exact: true }).click();
   await expect(
     page.getByText("Printed total differs from calculated material costs plus tax."),
   ).toBeVisible();

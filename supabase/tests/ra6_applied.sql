@@ -1,9 +1,9 @@
 -- RA-6 local-only contract tests. No HTTP or provider credentials are used.
 begin;
-insert into auth.users(id,aud,role,email) values
- ('66000000-0000-4000-8000-000000000001','authenticated','authenticated','ra6-worker@example.invalid'),
- ('66000000-0000-4000-8000-000000000002','authenticated','authenticated','ra6-manager@example.invalid'),
- ('66000000-0000-4000-8000-000000000003','authenticated','authenticated','ra6-admin@example.invalid');
+insert into auth.users(id,aud,role,email,raw_app_meta_data) values
+ ('66000000-0000-4000-8000-000000000001','authenticated','authenticated','ra6-worker@example.invalid','{"svl_access_approved":true}'::jsonb),
+ ('66000000-0000-4000-8000-000000000002','authenticated','authenticated','ra6-manager@example.invalid','{"svl_access_approved":true}'::jsonb),
+ ('66000000-0000-4000-8000-000000000003','authenticated','authenticated','ra6-admin@example.invalid','{"svl_access_approved":true}'::jsonb);
 update public.profiles set role='manager' where id='66000000-0000-4000-8000-000000000002';
 update public.profiles set role='admin' where id='66000000-0000-4000-8000-000000000003';
 insert into public.receipt_categories(id,label) values('ra6-materials','RA6 materials');
@@ -41,12 +41,13 @@ begin
  begin perform public.grant_housecall_write_approval(admin_id,intent,repeat('0',64),array['ra6-job-a'],now()+interval '1 hour',10,'bad hash');raise exception 'wrong hash granted';exception when others then if sqlerrm<>'invalid_export_approval' then raise;end if;end;
  begin perform public.grant_housecall_write_approval(admin_id,intent,digest,array['real-customer-job'],now()+interval '1 hour',10,'wrong job');raise exception 'wrong job granted';exception when others then if sqlerrm<>'invalid_export_approval' then raise;end if;end;
  begin perform public.grant_housecall_write_approval(admin_id,intent,digest,array['ra6-job-a'],now()+interval '25 hours',10,'unbounded');raise exception 'unbounded approval granted';exception when others then if sqlerrm<>'invalid_export_approval' then raise;end if;end;
- claimed:=public.claim_housecall_export_step(intent,'test-worker'); s:=claimed->'step';
+ if public.claim_housecall_export_step(intent,'legacy-worker') is not null then raise exception 'legacy worker claimed compact format'; end if;
+ claimed:=public.claim_housecall_export_step_v2(intent,'test-worker'); s:=claimed->'step';
  if claimed is null or claimed->>'reconcileOnly'<>'false' then raise exception 'initial claim failed'; end if;
  begin perform public.manager_recovery_command(receipt,admin_id,intent,'correction',null,'Correction during RA6 lease',jsonb_set(snapshot,'{lines,0,qty}','"1"'));raise exception 'in-flight correction accepted';exception when others then if sqlerrm<>'conflict' then raise;end if;end;
  if exists(select 1 from public.manager_recovery_commands where receipt_id=receipt and kind='correction') then raise exception 'in-flight correction command persisted';end if;
- if public.claim_housecall_export_step(intent,'other-worker') is not null then raise exception 'receipt lease stolen'; end if;
- if public.claim_housecall_export_step(intent2,'other-receipt') is not null then raise exception 'destination lease stolen'; end if;
+ if public.claim_housecall_export_step_v2(intent,'other-worker') is not null then raise exception 'receipt lease stolen'; end if;
+ if public.claim_housecall_export_step_v2(intent2,'other-receipt') is not null then raise exception 'destination lease stolen'; end if;
  begin perform public.consume_housecall_write_approval((s->>'id')::uuid,(s->>'lease_token')::uuid);raise exception 'unapproved write permitted';exception when others then if sqlerrm<>'live_write_approval_required' then raise;end if;end;
  if (select dispatch_started_at from public.housecall_export_steps where id=(s->>'id')::uuid) is not null then raise exception 'blocked dispatch marked attempted'; end if;
  finished:=public.finish_housecall_export_step((s->>'id')::uuid,(s->>'lease_token')::uuid,'not_sent',null,'approval_required');
@@ -54,7 +55,7 @@ begin
  -- A one-write approval is consumed exactly once before HTTP would be sent.
  g:=public.grant_housecall_write_approval(admin_id,intent,digest,array['ra6-job-a'],now()+interval '1 hour',1,'explicit mock grant');
  if not exists(select 1 from public.list_ready_housecall_exports(20) q where q.intent_id=intent) then raise exception 'approved current work not selected';end if;
- claimed:=public.claim_housecall_export_step(intent,'test-worker'); s:=claimed->'step';step_id:=(s->>'id')::uuid;lease:=(s->>'lease_token')::uuid;
+ claimed:=public.claim_housecall_export_step_v2(intent,'test-worker'); s:=claimed->'step';step_id:=(s->>'id')::uuid;lease:=(s->>'lease_token')::uuid;
  g:=public.consume_housecall_write_approval(step_id,lease);
  if (g->>'used_writes')::integer<>1 or g->>'step_payload_hash'<>s->>'payload_hash' then raise exception 'approval not exact or consumed'; end if;
  begin perform public.consume_housecall_write_approval(step_id,lease);raise exception 'same dispatch authorized twice';exception when others then if sqlerrm<>'conflict' then raise;end if;end;
@@ -67,14 +68,14 @@ begin
  perform public.manager_recovery_command(receipt,manager,intent,'retry',
   (select id from public.export_attempts where export_step_id=step_id and status='permanent_failure' order by created_at desc,id desc limit 1),'Read back uncertain write');
  if (select status from public.housecall_export_steps where id=step_id)<>'reconcile_required' then raise exception 'manager retry blindly requeued uncertain write'; end if;
- if public.claim_housecall_export_step(intent2,'other-receipt') is not null then raise exception 'unresolved destination unblocked'; end if;
- claimed:=public.claim_housecall_export_step(intent,'reconciler');s:=claimed->'step';
+ if public.claim_housecall_export_step_v2(intent2,'other-receipt') is not null then raise exception 'unresolved destination unblocked'; end if;
+ claimed:=public.claim_housecall_export_step_v2(intent,'reconciler');s:=claimed->'step';
  if claimed->>'reconcileOnly'<>'true' or (s->>'id')::uuid<>step_id then raise exception 'uncertain step replayed'; end if;
  begin perform public.consume_housecall_write_approval(step_id,(s->>'lease_token')::uuid);raise exception 'reconciliation issued post';exception when others then if sqlerrm<>'conflict' then raise;end if;end;
  finished:=public.finish_housecall_export_step(step_id,(s->>'lease_token')::uuid,'not_found',null,'zero_matches');
  if finished->>'status'<>'reconcile_required' then raise exception 'absence incorrectly proved safe retry'; end if;
  -- Exact read-back can recover the external success, with job and payload proof.
- claimed:=public.claim_housecall_export_step(intent,'reconciler');s:=claimed->'step';
+ claimed:=public.claim_housecall_export_step_v2(intent,'reconciler');s:=claimed->'step';
  begin perform public.finish_housecall_export_step(step_id,(s->>'lease_token')::uuid,'succeeded','ext-a',null,
  jsonb_build_object('verified',true,'housecall_job_id','wrong-job','payload_hash',s->>'payload_hash'));raise exception 'wrong job verified';exception when others then if sqlerrm<>'verification_required' then raise;end if;end;
  finished:=public.finish_housecall_export_step(step_id,(s->>'lease_token')::uuid,'succeeded','ext-a',null,
@@ -85,13 +86,13 @@ begin
  if (select retention_started_at from public.receipts where id=receipt) is not null then raise exception 'partial export started retention'; end if;
  -- Exhausted approvals cannot authorize the next page, and success cannot retry.
  begin perform public.request_housecall_step_retry(manager,step_id,'retry succeeded');raise exception 'successful step retry accepted';exception when others then if sqlerrm<>'conflict' then raise;end if;end;
- claimed:=public.claim_housecall_export_step(intent,'test-worker');s:=claimed->'step';
+ claimed:=public.claim_housecall_export_step_v2(intent,'test-worker');s:=claimed->'step';
  begin perform public.consume_housecall_write_approval((s->>'id')::uuid,(s->>'lease_token')::uuid);raise exception 'exhausted budget accepted';exception when others then if sqlerrm<>'live_write_approval_required' then raise;end if;end;
  perform public.finish_housecall_export_step((s->>'id')::uuid,(s->>'lease_token')::uuid,'not_sent');
  -- A failed second page remains recoverable after page one on the SAME job
  -- succeeded. Legacy receipt/job/NULL-line checks must not collapse these steps.
  g:=public.grant_housecall_write_approval(admin_id,intent,digest,array['ra6-job-a'],now()+interval '1 hour',1,'one additional rejected page test');
- claimed:=public.claim_housecall_export_step(intent,'page-two');s:=claimed->'step';
+ claimed:=public.claim_housecall_export_step_v2(intent,'page-two');s:=claimed->'step';
  if s->>'step'<>'attachment' or s->>'housecall_job_id'<>'ra6-job-a' then raise exception 'multi-page retry fixture is not same job';end if;
  perform public.consume_housecall_write_approval((s->>'id')::uuid,(s->>'lease_token')::uuid);
  begin perform public.finish_housecall_export_step((s->>'id')::uuid,(s->>'lease_token')::uuid,'succeeded','ext-a',null,
@@ -104,7 +105,7 @@ begin
  -- All remaining steps receive separate verification; successful steps skipped.
  g:=public.grant_housecall_write_approval(admin_id,intent,digest,array['ra6-job-a','ra6-job-b'],now()+interval '1 hour',5,'bounded remaining mock test');
  loop
-  claimed:=public.claim_housecall_export_step(intent,'test-worker');exit when claimed is null;s:=claimed->'step';
+  claimed:=public.claim_housecall_export_step_v2(intent,'test-worker');exit when claimed is null;s:=claimed->'step';
   if (s->>'id')::uuid=step_id then raise exception 'successful step replayed'; end if;
   perform public.consume_housecall_write_approval((s->>'id')::uuid,(s->>'lease_token')::uuid);
   external:='ext-'||(s->>'id');
@@ -122,14 +123,14 @@ begin
  if (select count(*) from public.housecall_intents where receipt_id=receipt)<>1 then raise exception 'correction replayed'; end if;
  -- Missing images retain approval semantics but cannot enter live export.
  approved:=public.manager_review_command('66100000-0000-4000-8000-000000000005',manager,0,null,'approve',snapshot);
- if public.claim_housecall_export_step((approved->>'intentId')::uuid,'test-worker') is not null then raise exception 'image-less export claim'; end if;
+ if public.claim_housecall_export_step_v2((approved->>'intentId')::uuid,'test-worker') is not null then raise exception 'image-less export claim'; end if;
  -- A new approval cannot reset the independent eight-dispatch step limit.
  approved:=public.manager_review_command('66100000-0000-4000-8000-000000000003',manager,0,null,'approve',jsonb_set(snapshot,'{lines}',jsonb_build_array(snapshot->'lines'->1)));
  intent2:=(approved->>'intentId')::uuid;
  select payload_hash into digest from public.housecall_intents where id=intent2;
  g:=public.grant_housecall_write_approval(admin_id,intent2,digest,array['ra6-job-b'],now()+interval '1 hour',20,'bounded repeated rejected mock sends');
  for n in 1..8 loop
-  claimed:=public.claim_housecall_export_step(intent2,'attempt-cap');s:=claimed->'step';
+  claimed:=public.claim_housecall_export_step_v2(intent2,'attempt-cap');s:=claimed->'step';
   if s is null then raise exception 'step ended before attempt cap';end if;
   perform public.consume_housecall_write_approval((s->>'id')::uuid,(s->>'lease_token')::uuid);
   finished:=public.finish_housecall_export_step((s->>'id')::uuid,(s->>'lease_token')::uuid,'retryable_failure',null,'rate_limited',jsonb_build_object('definitive_rejection',true,'http_status',429));
@@ -139,7 +140,7 @@ begin
  begin perform public.request_housecall_step_retry(manager,(s->>'id')::uuid,'renewed approval cannot reset cap');raise exception 'dispatch limit retry accepted';exception when others then if sqlerrm<>'attempt_limit_reached' then raise;end if;end;
  -- Revocation immediately blocks the remaining page; no total/retention success.
  perform public.revoke_housecall_write_approval(admin_id,(g->>'id')::uuid,'stop bounded mock run');
- claimed:=public.claim_housecall_export_step(intent2,'revoked');s:=claimed->'step';
+ claimed:=public.claim_housecall_export_step_v2(intent2,'revoked');s:=claimed->'step';
  begin perform public.consume_housecall_write_approval((s->>'id')::uuid,(s->>'lease_token')::uuid);raise exception 'revoked approval accepted';exception when others then if sqlerrm<>'live_write_approval_required' then raise;end if;end;
  perform public.finish_housecall_export_step((s->>'id')::uuid,(s->>'lease_token')::uuid,'not_sent');
  if public.both_housecall_steps_succeeded('66100000-0000-4000-8000-000000000003') then raise exception 'attempt limit completed intent';end if;
@@ -150,10 +151,10 @@ do $$
 declare intent uuid; claimed jsonb; s jsonb; claimed2 jsonb; token uuid;
 begin
  select intent_id into intent from public.housecall_outbox where receipt_id='66100000-0000-4000-8000-000000000002';
- claimed:=public.claim_housecall_export_step(intent,'lease-expiry');s:=claimed->'step'; token:=(s->>'lease_token')::uuid;
+ claimed:=public.claim_housecall_export_step_v2(intent,'lease-expiry');s:=claimed->'step'; token:=(s->>'lease_token')::uuid;
  update public.housecall_export_steps set lease_expires_at=now()-interval '1 second' where id=(s->>'id')::uuid;
  update public.housecall_export_locks set lease_expires_at=now()-interval '1 second' where step_id=(s->>'id')::uuid;
- claimed2:=public.claim_housecall_export_step(intent,'new-owner');
+ claimed2:=public.claim_housecall_export_step_v2(intent,'new-owner');
  if claimed2->>'reconcileOnly'<>'true' then raise exception 'stale lease permits blind replay';end if;
  begin perform public.finish_housecall_export_step((s->>'id')::uuid,token,'not_sent');raise exception 'stale worker accepted';exception when others then if sqlerrm<>'conflict' then raise;end if;end;
  begin update public.housecall_export_steps set payload='{}' where id=(s->>'id')::uuid;raise exception 'payload mutation accepted';exception when others then if sqlerrm<>'export_plan_is_immutable' then raise;end if;end;
