@@ -258,3 +258,9 @@
 
 .fullReviewButton { margin-bottom: 22px; min-height: 44px; padding: 11px 16px; text-decoration: none; }
 .fullReviewButton:focus-visible { outline: 3px solid #9aab66; outline-offset: 3px; }
+
+.brandSwitcher { width: 100%; }
+.brandSwitcher .brand { gap: 8px; }
+.brandSwitcher .brandMark { flex-shrink: 0; width: 38px; height: 40px; }
+@media (max-width: 900px) { .brandSwitcher .brandMark { width: 29px; height: 34px; } .brandSwitcher .brand { gap: 6px; padding: 4px 1px; } }
+@media (max-width: 640px) { .brandSwitcher { width: auto; } .brandSwitcher .brand { gap: 8px; } .brandSwitcher .brandMark { width: 32px; height: 34px; } }

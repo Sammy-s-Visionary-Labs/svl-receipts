@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { createContext, type ReactNode, useContext, useEffect, useState } from "react";
 import { listDrafts } from "@/lib/field/drafts";
+import { WorkspaceSwitcher } from "../workspace-switcher";
 import styles from "./field.module.css";
 import { Icon, type IconName } from "./glyph";
 
@@ -76,7 +77,12 @@ export function FieldShell({ actor, children }: { actor: AuthzActor; children: R
           Skip to content
         </a>
         <aside className={styles.sidebar}>
-          <Link href="/field" className={styles.brand} aria-label="SVL Receipts home">
+          <WorkspaceSwitcher
+            role={actor.role}
+            current="field"
+            className={styles.desktopBrand}
+            brandClassName={styles.brand}
+          >
             <span className={styles.brandIcon}>
               <Icon name="receipt" size={25} />
             </span>
@@ -84,7 +90,7 @@ export function FieldShell({ actor, children }: { actor: AuthzActor; children: R
               SVL <strong>Receipts</strong>
               <small>FIELD WORKSPACE</small>
             </span>
-          </Link>
+          </WorkspaceSwitcher>
           <div className={styles.sidebarLabel}>YOUR WORKSPACE</div>
           <nav className={styles.nav} aria-label="Field navigation">
             {nav.map((item) => (
@@ -111,11 +117,6 @@ export function FieldShell({ actor, children }: { actor: AuthzActor; children: R
                 Connected to your office.
               </span>
             </div>
-            {actor.role !== "worker" && (
-              <Link href="/" className={styles.textLink}>
-                Office dashboard <Icon name="arrow" size={16} />
-              </Link>
-            )}
             <button
               type="button"
               className={styles.signout}
@@ -129,12 +130,17 @@ export function FieldShell({ actor, children }: { actor: AuthzActor; children: R
         </aside>
         <div className={styles.mainColumn}>
           <header className={styles.topbar}>
-            <Link href="/field" className={styles.mobileBrand}>
+            <WorkspaceSwitcher
+              role={actor.role}
+              current="field"
+              className={styles.mobileBrand}
+              brandClassName={styles.mobileBrandLink}
+            >
               <span className={styles.brandIcon}>
                 <Icon name="receipt" size={20} />
               </span>
               SVL Receipts
-            </Link>
+            </WorkspaceSwitcher>
             <span className={styles.breadcrumb}>
               FIELD WORKSPACE <span>/</span>{" "}
               {nav.find((item) => item.href === path)?.label ?? "Receipt details"}
