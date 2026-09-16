@@ -10,7 +10,12 @@ export function jobLabel(job?: JobLabel | null): string {
   if (!job) return "Job details unavailable";
   const readable = (value?: string | null) =>
     value && value !== job.id && !/^job_[a-z0-9]+$/i.test(value) ? value.trim() : "";
-  const name = readable(job.label) || readable(job.customer) || "Job details unavailable";
+  const customer = readable(job.customer);
+  const label = readable(job.label);
+  const name =
+    label && customer && !label.toLocaleLowerCase().includes(customer.toLocaleLowerCase())
+      ? `${customer} · ${label}`
+      : label || customer || "Job details unavailable";
   const number = job.number?.replace(/^#/, "").trim();
   return number && !name.includes(`#${number}`) ? `${name} #${number}` : name;
 }
