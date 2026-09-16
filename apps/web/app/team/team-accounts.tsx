@@ -35,6 +35,10 @@ export function TeamAccounts({ actorId, admin }: { actorId: string; admin: boole
       const data = await response.json();
       if (!response.ok) throw new Error(data.error?.message ?? "Could not load accounts.");
       if (current === sequence.current) {
+        if (page > 0 && page * 50 >= data.total) {
+          setPage(Math.max(0, Math.ceil(data.total / 50) - 1));
+          return;
+        }
         setUsers(data.users);
         setTotal(data.total);
       }
