@@ -58,6 +58,10 @@ jobs:
         run: npm run test:applied
         env:
           SVL_APPLIED_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+      - name: Check concurrent duplicate approvals
+        run: npm run test:email:concurrency
+        env:
+          SVL_APPLIED_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
       - name: Stop the local stack
         if: always()
         run: npm run db:stop

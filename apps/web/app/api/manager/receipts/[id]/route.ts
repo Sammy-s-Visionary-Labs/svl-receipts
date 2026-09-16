@@ -12,6 +12,7 @@ import { categoryRow } from "@/lib/manager/intelligence";
 import { autofillReceiptJobs } from "@/lib/manager/job-autofill";
 import type { ReceiptDetail } from "@/lib/manager/review-contract";
 import { UUID, validId } from "@/lib/manager/review-request";
+import { createServiceRoleClient } from "@/lib/supabase/service";
 
 type Context = { params: Promise<{ id: string }> };
 export async function GET(request: Request, context: Context) {
@@ -29,6 +30,17 @@ export async function GET(request: Request, context: Context) {
     if (error) throw error;
     if (!receipt || receipt.content_deleted_at || receipt.purge_claimed_at || !receipt.submitted_at)
       throw new HttpError(404, "not_found", "Receipt content is not available");
+    const refreshed = await createServiceRoleClient().rpc("refresh_receipt_duplicate_candidates", {
+      p_receipt_id: id,
+    });
+    if (refreshed.error) throw refreshed.error;
+    const sourceResult = await supabase
+      .from("email_receipt_documents")
+      .select("import_id,filename,email_receipt_imports(sender,subject,received_at)")
+      .eq("receipt_id", id)
+      .maybeSingle();
+    if (sourceResult.error) throw sourceResult.error;
+    const emailSource = sourceResult.data;
     const results = await Promise.all([
       supabase
         .from("extractions")
@@ -241,6 +253,9 @@ export async function GET(request: Request, context: Context) {
     const last = eventPage.at(-1);
     const data: ReceiptDetail = {
       id,
+      emailSource: emailSource
+        ? { importId: emailSource.import_id, filename: emailSource.filename }
+        : null,
       status: receipt.status,
       submittedAt: receipt.submitted_at,
       version: receipt.review_version,

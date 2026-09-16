@@ -22,7 +22,7 @@ declare
  approved jsonb; approved2 jsonb; intent uuid; intent2 uuid; digest text; claimed jsonb; claimed2 jsonb; s jsonb; g jsonb; finished jsonb; external text; step_id uuid; lease uuid; n integer:=0;
 begin
  approved:=public.manager_review_command(receipt,manager,0,null,'approve',snapshot);
- approved2:=public.manager_review_command(receipt2,manager,0,null,'approve',snapshot);
+ approved2:=public.manager_review_command(receipt2,manager,0,null,'approve',jsonb_set(snapshot,'{invoiceNumber}','"RA6-TEST-2"'));
  intent:=(approved->>'intentId')::uuid; intent2:=(approved2->>'intentId')::uuid;
  select payload_hash into digest from public.housecall_intents where id=intent;
  if digest is null or (select jsonb_array_length(approved_images) from public.housecall_intents where id=intent)<>2 then raise exception 'image snapshot missing'; end if;
@@ -122,10 +122,10 @@ begin
  perform public.manager_recovery_command(receipt,admin_id,intent,'correction',null,'Fix qty',jsonb_set(snapshot,'{lines,0,qty}','"1"'));
  if (select count(*) from public.housecall_intents where receipt_id=receipt)<>1 then raise exception 'correction replayed'; end if;
  -- Missing images retain approval semantics but cannot enter live export.
- approved:=public.manager_review_command('66100000-0000-4000-8000-000000000005',manager,0,null,'approve',snapshot);
+ approved:=public.manager_review_command('66100000-0000-4000-8000-000000000005',manager,0,null,'approve',jsonb_set(snapshot,'{invoiceNumber}','"RA6-TEST-5"'));
  if public.claim_housecall_export_step_v2((approved->>'intentId')::uuid,'test-worker') is not null then raise exception 'image-less export claim'; end if;
  -- A new approval cannot reset the independent eight-dispatch step limit.
- approved:=public.manager_review_command('66100000-0000-4000-8000-000000000003',manager,0,null,'approve',jsonb_set(snapshot,'{lines}',jsonb_build_array(snapshot->'lines'->1)));
+ approved:=public.manager_review_command('66100000-0000-4000-8000-000000000003',manager,0,null,'approve',jsonb_set(jsonb_set(snapshot,'{invoiceNumber}','"RA6-TEST-3"'),'{lines}',jsonb_build_array(snapshot->'lines'->1)));
  intent2:=(approved->>'intentId')::uuid;
  select payload_hash into digest from public.housecall_intents where id=intent2;
  g:=public.grant_housecall_write_approval(admin_id,intent2,digest,array['ra6-job-b'],now()+interval '1 hour',20,'bounded repeated rejected mock sends');

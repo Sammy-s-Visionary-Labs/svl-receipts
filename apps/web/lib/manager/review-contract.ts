@@ -51,6 +51,7 @@ export type ExportStep = {
   retryQueued: boolean;
 };
 export type ReceiptDetail = {
+  emailSource?: { importId: string; filename: string } | null;
   automaticJobAssignments?: import("./job-autofill").AutomaticJobAssignment[];
   id: string;
   status: string;

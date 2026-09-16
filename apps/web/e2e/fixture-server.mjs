@@ -41,6 +41,10 @@ const server = createServer(async (request, response) => {
     if (selectedId && selectedId !== `eq.${profile.id}`) return send(200, null);
     return send(200, { ...profile, access_status: "approved" });
   }
+  if (url.pathname === "/rest/v1/email_importer_health" && request.method === "GET")
+    return send(200, null);
+  if (url.pathname === "/rest/v1/email_receipt_imports" && request.method === "GET")
+    return send(200, []);
   if (url.pathname === "/rest/v1/receipt_categories" && request.method === "GET") {
     if (profile.disabled || !["manager", "admin"].includes(profile.role)) {
       return send(403, { code: "42501", message: "Fixture manager role required" });
