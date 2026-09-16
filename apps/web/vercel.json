@@ -1,5 +1,6 @@
 {
   "crons": [
+    { "path": "/api/cron/email-imports", "schedule": "15 9 * * *" },
     {
       "path": "/api/cron/housecall",
       "schedule": "0 9 * * *"

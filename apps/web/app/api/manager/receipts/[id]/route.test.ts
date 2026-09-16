@@ -1,11 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AuthHttpError, requireManager } from "@/lib/auth/guards";
+import { createServiceRoleClient } from "@/lib/supabase/service";
 import { GET } from "./route";
 
 vi.mock("@/lib/auth/guards", async (original) => ({
   ...(await original<typeof import("@/lib/auth/guards")>()),
   requireManager: vi.fn(),
 }));
+vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: vi.fn() }));
+const duplicateRpc = vi.fn();
 const id = "44100000-0000-4000-8000-000000000001";
 let rows: Record<string, unknown>;
 let rpc: ReturnType<typeof vi.fn>;
@@ -16,6 +19,8 @@ const run = () =>
   });
 beforeEach(() => {
   vi.clearAllMocks();
+  duplicateRpc.mockResolvedValue({ data: null, error: null });
+  vi.mocked(createServiceRoleClient).mockReturnValue({ rpc: duplicateRpc } as never);
   rows = {
     receipts: {
       id,
@@ -92,7 +97,7 @@ describe("manager receipt detail API", () => {
       },
     ];
   }
-  it("fills an untouched extracted draft even when generated material projections exist, using read-only calls", async () => {
+  it("fills an untouched extracted draft even when generated material projections exist, while refreshing duplicate safety evidence", async () => {
     freshMatchedExtraction();
     const response = await run();
     expect(response.status).toBe(200);

@@ -20,6 +20,18 @@ export function rpcHttpError(error: { message?: string } | null | undefined): Ht
       "test_export_budget",
       "This approval would exceed the test session's receipt, cost, or write limit. Approval was not saved.",
     );
+  if (message === "retained_purchase_duplicate")
+    return new HttpError(
+      409,
+      "retained_purchase_duplicate",
+      "This purchase matches a previously approved receipt whose original has been removed by retention. Approval was not saved. Ask an administrator to check the earlier Housecall entry.",
+    );
+  if (message === "duplicate_review_required")
+    return new HttpError(
+      409,
+      "duplicate_review_required",
+      "Compare and resolve possible duplicates before approval. Refresh this receipt to see new matches; your approval was not saved.",
+    );
   if (message === "unsupported_quantity_precision")
     return new HttpError(
       400,

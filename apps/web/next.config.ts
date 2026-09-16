@@ -3,6 +3,24 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   // Let Next.js compile our workspace packages (TypeScript source).
   transpilePackages: ["@svl/domain", "@svl/integrations"],
+  serverExternalPackages: ["mailparser", "pdfjs-dist", "@napi-rs/canvas"],
+  outputFileTracingIncludes: {
+    "/api/email-imports{,/**/*}": [
+      "./assets/fonts/**/*",
+      "../../node_modules/pdfjs-dist/**/*",
+      "../../node_modules/@napi-rs/**/*",
+    ],
+    "/api/admin/email-imports/**/*": [
+      "./assets/fonts/**/*",
+      "../../node_modules/pdfjs-dist/**/*",
+      "../../node_modules/@napi-rs/**/*",
+    ],
+    "/api/cron/email-imports": [
+      "./assets/fonts/**/*",
+      "../../node_modules/pdfjs-dist/**/*",
+      "../../node_modules/@napi-rs/**/*",
+    ],
+  },
   redirects() {
     if (process.env.VERCEL_ENV !== "production") return [];
     return [

@@ -84,7 +84,7 @@ begin
  test_intent:=(result->>'intentId')::uuid;
  if result->>'exportAuthorized'<>'true' or (select count(*) from public.housecall_write_approvals where test_session_id=session_id)<>1
   or (select max_writes from public.housecall_write_approvals where intent_id=test_intent)<>3 then raise exception 'exact approval not atomic';end if;
- begin perform public.manager_review_with_test_export(session_id,'79200000-0000-4000-8000-000000000002',manager_id,0,null,'approve',snapshot);
+ begin perform public.manager_review_with_test_export(session_id,'79200000-0000-4000-8000-000000000002',manager_id,0,null,'approve',jsonb_set(snapshot,'{invoiceNumber}','"FLOW-2"'));
   raise exception 'budget overrun';exception when others then if sqlerrm<>'test_export_budget' then raise;end if;end;
  begin perform public.manager_review_with_test_export(session_id,'79200000-0000-4000-8000-000000000001',manager_id,0,null,'approve',snapshot);
   raise exception 'approval replay accepted';exception when others then if sqlerrm not like '%conflict%' and sqlerrm not like '%approved%' then raise;end if;end;

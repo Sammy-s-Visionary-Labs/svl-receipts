@@ -67,7 +67,7 @@ begin
  permit:=public.consume_housecall_write_approval((claim->>'id')::uuid,(claim->>'lease_token')::uuid);
  if (permit->>'dispatch_expires_at')::timestamptz>(permit->>'dispatch_authorized_at')::timestamptz+interval '2 minutes'
   or permit->>'dispatch_authorized_at' is null then raise exception 'unbounded dispatch permit';end if;
- perform public.manager_review_with_export('89200000-0000-4000-8000-000000000002','89100000-0000-4000-8000-000000000003',0,null,'approve',snapshot);
+ perform public.manager_review_with_export('89200000-0000-4000-8000-000000000002','89100000-0000-4000-8000-000000000003',0,null,'approve',jsonb_set(snapshot,'{invoiceNumber}','"ROLE-2"'));
 end;$$;
 reset role;
 do $$begin

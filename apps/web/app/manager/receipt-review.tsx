@@ -548,18 +548,28 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
                     extractionId={detail.extractionId}
                   />
                 )}
+                {detail.emailSource && (
+                  <section className={styles.intelligencePanel} aria-label="Email source">
+                    <h3>Emailed receipt</h3>
+                    <p>{detail.emailSource.filename} · recisvl@gmail.com</p>
+                    <a href={`/api/manager/email-imports/${detail.emailSource.importId}/original`}>
+                      Download original email
+                    </a>
+                  </section>
+                )}
                 <ExtractionNotes warnings={detail.warnings ?? []} editable={editable} />
                 {!!detail.duplicates?.length && (
                   <section className={styles.intelligencePanel} aria-label="Duplicate candidates">
                     <h3>Possible duplicates</h3>
                     <p>
-                      Confirm only after checking the original. Dismissing a candidate does not
-                      block approval.
+                      Compare the originals and resolve each possible duplicate before approval.
+                      Mark repeated purchases as duplicates; dismiss a match only when it is a
+                      separate purchase.
                     </p>
                     {detail.duplicates.map((candidate) => (
                       <div key={candidate.id}>
-                        <Link href={`/receipts/${candidate.receiptId}`}>{candidate.receiptId}</Link>{" "}
-                        · Evidence score {candidate.score} · {candidate.status}
+                        <Link href={`/receipts/${candidate.receiptId}`}>Compare receipt</Link> ·
+                        Evidence score {candidate.score} · {candidate.status}
                         <ul>
                           {candidate.reasons.map((reason) => (
                             <li key={reason.code}>{reason.message}</li>

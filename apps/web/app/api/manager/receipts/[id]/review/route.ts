@@ -70,6 +70,13 @@ export async function POST(request: Request, context: Context) {
         "test_export_unavailable",
         "Test export is not enabled. Your edits have not been submitted.",
       );
+    if (body.decision === "approve") {
+      const refreshed = await createServiceRoleClient().rpc(
+        "refresh_receipt_duplicate_candidates",
+        { p_receipt_id: id, p_snapshot: draft },
+      );
+      if (refreshed.error) throw rpcHttpError(refreshed.error);
+    }
     const { data, error } = await createServiceRoleClient().rpc(
       managerExport
         ? "manager_review_with_export"
