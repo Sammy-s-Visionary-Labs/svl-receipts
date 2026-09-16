@@ -28,12 +28,14 @@ split migration history described in [the RA-208 runbook](../supabase/migration-
 Then configure users:
 
 1. **Authentication → Providers**: Email on. Disable public signup if the dashboard offers that toggle.
-2. Create users under **Authentication → Users**. New rows get `profiles.role = worker`.
+2. Create users under **Authentication → Users**. New rows become pending, disabled workers. Approve them in Team, or explicitly provision their profile as below.
 3. Promote a user in SQL (service role / dashboard), for example:
 
 ```sql
 update public.profiles
-set role = 'manager' -- or 'admin'
+set role = 'manager', -- or 'admin'
+    access_status = 'approved',
+    disabled = false
 where id = '<auth user uuid>';
 ```
 

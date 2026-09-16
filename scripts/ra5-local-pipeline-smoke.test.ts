@@ -76,6 +76,7 @@ beforeAll(async () => {
   fixtureManifest = JSON.parse(await readFile(`${root}fixtures/ra5/manifest.json`, "utf8"));
   const catalog = JSON.parse(await readFile(`${root}fixtures/ra5/catalog.json`, "utf8"));
   await sql`insert into auth.users(id,aud,role,email) values(${userId},'authenticated','authenticated',${`${prefix}@example.invalid`})`;
+  await sql`update public.profiles set access_status='approved',disabled=false where id=${userId}`;
   configured = true;
   for (const [index, job] of catalog.jobs.entries()) {
     const id = `${prefix}-job-${index}`;

@@ -35,7 +35,8 @@ let releaseFirst = () => {};
 try {
   const intents = await sql.begin(async (tx) => {
     await tx`insert into auth.users(id,aud,role,email) values (${owner},'authenticated','authenticated',${`${owner}@example.invalid`}),(${manager},'authenticated','authenticated',${`${manager}@example.invalid`})`;
-    await tx`update public.profiles set role='manager' where id=${manager}`;
+    await tx`update public.profiles set access_status='approved',disabled=false where id=${owner}`;
+    await tx`update public.profiles set role='manager',access_status='approved',disabled=false where id=${manager}`;
     await tx`insert into public.receipt_categories(id,label) values (${marker},${marker})`;
     await tx`insert into public.manager_job_catalog(id,label) values (${job},'RA6 synthetic destination')`;
     for (const id of [firstReceipt, secondReceipt]) {

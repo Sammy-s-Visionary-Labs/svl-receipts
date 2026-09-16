@@ -70,7 +70,7 @@ test.skipIf(process.env.RA6_LOCAL_REVIEW !== "1")(
         state.adminId = created.data.user.id;
         await saveState();
       }
-      await sql`update public.profiles set role='admin' where id=${state.adminId}`;
+      await sql`update public.profiles set role='admin',access_status='approved',disabled=false where id=${state.adminId}`;
       await sql`insert into public.receipt_categories(id,label,keywords) values('ra6-materials','RA6 test materials','["limestone","stone","mulch","fabric"]') on conflict(id) do nothing`;
       for (const job of baseline.jobs.filter(
         (row: { customerNotificationsEnabled: boolean }) =>
