@@ -27,6 +27,7 @@ test("worker enters the field workspace; manager dashboard and bearer guards sta
   await page.goto("/");
   await expect(page).toHaveURL((url) => url.pathname === "/field");
   await expect(page.getByRole("heading", { name: "Good work. Less paperwork." })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Switch workspace" })).toHaveCount(0);
   expect((await page.request.get("/api/manager/queue")).status()).toBe(403);
   expect(
     (
@@ -35,10 +36,48 @@ test("worker enters the field workspace; manager dashboard and bearer guards sta
       })
     ).status(),
   ).toBe(200);
-  await context.clearCookies();
-  await context.addCookies([fixtureCookie("manager")]);
-  await page.goto("/");
-  await expect(page.getByRole("heading", { name: "Receipt inbox" })).toBeVisible();
+  for (const role of ["manager", "admin"] as const) {
+    await context.clearCookies();
+    await context.addCookies([fixtureCookie(role)]);
+    await page.setViewportSize({ width: role === "admin" ? 390 : 1400, height: 950 });
+    await page.goto("/");
+    await expect(page.getByRole("heading", { name: "Receipt inbox" })).toBeVisible();
+    const switcher = page.getByRole("button", { name: "Switch workspace" });
+    await switcher.click();
+    await expect(page.getByRole("navigation", { name: "Workspaces" })).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(switcher).toBeFocused();
+    await expect(page.getByRole("navigation", { name: "Workspaces" })).toHaveCount(0);
+    await switcher.click();
+    await page.screenshot({ path: `test-results/workspace-switcher-${role}.png`, fullPage: true });
+    await page
+      .getByRole("link", { name: "Field workspace Upload receipts and track submissions" })
+      .click();
+    await expect(page).toHaveURL((url) => url.pathname === "/field");
+    await page.getByRole("link", { name: "Add a receipt", exact: true }).click();
+    await page.getByLabel("Choose receipt photos").setInputFiles(await photo());
+    await expect(page.getByText("Saved on this device", { exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "Send to office", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Your receipt is sent." })).toBeVisible();
+    const state = await (await page.request.get(`${fixtureOrigin}/__field/state`)).json();
+    expect(
+      state.receipts.some(
+        (receipt: { owner_user_id: string }) => receipt.owner_user_id === FIXTURE_USERS[role].id,
+      ),
+    ).toBe(true);
+    await switcher.click();
+    await page.screenshot({
+      path: `test-results/workspace-switcher-field-${role}.png`,
+      fullPage: true,
+    });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    );
+    await page
+      .getByRole("link", { name: "SVL workspace Review receipts and manage your team" })
+      .click();
+    await expect(page.getByRole("heading", { name: "Receipt inbox" })).toBeVisible();
+  }
   await context.clearCookies();
   await page.goto("/field/new");
   await expect(page).toHaveURL(/\/worker-login\?next=/);

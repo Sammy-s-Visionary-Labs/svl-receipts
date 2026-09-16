@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { SignOutButton } from "../sign-out-button";
+import { WorkspaceSwitcher } from "../workspace-switcher";
 import { Icon } from "./icons";
 import styles from "./manager.module.css";
 
@@ -21,14 +22,20 @@ export function ManagerShell({
         Skip to receipts
       </a>
       <aside className={styles.sidebar}>
-        <Link href="/" className={styles.brand} aria-label="SVL Receipts home">
+        <WorkspaceSwitcher
+          role={actorRole}
+          current="svl"
+          dark
+          className={styles.brandSwitcher}
+          brandClassName={styles.brand}
+        >
           <span className={styles.brandMark}>
             S<span>V</span>L
           </span>
           <span className={styles.brandName}>
             Receipts<span>SVL WORKSPACE</span>
           </span>
-        </Link>
+        </WorkspaceSwitcher>
         <div className={styles.navCaption}>WORKSPACE</div>
         <nav className={styles.navigation} aria-label="Main navigation">
           <Link

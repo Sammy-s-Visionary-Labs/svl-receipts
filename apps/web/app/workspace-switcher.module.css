@@ -1,0 +1,17 @@
+.root { position: relative; min-width: 0; }
+.root .trigger { width: 100%; display: flex; align-items: center; gap: 9px; padding: 5px; border: 1px solid transparent; border-radius: 8px; background: transparent; color: inherit; text-align: left; cursor: pointer; font: inherit; }
+.root .trigger:hover, .root .trigger[aria-expanded=true] { background: #edf2e7; border-color: #dce5d4; }
+.dark .trigger:hover, .dark .trigger[aria-expanded=true] { background: #2d4b3d; border-color: #49614f; }
+.root .trigger > span { min-width: 0; }
+.dark .trigger { color: #fff; }
+.chevron { flex-shrink: 0; margin-left: auto; transform: rotate(90deg); opacity: .65; }
+.menu { position: absolute; z-index: 80; left: 0; top: calc(100% + 9px); width: 302px; max-width: calc(100vw - 32px); padding: 7px; border: 1px solid #dce3d5; border-radius: 11px; background: #fff; color: #294333; box-shadow: 0 12px 35px #18332626; text-align: left; }
+.caption { padding: 8px 10px 9px; color: #7a866f; font-size: 10px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; }
+.menu a { display: flex; align-items: center; gap: 10px; min-height: 64px; padding: 10px; border-radius: 7px; color: #294333; text-decoration: none; }
+.menu a:hover { background: #f5f7f0; }
+.menu a[aria-current] { background: #edf3e7; }
+.icon { flex-shrink: 0; display: grid; place-items: center; width: 33px; height: 35px; border: 1px solid #e1e8d9; border-radius: 7px; background: #f9faf5; color: #57714b; }
+.choice { min-width: 0; flex: 1; }
+.menu strong { display: block; font-size: 13px; font-weight: 600; line-height: 1.5; letter-spacing: 0; }
+.menu small { display: block; margin-top: 3px; font-size: 10px; line-height: 1.5; letter-spacing: 0; color: #718065; }
+.root :focus-visible { outline: 3px solid #a0b899; outline-offset: 3px; }

@@ -337,3 +337,11 @@
   .heroCopy .primary { font-size: 13px; }
   .footer button { font-size: 12px; }
 }
+
+.desktopBrand { width: 100%; }
+.desktopBrand button.brand { font-size: 17px; letter-spacing: -.5px; }
+.desktopBrand button.brand .brandIcon { width: 34px; height: 38px; }
+.desktopBrand button.brand small { font-size: 7px; letter-spacing: 1.3px; }
+.mobileBrandLink { display: flex; align-items: center; gap: 9px; }
+@media (max-width: 900px) { .desktopBrand button.brand { font-size: 14px; padding-left: 0; padding-right: 0; gap: 6px; } .desktopBrand button.brand .brandIcon { width: 29px; height: 34px; } .desktopBrand button.brand small { font-size: 6px; letter-spacing: 1px; } }
+@media (max-width: 640px) { .desktopBrand { display: none; } .mobileBrand { min-width: 0; } .mobileBrand button { font-size: 15px; } }
