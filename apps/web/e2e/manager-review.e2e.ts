@@ -255,6 +255,17 @@ test("stale and failed saves preserve local edits and never show success", async
     "Service unavailable",
   );
   await expect(page.getByText("Draft saved.", { exact: true })).toHaveCount(0);
+  let unsavedWarning = false;
+  page.once("dialog", async (dialog) => {
+    unsavedWarning = dialog.type() === "beforeunload";
+    await dialog.dismiss();
+  });
+  await page.getByRole("button", { name: "Switch workspace" }).click();
+  await page
+    .getByRole("link", { name: "Field workspace Upload receipts and track submissions" })
+    .click();
+  expect(unsavedWarning).toBe(true);
+  await expect(page.getByLabel("Vendor *", { exact: true })).toHaveValue("My unsaved correction");
 });
 test("checks decimal amounts, missing job and exact two-job approval", async ({ page }) => {
   const state = await setup(page);

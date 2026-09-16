@@ -70,7 +70,8 @@ export function WorkspaceSwitcher({
       {canSwitch && open && (
         <nav id={id} className={styles.menu} aria-label="Workspaces">
           <p className={styles.caption}>Switch workspace</p>
-          <Link
+          {/* Full navigation honors the review page’s unsaved-change protection. */}
+          <a
             href="/"
             aria-current={current === "svl" ? "true" : undefined}
             onClick={() => setOpen(false)}
@@ -83,8 +84,8 @@ export function WorkspaceSwitcher({
               <small>Review receipts and manage your team</small>
             </span>
             {current === "svl" && <Icon name="check" size={16} />}
-          </Link>
-          <Link
+          </a>
+          <a
             href="/field"
             aria-current={current === "field" ? "true" : undefined}
             onClick={() => setOpen(false)}
@@ -97,7 +98,7 @@ export function WorkspaceSwitcher({
               <small>Upload receipts and track submissions</small>
             </span>
             {current === "field" && <Icon name="check" size={16} />}
-          </Link>
+          </a>
         </nav>
       )}
     </div>
