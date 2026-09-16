@@ -52,11 +52,18 @@ export async function prepareMaterialWrite(input: {
   receiptLineId: string;
   description: string;
   approvedReference?: string;
+  formatVersion?: 2;
   quantity: number;
   unitCostCents: number;
 }): Promise<PreparedMaterialWrite> {
   const jobId = validateHousecallId(input.jobId);
-  const reference = `SVL:${referencePart(input.intentId)}:${referencePart(input.receiptLineId)}`;
+  const legacyReference = `SVL:${referencePart(input.intentId)}:${referencePart(input.receiptLineId)}`;
+  if (input.formatVersion !== undefined && input.formatVersion !== 2)
+    throw new Error("Unsupported material format");
+  const reference =
+    input.formatVersion === 2
+      ? `SVL-${(await housecallSha256(new TextEncoder().encode(legacyReference))).slice(0, 24)}`
+      : legacyReference;
   referencePart(input.receiptId);
   if (
     input.approvedReference !== undefined &&
@@ -93,7 +100,10 @@ export async function prepareMaterialWrite(input: {
       job_input_materials: [
         {
           name: description,
-          description: `${approvedReference ? `${approvedReference}; ` : ""}Receipt ${input.receiptId}; ${reference}`,
+          description:
+            input.formatVersion === 2
+              ? approvedReference || "Receipt material"
+              : `${approvedReference ? `${approvedReference}; ` : ""}Receipt ${input.receiptId}; ${reference}`,
           part_number: reference,
           quantity: input.quantity,
           unit_cost: input.unitCostCents,

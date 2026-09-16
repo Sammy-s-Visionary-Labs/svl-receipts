@@ -181,15 +181,25 @@ export function normalizeQueueRow(value: Record<string, unknown>): QueueReceipt 
     assignedJobs: Array.isArray(value.assignedJobs)
       ? value.assignedJobs
           .filter(
-            (j): j is { id: string; label: unknown } =>
+            (j): j is { id: string; label: unknown; number?: unknown; customer?: unknown } =>
               !!j && typeof j === "object" && typeof j.id === "string",
           )
           .slice(0, 100)
-          .map((j) => ({ id: j.id, label: nullableText(j.label) }))
+          .map((j) => ({
+            id: j.id,
+            label: nullableText(j.label),
+            ...(j.number ? { number: nullableText(j.number) } : {}),
+            ...(j.customer ? { customer: nullableText(j.customer) } : {}),
+          }))
       : [],
     suggestedJob:
       job && typeof job.id === "string"
-        ? { id: job.id, label: nullableText(job.label), source: nullableText(job.source) }
+        ? {
+            id: job.id,
+            label: nullableText(job.label),
+            source: nullableText(job.source),
+            ...(job.number ? { number: nullableText(job.number) } : {}),
+          }
         : null,
     confidence:
       typeof value.confidence === "number" && value.confidence >= 0 && value.confidence <= 1

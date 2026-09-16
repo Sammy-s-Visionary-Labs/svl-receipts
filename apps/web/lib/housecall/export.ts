@@ -24,6 +24,7 @@ export type ExportStepRow = {
   status: string;
   payload: {
     approved_reference?: string;
+    material_format_version?: 2;
     image?: {
       page_id: string;
       storage_key: string;
@@ -61,6 +62,7 @@ export async function prepareExportStep(
       quantity: line.qty,
       unitCostCents: line.unit_cost_cents,
       approvedReference: step.payload.approved_reference,
+      formatVersion: step.payload.material_format_version,
     });
   }
   const image = step.payload?.image;
@@ -170,7 +172,7 @@ export async function runReceiptHousecallExport(
   const workerId = `housecall:${randomUUID()}`;
   let completed = 0;
   for (let count = 0; count < 20 && deadlineAt - Date.now() > 55_000; count++) {
-    const { data: claim, error: claimError } = await db.rpc("claim_housecall_export_step", {
+    const { data: claim, error: claimError } = await db.rpc("claim_housecall_export_step_v2", {
       p_intent_id: intent.id,
       p_worker_id: workerId,
       p_lease_seconds: 120,

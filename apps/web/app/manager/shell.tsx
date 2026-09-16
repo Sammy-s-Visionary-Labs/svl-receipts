@@ -11,7 +11,7 @@ export function ManagerShell({
   children,
 }: {
   actorRole: "manager" | "admin";
-  active: "inbox" | "history" | "settings";
+  active: "inbox" | "history" | "settings" | "team";
   reviewCount?: number;
   children: ReactNode;
 }) {
@@ -48,6 +48,14 @@ export function ManagerShell({
             <Icon name="history" />
             <span>History</span>
           </Link>
+          <Link
+            href="/team"
+            aria-current={active === "team" ? "page" : undefined}
+            className={active === "team" ? styles.navActive : undefined}
+          >
+            <Icon name="check" />
+            <span>Team</span>
+          </Link>
           {actorRole === "admin" && (
             <Link
               href="/settings"
@@ -82,7 +90,13 @@ export function ManagerShell({
           <span>
             Workspace <span className={styles.breadcrumbSlash}>/</span>{" "}
             <strong>
-              {active === "history" ? "History" : active === "settings" ? "Settings" : "Inbox"}
+              {active === "team"
+                ? "Team"
+                : active === "history"
+                  ? "History"
+                  : active === "settings"
+                    ? "Settings"
+                    : "Inbox"}
             </strong>
           </span>
           <span className={styles.topbarCaption}>SVL RECEIPTS</span>

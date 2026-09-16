@@ -3,11 +3,11 @@
 -- Scope count assertions to the fixture owner so existing development receipts cannot interfere.
 begin;
 set local session_replication_role = replica;
-insert into auth.users (id, aud, role, email) values
- ('27000000-0000-4000-8000-000000000001', 'authenticated', 'authenticated', 'ra27-worker@example.invalid'),
- ('27000000-0000-4000-8000-000000000002', 'authenticated', 'authenticated', 'ra27-manager@example.invalid'),
- ('27000000-0000-4000-8000-000000000003', 'authenticated', 'authenticated', 'ra27-disabled@example.invalid'),
- ('27000000-0000-4000-8000-000000000004', 'authenticated', 'authenticated', 'ra27-admin@example.invalid');
+insert into auth.users (id, aud, role, email,raw_app_meta_data) values
+ ('27000000-0000-4000-8000-000000000001', 'authenticated', 'authenticated', 'ra27-worker@example.invalid','{"svl_access_approved":true}'::jsonb),
+ ('27000000-0000-4000-8000-000000000002', 'authenticated', 'authenticated', 'ra27-manager@example.invalid','{"svl_access_approved":true}'::jsonb),
+ ('27000000-0000-4000-8000-000000000003', 'authenticated', 'authenticated', 'ra27-disabled@example.invalid','{"svl_access_approved":true}'::jsonb),
+ ('27000000-0000-4000-8000-000000000004', 'authenticated', 'authenticated', 'ra27-admin@example.invalid','{"svl_access_approved":true}'::jsonb);
 insert into public.profiles (id, role, disabled) values
  ('27000000-0000-4000-8000-000000000001', 'worker', false),
  ('27000000-0000-4000-8000-000000000002', 'manager', false),

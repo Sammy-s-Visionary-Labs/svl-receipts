@@ -4,6 +4,12 @@ Sign-in, sessions, and roles. **Do not put secret values in this file.**
 
 Roles live in `public.profiles` (`worker` | `manager` | `admin`, plus `disabled`). The API never trusts a role sent by the client.
 
+## Worker onboarding and team management
+
+Workers request access at `/request-access`, reached from `/worker-login` or Android sign-in. Supabase Auth stores the hashed password; `profiles` stores full name, email, optional phone, role, access status and disablement. New requests are disabled until a manager approves them in `/team`. Managers can approve/reject requests and disable/re-enable workers. Only admins can change approved account roles. All changes are audited and immediately reflected in database authorization. Existing accounts retain their access.
+
+This flow uses manager verification of the worker's identity and email rather than sending confirmation emails. Public Supabase signup remains disabled; the bounded application registration endpoint uses the server Auth API. See [security and rollout details](receipt-cleanup-and-worker-access.md).
+
 ## Apply the database
 
 Do not paste migration files into the SQL Editor. That bypasses normal CLI tracking and caused the
@@ -22,12 +28,14 @@ split migration history described in [the RA-208 runbook](../supabase/migration-
 Then configure users:
 
 1. **Authentication → Providers**: Email on. Disable public signup if the dashboard offers that toggle.
-2. Create users under **Authentication → Users**. New rows get `profiles.role = worker`.
+2. Create users under **Authentication → Users**. New rows become pending, disabled workers. Approve them in Team, or explicitly provision their profile as below.
 3. Promote a user in SQL (service role / dashboard), for example:
 
 ```sql
 update public.profiles
-set role = 'manager' -- or 'admin'
+set role = 'manager', -- or 'admin'
+    access_status = 'approved',
+    disabled = false
 where id = '<auth user uuid>';
 ```
 
@@ -75,7 +83,9 @@ Local web: copy `.env.example` to `apps/web/.env.local` with **dev** values. Loc
 | POST | `/api/auth/sign-out` | signed-in user (add `?all=1` to revoke every device) |
 | GET | `/api/manager/queue` | manager, admin |
 | GET | `/api/manager/dead-letters` | manager, admin |
-| GET | `/api/admin/users` | admin |
+| GET/POST | `/api/manager/users` | manager, admin; database enforces target and role restrictions |
+| POST | `/api/access-requests` | public; validated and rate limited |
+| GET | `/api/account` | signed-in user; own access state only |
 | GET | `/api/receipts/[id]` | owner, or manager/admin |
 | GET | `/api/receipts/[id]/events` | owner, or manager/admin |
 | POST | `/api/upload-sessions` | any active user (creates or resumes one idempotent receipt and returns per-page signed uploads) |

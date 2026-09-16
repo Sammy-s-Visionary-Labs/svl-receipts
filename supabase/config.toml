@@ -38,7 +38,7 @@ enable_signup = false
 enable_anonymous_sign_ins = false
 
 [auth.email]
-# Keep the email/password provider available for admin-provisioned workers.
-# auth.enable_signup above still prevents public self-registration.
+# Keep email/password available for manager-approved worker requests.
+# Direct Auth signup stays disabled; the application uses a bounded server registration route.
 enable_signup = true
 enable_confirmations = false

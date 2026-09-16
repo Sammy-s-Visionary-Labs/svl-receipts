@@ -47,7 +47,7 @@ const COPY = {
   },
   inactive: {
     title: "This account is not active",
-    body: "Ask your manager to restore access, then sign in again.",
+    body: "Your account is awaiting approval or has been disabled. Ask your manager to check your access, then sign in again.",
   },
 } as const;
 

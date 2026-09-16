@@ -1,0 +1,15 @@
+.panel { padding: 24px; background: white; border: 1px solid #dce4d7; border-radius: 14px; margin-top: 24px; }
+.toolbar, .actions { display: flex; gap: 16px; flex-wrap: wrap; align-items: center; }
+.toolbar { justify-content: space-between; margin: 14px 0; }
+.panel label { display: grid; gap: 8px; font-size: 14px; }
+.panel select, .panel button, .panel a { border-radius: 7px; padding: 11px 14px; font: inherit; }
+.panel select, .panel button { border: 1px solid #c2cebb; background: #f8faf5; color: #264b38; }
+.panel button { cursor: pointer; font-weight: 600; min-height: 44px; }
+.panel button:disabled { opacity: .5; cursor: default; }
+.panel .primary { background: #315b46; color: white; border-color: #315b46; }
+.list { list-style: none; padding: 0; }
+.person { border-top: 1px solid #e2e7de; padding: 22px 0; display: flex; gap: 20px; justify-content: space-between; flex-wrap: wrap; }
+.person h2 { font-size: 18px; margin: 0 0 8px; }
+.person p { color: #66745e; margin: 8px 0; overflow-wrap: anywhere; }
+.error { color: #ad3726; }
+.panel :focus-visible { outline: 3px solid #80a771; outline-offset: 3px; }

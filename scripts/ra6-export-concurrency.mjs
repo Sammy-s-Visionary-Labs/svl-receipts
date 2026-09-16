@@ -35,7 +35,8 @@ let releaseFirst = () => {};
 try {
   const intents = await sql.begin(async (tx) => {
     await tx`insert into auth.users(id,aud,role,email) values (${owner},'authenticated','authenticated',${`${owner}@example.invalid`}),(${manager},'authenticated','authenticated',${`${manager}@example.invalid`})`;
-    await tx`update public.profiles set role='manager' where id=${manager}`;
+    await tx`update public.profiles set access_status='approved',disabled=false where id=${owner}`;
+    await tx`update public.profiles set role='manager',access_status='approved',disabled=false where id=${manager}`;
     await tx`insert into public.receipt_categories(id,label) values (${marker},${marker})`;
     await tx`insert into public.manager_job_catalog(id,label) values (${job},'RA6 synthetic destination')`;
     for (const id of [firstReceipt, secondReceipt]) {
@@ -59,7 +60,7 @@ try {
   });
   const firstTransaction = sql.begin(async (tx) => {
     const [row] =
-      await tx`select public.claim_housecall_export_step(${intents[0]},'concurrent-worker-a',120) as result`;
+      await tx`select public.claim_housecall_export_step_v2(${intents[0]},'concurrent-worker-a',120) as result`;
     assert.ok(row.result?.step);
     reportFirst(row.result);
     await holdFirst;
@@ -75,18 +76,18 @@ try {
     // A different receipt cannot see uncommitted step state. The destination
     // advisory lock must nevertheless reject this claim without a stolen lease.
     const [second] =
-      await sql`select public.claim_housecall_export_step(${intents[1]},'concurrent-worker-b',120) as result`;
+      await sql`select public.claim_housecall_export_step_v2(${intents[1]},'concurrent-worker-b',120) as result`;
     assert.equal(second.result, null, "concurrent receipt stole destination before first commit");
   } finally {
     releaseFirst();
   }
   await firstTransaction;
   const [blocked] =
-    await sql`select public.claim_housecall_export_step(${intents[1]},'concurrent-worker-b',120) as result`;
+    await sql`select public.claim_housecall_export_step_v2(${intents[1]},'concurrent-worker-b',120) as result`;
   assert.equal(blocked.result, null, "durable destination lease not retained after commit");
   await sql`select public.finish_housecall_export_step(${first.step.id},${first.step.lease_token},'not_sent',null,'concurrency_test')`;
   const [next] =
-    await sql`select public.claim_housecall_export_step(${intents[1]},'concurrent-worker-b',120) as result`;
+    await sql`select public.claim_housecall_export_step_v2(${intents[1]},'concurrent-worker-b',120) as result`;
   assert.ok(next.result?.step, "released destination could not be reclaimed");
   await sql`select public.finish_housecall_export_step(${next.result.step.id},${next.result.step.lease_token},'not_sent',null,'concurrency_test')`;
   const [approvals] =

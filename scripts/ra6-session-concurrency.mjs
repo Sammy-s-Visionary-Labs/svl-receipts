@@ -19,7 +19,8 @@ let release = () => {};
 try {
   await sql.begin(async (tx) => {
     await tx`insert into auth.users(id,aud,role,email) values (${owner},'authenticated','authenticated',${`${owner}@example.invalid`}),(${admin},'authenticated','authenticated',${`${admin}@example.invalid`})`;
-    await tx`update public.profiles set role='admin' where id=${admin}`;
+    await tx`update public.profiles set access_status='approved',disabled=false where id=${owner}`;
+    await tx`update public.profiles set role='admin',access_status='approved',disabled=false where id=${admin}`;
     await tx`insert into public.receipt_categories(id,label) values (${marker},${marker})`;
     await tx`insert into public.manager_job_catalog(id,label,source,customer_id,synced_at) values (${marker},'Synthetic session job','housecall',${marker},clock_timestamp())`;
     const [session] =

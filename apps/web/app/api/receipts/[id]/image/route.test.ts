@@ -44,6 +44,25 @@ beforeEach(() => {
   vi.mocked(createReceiptReadUrl).mockResolvedValue("https://example.invalid/private-page");
 });
 describe("private receipt page access", () => {
+  it("opens the requested original with a freshly signed, noncached redirect", async () => {
+    vi.mocked(createReceiptReadUrl)
+      .mockResolvedValueOnce("https://example.invalid/fresh-one")
+      .mockResolvedValueOnce("https://example.invalid/fresh-two");
+    const first = await run("?page=1&open=1");
+    const second = await run("?page=1&open=1");
+    expect(first.status).toBe(303);
+    expect(first.headers.get("location")).toBe("https://example.invalid/fresh-one");
+    expect(second.headers.get("location")).toBe("https://example.invalid/fresh-two");
+    expect(second.headers.get("cache-control")).toBe("private, no-store");
+    expect(createReceiptReadUrl).toHaveBeenLastCalledWith("owner/second.jpg");
+  });
+  it("does not redirect to an original when access has been revoked", async () => {
+    vi.mocked(requireReceiptAccess).mockRejectedValue(
+      new AuthHttpError(401, "account_inactive", "Disabled"),
+    );
+    expect((await run("?open=1")).status).toBe(401);
+    expect(createReceiptReadUrl).not.toHaveBeenCalled();
+  });
   it("preserves first-page access for existing receipts", async () => {
     expect((await run()).status).toBe(200);
     expect(createReceiptReadUrl).toHaveBeenCalledWith("owner/first.jpg");

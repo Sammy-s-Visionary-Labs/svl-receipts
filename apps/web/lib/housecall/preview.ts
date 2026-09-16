@@ -23,6 +23,8 @@ export type HousecallExportPreview = {
   jobs: Array<{
     id: string;
     label: string;
+    number?: string | null;
+    customer?: string | null;
     destinationAllowed: boolean;
     unavailable: boolean;
     materialCostCents: number;
@@ -59,7 +61,13 @@ export function buildHousecallExportPreview(input: {
   receiptId: string;
   intent: { id: string; payload_hash: string | null; attachment_job_ids: unknown } | null;
   steps: PreviewStepRow[];
-  catalog: Array<{ id: string; label: string; unavailable?: boolean }>;
+  catalog: Array<{
+    id: string;
+    label: string;
+    job_number?: string | null;
+    customer?: string | null;
+    unavailable?: boolean;
+  }>;
   allowedJobIds: ReadonlySet<string>;
   allJobs?: boolean;
   separateApprovalRequired?: boolean;
@@ -99,6 +107,8 @@ export function buildHousecallExportPreview(input: {
     return {
       id,
       label: job?.label || "Job label unavailable",
+      number: job?.job_number ?? null,
+      customer: job?.customer ?? null,
       destinationAllowed: input.allJobs === true || input.allowedJobIds.has(id),
       unavailable: job?.unavailable === true,
       materialCostCents: 0,

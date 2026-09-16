@@ -1,9 +1,9 @@
 -- RA-5 applied invariants. Synthetic data only; no external requests; rollback.
 begin;
-insert into auth.users(id,aud,role,email) values
- ('55000000-0000-4000-8000-000000000001','authenticated','authenticated','ra5-worker@example.invalid'),
- ('55000000-0000-4000-8000-000000000002','authenticated','authenticated','ra5-manager@example.invalid'),
- ('55000000-0000-4000-8000-000000000003','authenticated','authenticated','ra5-admin@example.invalid');
+insert into auth.users(id,aud,role,email,raw_app_meta_data) values
+ ('55000000-0000-4000-8000-000000000001','authenticated','authenticated','ra5-worker@example.invalid','{"svl_access_approved":true}'::jsonb),
+ ('55000000-0000-4000-8000-000000000002','authenticated','authenticated','ra5-manager@example.invalid','{"svl_access_approved":true}'::jsonb),
+ ('55000000-0000-4000-8000-000000000003','authenticated','authenticated','ra5-admin@example.invalid','{"svl_access_approved":true}'::jsonb);
 update public.profiles set role='manager' where id='55000000-0000-4000-8000-000000000002';
 update public.profiles set role='admin' where id='55000000-0000-4000-8000-000000000003';
 insert into public.receipts(id,owner_user_id,status,submitted_at)

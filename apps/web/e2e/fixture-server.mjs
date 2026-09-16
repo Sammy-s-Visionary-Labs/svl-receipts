@@ -39,7 +39,7 @@ const server = createServer(async (request, response) => {
   if (url.pathname === "/rest/v1/profiles") {
     const selectedId = url.searchParams.get("id");
     if (selectedId && selectedId !== `eq.${profile.id}`) return send(200, null);
-    return send(200, profile);
+    return send(200, { ...profile, access_status: "approved" });
   }
   if (url.pathname === "/rest/v1/receipt_categories" && request.method === "GET") {
     if (profile.disabled || !["manager", "admin"].includes(profile.role)) {

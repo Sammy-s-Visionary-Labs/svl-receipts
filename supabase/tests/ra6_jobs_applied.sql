@@ -2,13 +2,13 @@
 -- Run against a disposable local database after all migrations; no provider calls.
 begin;
 
-insert into auth.users(id,aud,role,email) values
- ('64300000-0000-4000-8000-000000000001','authenticated','authenticated','ra6jobs-worker@example.invalid'),
- ('64300000-0000-4000-8000-000000000002','authenticated','authenticated','ra6jobs-manager@example.invalid'),
- ('64300000-0000-4000-8000-000000000003','authenticated','authenticated','ra6jobs-admin@example.invalid'),
- ('64300000-0000-4000-8000-000000000004','authenticated','authenticated','ra6jobs-disabled-worker@example.invalid'),
- ('64300000-0000-4000-8000-000000000005','authenticated','authenticated','ra6jobs-disabled-admin@example.invalid'),
- ('64300000-0000-4000-8000-000000000006','authenticated','authenticated','ra6jobs-worker-two@example.invalid');
+insert into auth.users(id,aud,role,email,raw_app_meta_data) values
+ ('64300000-0000-4000-8000-000000000001','authenticated','authenticated','ra6jobs-worker@example.invalid','{"svl_access_approved":true}'::jsonb),
+ ('64300000-0000-4000-8000-000000000002','authenticated','authenticated','ra6jobs-manager@example.invalid','{"svl_access_approved":true}'::jsonb),
+ ('64300000-0000-4000-8000-000000000003','authenticated','authenticated','ra6jobs-admin@example.invalid','{"svl_access_approved":true}'::jsonb),
+ ('64300000-0000-4000-8000-000000000004','authenticated','authenticated','ra6jobs-disabled-worker@example.invalid','{"svl_access_approved":true}'::jsonb),
+ ('64300000-0000-4000-8000-000000000005','authenticated','authenticated','ra6jobs-disabled-admin@example.invalid','{"svl_access_approved":true}'::jsonb),
+ ('64300000-0000-4000-8000-000000000006','authenticated','authenticated','ra6jobs-worker-two@example.invalid','{"svl_access_approved":true}'::jsonb);
 update public.profiles set role='manager' where id='64300000-0000-4000-8000-000000000002';
 update public.profiles set role='admin' where id in ('64300000-0000-4000-8000-000000000003','64300000-0000-4000-8000-000000000005');
 update public.profiles set disabled=true where id in ('64300000-0000-4000-8000-000000000004','64300000-0000-4000-8000-000000000005');
