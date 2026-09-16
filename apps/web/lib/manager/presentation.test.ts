@@ -13,6 +13,12 @@ describe("review presentation", () => {
       jobLabel({ id: "job_abc123", label: "job_abc123", customer: "Matt Acton", number: "1975" }),
     ).toBe("Matt Acton #1975");
     expect(jobLabel({ id: "job_abc123", label: "job_abc123" })).not.toContain("job_abc123");
+    expect(jobLabel({ label: "Custom job", customer: "Matt Acton", number: "1975" })).toBe(
+      "Matt Acton · Custom job #1975",
+    );
+    expect(
+      jobLabel({ label: "Purshottam Singh #1990", customer: "Purshottam Singh", number: "1990" }),
+    ).toBe("Purshottam Singh #1990");
   });
   it("groups repeated warnings but preserves all affected fields", () => {
     const groups = groupExtractionWarnings(
