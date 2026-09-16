@@ -1,15 +1,56 @@
-.panel { padding: 24px; background: white; border: 1px solid #dce4d7; border-radius: 14px; margin-top: 24px; }
-.toolbar, .actions { display: flex; gap: 16px; flex-wrap: wrap; align-items: center; }
-.toolbar { justify-content: space-between; margin: 14px 0; }
-.panel label { display: grid; gap: 8px; font-size: 14px; }
-.panel select, .panel button, .panel a { border-radius: 7px; padding: 11px 14px; font: inherit; }
-.panel select, .panel button { border: 1px solid #c2cebb; background: #f8faf5; color: #264b38; }
-.panel button { cursor: pointer; font-weight: 600; min-height: 44px; }
-.panel button:disabled { opacity: .5; cursor: default; }
-.panel .primary { background: #315b46; color: white; border-color: #315b46; }
-.list { list-style: none; padding: 0; }
-.person { border-top: 1px solid #e2e7de; padding: 22px 0; display: flex; gap: 20px; justify-content: space-between; flex-wrap: wrap; }
-.person h2 { font-size: 18px; margin: 0 0 8px; }
-.person p { color: #66745e; margin: 8px 0; overflow-wrap: anywhere; }
-.error { color: #ad3726; }
-.panel :focus-visible { outline: 3px solid #80a771; outline-offset: 3px; }
+.pageHeader { display: flex; align-items: center; justify-content: space-between; gap: 24px; margin-bottom: 28px; }
+.signupButton { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 44px; padding: 11px 17px; background: #315b49; color: #fff; border: 1px solid #315b49; border-radius: 7px; font-weight: 600; font-size: 13px; white-space: nowrap; }
+.signupButton:hover { background: #214c3b; }
+.panel { background: #fff; border: 1px solid #dce4d7; border-radius: 12px; box-shadow: 0 3px 14px #203d3203; }
+.toolbar { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 18px 24px; border-bottom: 1px solid #e6e8e0; }
+.views { margin: 0; min-width: 0; display: flex; align-items: center; gap: 4px; background: #f2f4ee; border: 1px solid #e6e9e0; border-radius: 8px; padding: 4px; }
+.panel button, .panel select { min-height: 40px; border-radius: 6px; border: 1px solid #d7dfd0; background: #fff; color: #315343; font: inherit; font-size: 12px; }
+.panel button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 9px 12px; font-weight: 550; white-space: nowrap; }
+.panel button:hover:not(:disabled) { background: #f4f7ef; border-color: #a1b49c; }
+.panel button:disabled { cursor: default; opacity: .5; }
+.panel .views button { border: 1px solid transparent; color: #66745e; background: transparent; gap: 8px; }
+.panel .views .selectedView { background: #fff; border-color: #dfe5d8; color: #264535; box-shadow: 0 1px 3px #213d3210; }
+.count { display: inline-flex; align-items: center; justify-content: center; min-width: 21px; height: 21px; padding: 0 5px; border-radius: 5px; background: #eaf0e3; color: #42603b; font-size: 11px; }
+.panel .refresh { flex-shrink: 0; }
+.columns, .person { display: grid; grid-template-columns: minmax(0, 1fr) 126px 100px 180px; align-items: center; column-gap: 20px; padding: 0 24px; }
+.columns { min-height: 45px; background: #fafbf7; border-bottom: 1px solid #e6e8e0; color: #6c7765; font-size: 11px; font-weight: 550; }
+.actionHeading { text-align: right; }
+.list { list-style: none; margin: 0; padding: 0; }
+.person { min-height: 112px; padding-top: 22px; padding-bottom: 22px; }
+.person + .person { border-top: 1px solid #edf0e7; }
+.identity { display: flex; align-items: center; gap: 13px; min-width: 0; }
+.avatar { display: inline-flex; flex-shrink: 0; align-items: center; justify-content: center; width: 38px; height: 38px; background: #eef2e6; color: #54704a; border: 1px solid #e0e8d6; border-radius: 50%; font-size: 12px; font-weight: 600; }
+.personDetails { min-width: 0; }
+.person h2 { font-size: 14px; line-height: 1.5; font-weight: 600; margin: 0; overflow-wrap: anywhere; }
+.person p { font-size: 12px; color: #6d7866; margin: 3px 0 0; overflow-wrap: anywhere; }
+.person .joined { font-size: 11px; margin-top: 5px; color: #74806c; }
+.roleCell, .accessCell { min-width: 0; display: flex; align-items: center; }
+.panel select { width: 100%; padding: 8px 10px; }
+.roleName { font-size: 12px; color: #4b6045; }
+.badge { display: inline-flex; align-items: center; gap: 6px; border-radius: 5px; padding: 5px 8px; font-size: 11px; font-weight: 500; white-space: nowrap; }
+.badge > span { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+.active { background: #edf4e7; color: #4c723e; }
+.disabled { background: #f0f1ed; color: #6b7268; }
+.pending { background: #fbf3e1; color: #896b2c; }
+.rejected { background: #fbefeb; color: #9b5846; }
+.actions { display: flex; justify-content: flex-end; align-items: center; gap: 8px; }
+.panel .primary { background: #315b49; color: #fff; border-color: #315b49; }
+.panel .primary:hover:not(:disabled) { background: #214c3b; border-color: #214c3b; }
+.panel .disable { color: #88554a; border-color: #e6dcd5; }
+.panel .disable:hover:not(:disabled) { background: #fbf1ed; border-color: #caa99b; }
+.self { font-size: 12px; color: #79836f; }
+.empty { min-height: 270px; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 44px 24px; text-align: center; }
+.emptyIcon { display: flex; align-items: center; justify-content: center; width: 54px; height: 54px; border: 1px solid #e0e7d6; border-radius: 50%; background: #f3f6ec; color: #748b60; margin-bottom: 17px; }
+.empty h2 { font-size: 18px; font-weight: 500; letter-spacing: -.3px; }
+.empty p { max-width: 350px; margin: 9px 0 0; color: #6c7962; font-size: 13px; line-height: 1.7; }
+.empty .emptyHint { font-size: 12px; margin-top: 15px; color: #7c856f; }
+.notice, .error { display: flex; align-items: flex-start; gap: 8px; margin: 16px 24px; border: 1px solid #dbe5cf; border-radius: 7px; padding: 12px 14px; background: #f3f8ec; color: #4e6d3d; }
+.notice svg, .error svg { flex-shrink: 0; margin-top: 2px; }
+.error { color: #a24e36; background: #fff5ee; border-color: #eed9ca; }
+.footer { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 58px; padding: 12px 24px; border-top: 1px solid #e6e8e0; color: #76816c; font-size: 12px; }
+.pagination { display: flex; align-items: center; gap: 8px; }
+.mobileLabel { display: none; }
+.panel :focus-visible, .signupButton:focus-visible { outline: 3px solid #a0b899; outline-offset: 3px; }
+@media (max-width: 1100px) { .columns, .person { grid-template-columns: minmax(0, 1fr) 112px 86px 170px; column-gap: 14px; padding-left: 20px; padding-right: 20px; } .toolbar { padding-left: 20px; padding-right: 20px; } .avatar { display: none; } }
+@media (max-width: 900px) { .columns { display: none; } .person { grid-template-columns: 1fr 1fr; gap: 18px 20px; padding: 22px; } .identity { grid-column: 1 / -1; } .avatar { display: inline-flex; } .roleCell, .accessCell { align-self: start; align-items: flex-start; flex-direction: column; gap: 7px; } .roleCell select { max-width: 190px; } .mobileLabel { display: block; font-size: 11px; color: #76816c; } .actions { grid-column: 1 / -1; padding-top: 14px; border-top: 1px solid #edf0e7; } .roleName { min-height: 32px; display: inline-flex; align-items: center; } .toolbar { gap: 12px; flex-wrap: wrap; } }
+@media (max-width: 640px) { .pageHeader { align-items: flex-start; flex-direction: column; gap: 18px; margin-bottom: 22px; } .signupButton { min-height: 44px; } .toolbar { padding: 14px; gap: 12px; } .views { width: 100%; } .panel .views button { flex: 1; padding: 8px 6px; font-size: 11px; gap: 5px; } .panel .refresh { margin-left: auto; min-height: 40px; } .panel select { min-height: 44px; font-size: 16px; } .person { padding: 20px 16px; } .actions button { min-height: 44px; } .empty { min-height: 280px; padding: 35px 20px; } .empty p { font-size: 12px; } .notice, .error { margin: 14px; } .footer { padding: 14px 16px; } }

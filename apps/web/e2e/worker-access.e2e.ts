@@ -70,8 +70,8 @@ test("manager approves requests and disables workers without role controls", asy
   await expect(page.getByRole("status").filter({ hasText: "Access updated" })).toContainText(
     "Access updated",
   );
-  await page.getByRole("combobox", { name: "Show", exact: true }).selectOption("approved");
-  await expect(page.getByText("worker · Active", { exact: false })).toBeVisible();
+  await page.getByRole("button", { name: /^Team members/ }).click();
+  await expect(page.getByText("Active", { exact: true })).toBeVisible();
   await expect(
     page.getByRole("combobox", { name: "Role for Test Worker", exact: true }),
   ).toHaveCount(0);
@@ -100,7 +100,7 @@ test("administrator changes a worker's role with the current account version", a
   });
   page.on("dialog", (dialog) => dialog.accept());
   await page.goto("/team");
-  await page.getByRole("combobox", { name: "Show", exact: true }).selectOption("approved");
+  await page.getByRole("button", { name: /^Team members/ }).click();
   await page
     .getByRole("combobox", { name: "Role for Test Worker", exact: true })
     .selectOption("manager");
