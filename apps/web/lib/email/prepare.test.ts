@@ -1,6 +1,6 @@
 import sharp from "sharp";
 import { describe, expect, it } from "vitest";
-import { prepareEmail, renderEmailBody } from "./prepare";
+import { emailHtmlText, prepareEmail, renderEmailBody } from "./prepare";
 
 function email(body: string) {
   return Buffer.from(
@@ -78,6 +78,19 @@ describe("email document preparation", () => {
       ),
     );
     expect(result.documents).toHaveLength(1);
+  });
+  it("keeps receipt details without expanding tracking links into extra pages", async () => {
+    const trackingUrl = `https://example.invalid/click/${"x".repeat(2000)}`;
+    const html = `<h1>TEST RECEIPT</h1><p>September 10, 2026</p><p>Order #TEST-100</p><table><tr><td><a href="${trackingUrl}">River rock</a></td><td>2</td><td>$40.00</td></tr></table><p>Total: $80.00</p>${Array.from({ length: 20 }, () => `<a href="${trackingUrl}">Help</a><img src="${trackingUrl}" alt="logo">`).join("")}`;
+    const text = emailHtmlText(html);
+    expect(text).toContain("September 10, 2026");
+    expect(text).toContain("Order #TEST-100");
+    expect(text).toContain("River rock");
+    expect(text).toContain("$40.00");
+    expect(text).toContain("Total: $80.00");
+    expect(text).not.toContain("https://");
+    const result = await prepareEmail(email(`Content-Type: text/html\r\n\r\n${html}`));
+    expect(result.documents[0]?.pages).toHaveLength(1);
   });
   it("holds invalid attachments and overlong bodies", async () => {
     await expect(
