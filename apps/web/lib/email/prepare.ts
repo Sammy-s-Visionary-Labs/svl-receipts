@@ -1,6 +1,7 @@
 import { createRequire } from "node:module";
 import path from "node:path";
 import { createCanvas, GlobalFonts } from "@napi-rs/canvas";
+import { convert } from "html-to-text";
 import { simpleParser } from "mailparser";
 import sharp from "sharp";
 import { MAX_EMAIL_BYTES } from "./config";
@@ -105,6 +106,18 @@ export async function renderEmailBody(text: string): Promise<Buffer[]> {
   }
   return pages;
 }
+export function emailHtmlText(html: string) {
+  if (html.length > 1000000) throw new EmailPreparationError("email_body_limit");
+  // Keep visible receipt text, but not invisible tracking URLs or image sources.
+  // The immutable MIME original retains the full HTML and all links.
+  return convert(html, {
+    wordwrap: false,
+    selectors: [
+      { selector: "a", options: { ignoreHref: true } },
+      { selector: "img", format: "skip" },
+    ],
+  }).trim();
+}
 export async function prepareEmail(
   raw: Buffer,
   deadlineAt = Date.now() + 90000,
@@ -120,7 +133,7 @@ export async function prepareEmail(
     checkDeadline(deadlineAt);
     if (depth > 3) throw new EmailPreparationError("forward_depth_limit");
     const mail = await simpleParser(bytes, {
-      skipHtmlToText: false,
+      skipHtmlToText: true,
       skipTextToHtml: true,
       skipImageLinks: true,
       maxHtmlLengthToParse: 1000000,
@@ -172,7 +185,7 @@ export async function prepareEmail(
       if (documents.length > 20 || totalPages > 40)
         throw new EmailPreparationError("attachment_limit");
     }
-    const body = (mail.text ?? "").trim();
+    const body = mail.text?.trim() || (mail.html ? emailHtmlText(mail.html) : "");
     // Keep financial email-body content even alongside attachments; duplicate
     // review reconciles a body and attachment that describe the same purchase.
     if (
