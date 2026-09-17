@@ -1,7 +1,12 @@
 # Email receipt intake
 
 Mailbox: **recisvl@gmail.com**. Google Apps Script checks every eight hours using
-Gmail's read-only scope. It never sends, deletes, labels, or marks email as read.
+Gmail's read-only scope. Only messages currently in the Primary inbox are scanned
+(`in:inbox category:primary`); other categories and archived mail are excluded.
+This is Gmail category filtering, not receipt classification: nonreceipt mail in
+Primary can still enter review, and receipts in other tabs must be moved to Primary
+before a scan while they remain within its date window.
+It never sends, deletes, labels, or marks email as read.
 The app imports originals into private storage and submits derived receipt pages
 through the existing readability, Gemini extraction, intelligence, manager review,
 and approved Housecall export workflow. The importer never approves receipts or

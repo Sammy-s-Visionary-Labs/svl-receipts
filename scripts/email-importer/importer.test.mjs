@@ -52,7 +52,9 @@ function fixture({
           emailAddress: wrongMailbox ? "wrong@example.invalid" : "recisvl@gmail.com",
         }),
         Messages: {
-          list: () => {
+          list: (_user, options) => {
+            assert.match(options.q, /^in:inbox category:primary after:\d+ before:\d+ -in:drafts$/);
+            assert.equal(options.includeSpamTrash, false);
             calls.push("list");
             return { messages: [{ id: "test123" }] };
           },
