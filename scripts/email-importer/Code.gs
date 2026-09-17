@@ -44,7 +44,7 @@ function importReceiptEmails() {
     // delivery. Server message IDs make repeated reads safe.
     do {
       const result = Gmail.Users.Messages.list('me', {
-        q: 'after:' + Math.max(Number(properties.getProperty('SVL_START_BOUND') || 0), Number(cursor) - 86400) + ' before:' + until + ' -in:drafts',
+        q: 'in:inbox category:primary after:' + Math.max(Number(properties.getProperty('SVL_START_BOUND') || 0), Number(cursor) - 86400) + ' before:' + until + ' -in:drafts',
         maxResults: 10,
         pageToken: pageToken,
         includeSpamTrash: false
