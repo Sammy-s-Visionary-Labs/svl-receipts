@@ -53,7 +53,7 @@ function importReceiptEmails() {
       for (let i = 0; i < messages.length; i++) {
         if (Date.now() - started > 240000) return; // Replay this page next time.
         const message = Gmail.Users.Messages.get('me', messages[i].id, { format: 'raw' });
-        const bytes = Utilities.base64DecodeWebSafe(message.raw);
+        const bytes = decodeGmailRaw_(message.raw);
         if (bytes.length > 40 * 1024 * 1024) throw new Error('Message exceeds 40 MB: ' + messages[i].id + '. Administrator attention required.');
         const checksum = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, bytes)
           .map(function(b) { return ('0' + ((b + 256) % 256).toString(16)).slice(-2); }).join('');
@@ -83,6 +83,20 @@ function importReceiptEmails() {
   } finally {
     lock.releaseLock();
   }
+}
+
+function decodeGmailRaw_(raw) {
+  // The advanced Gmail service decodes byte fields into Byte[] itself.
+  // Preserve those original bytes instead of trying to base64-decode them again.
+  if (Array.isArray(raw)) {
+    if (!raw.length || !raw.every(function(b) { return Number.isInteger(b) && b >= -128 && b <= 255; })) throw new Error('Gmail returned invalid raw message encoding.');
+    return raw.map(function(b) { return b > 127 ? b - 256 : b; });
+  }
+  // Also support encoded responses, normalizing the alphabet and padding.
+  if (typeof raw !== 'string' || !raw.length || !/^[A-Za-z0-9+/_-]*={0,2}$/.test(raw)) throw new Error('Gmail returned invalid raw message encoding.');
+  const encoded = raw.replace(/-/g, '+').replace(/_/g, '/').replace(/=+$/, '');
+  if (encoded.length % 4 === 1) throw new Error('Gmail returned truncated raw message encoding.');
+  return Utilities.base64Decode(encoded + '='.repeat((4 - encoded.length % 4) % 4));
 }
 
 function svlRequest_(route, payload) {
