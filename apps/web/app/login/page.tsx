@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import { Icon } from "../field/glyph";
 import styles from "./login.module.css";
 import { LoginForm } from "./login-form";
+import { SignupPrompt } from "./signup-prompt";
 
 export default function LoginPage() {
   return (
@@ -21,9 +22,9 @@ export default function LoginPage() {
         <Suspense>
           <LoginForm />
         </Suspense>
+        <SignupPrompt />
         <p className={styles.help}>
-          First time here? <Link href="/request-access">Request worker access</Link>.{" "}
-          <Link href="/worker-login">Worker sign in</Link>.
+          <Link href="/worker-login">Worker sign in</Link>
         </p>
       </main>
     </div>

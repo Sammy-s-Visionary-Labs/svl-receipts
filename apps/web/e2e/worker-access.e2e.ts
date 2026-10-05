@@ -25,12 +25,12 @@ test("first-time worker requests access from a dedicated mobile sign-in page", a
   });
   await page.goto("/worker-login");
   await expect(page.getByRole("heading", { name: "Worker sign in" })).toBeVisible();
-  await page.getByRole("link", { name: "Request worker access" }).click();
+  await page.getByRole("link", { name: "Create account", exact: true }).click();
   await page.getByLabel("Full name").fill("Test Worker");
   await page.getByLabel("Email", { exact: true }).fill("test@example.invalid");
   await page.getByLabel("Password", { exact: true }).fill("test-password-only");
   await page.getByLabel("Confirm password").fill("test-password-only");
-  await page.getByRole("button", { name: "Request access", exact: true }).click();
+  await page.getByRole("button", { name: "Create account", exact: true }).click();
   await expect(page.getByRole("status")).toContainText("sent to the manager");
   expect(submitted).toEqual({
     fullName: "Test Worker",

@@ -7,9 +7,9 @@ export default function RequestAccessPage() {
       <main className={styles.card}>
         <div className={styles.brand}>SVL Receipts</div>
         <div className={styles.intro}>
-          <h1>Request worker access</h1>
+          <h1>Create account</h1>
           <p>
-            Create your sign-in details. Your manager must approve your request before you can send
+            Set up your sign-in details. Your manager will approve access before you can send
             receipts.
           </p>
         </div>
