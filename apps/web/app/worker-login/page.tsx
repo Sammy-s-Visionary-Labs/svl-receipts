@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 import styles from "../login/login.module.css";
 import { LoginForm } from "../login/login-form";
+import { SignupPrompt } from "../login/signup-prompt";
 export default function WorkerLoginPage() {
   return (
     <div className={styles.page}>
@@ -14,9 +15,7 @@ export default function WorkerLoginPage() {
         <Suspense>
           <LoginForm defaultNext="/field" />
         </Suspense>
-        <p className={styles.help}>
-          First time here? <Link href="/request-access">Request worker access</Link>
-        </p>
+        <SignupPrompt />
         <p className={styles.help}>
           <Link href="/login">Manager sign in</Link>
         </p>

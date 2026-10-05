@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Linking, Pressable, StyleSheet, TextInput } from "react-native";
+import { Linking, Pressable, ScrollView, StyleSheet, TextInput } from "react-native";
 import { AuthGate } from "@/components/AuthGate";
 import { BrandHeader } from "@/components/BrandHeader";
 import { Text, View } from "@/components/Themed";
@@ -26,7 +26,13 @@ export default function LoginScreen() {
 
   return (
     <AuthGate allow="login">
-      <View style={styles.container}>
+      <ScrollView
+        style={styles.screen}
+        contentContainerStyle={styles.container}
+        contentInsetAdjustmentBehavior="automatic"
+        automaticallyAdjustKeyboardInsets
+        keyboardShouldPersistTaps="handled"
+      >
         <View style={styles.brand}>
           <BrandHeader onPaper />
         </View>
@@ -60,25 +66,54 @@ export default function LoginScreen() {
         >
           <Text style={styles.buttonText}>{busy ? "Signing in…" : "Sign in"}</Text>
         </Pressable>
-        <Pressable
-          accessibilityRole="link"
-          onPress={() => {
-            void Linking.openURL(`${apiBaseUrl()}/request-access`).catch(() =>
-              setError("Could not open signup. Visit the SVL Receipts website to request access."),
-            );
-          }}
-          style={styles.signup}
-        >
-          <Text style={styles.signupText}>First time here? Request worker access</Text>
-        </Pressable>
-      </View>
+        <View style={styles.signupSection}>
+          <Text style={styles.signupTitle}>New to SVL Receipts?</Text>
+          <Text style={styles.signupBody}>
+            Set up your account. Your manager will approve access before you can send receipts.
+          </Text>
+          <Pressable
+            accessibilityRole="link"
+            accessibilityHint="Opens account setup on the SVL Receipts website"
+            onPress={() => {
+              void Linking.openURL(`${apiBaseUrl()}/request-access`).catch(() =>
+                setError(
+                  "Could not open signup. Visit the SVL Receipts website to request access.",
+                ),
+              );
+            }}
+            style={styles.signup}
+          >
+            <Text style={styles.signupText}>Create account</Text>
+          </Pressable>
+        </View>
+      </ScrollView>
     </AuthGate>
   );
 }
 
 const styles = StyleSheet.create({
-  signup: { minHeight: 48, justifyContent: "center", alignItems: "center" },
-  signupText: { color: Brand.green, textDecorationLine: "underline" },
+  screen: { flex: 1, backgroundColor: Brand.paper },
+  signupSection: {
+    borderTopWidth: 1,
+    borderTopColor: Brand.line,
+    backgroundColor: "transparent",
+    marginTop: 8,
+    paddingTop: 20,
+    gap: 10,
+  },
+  signupTitle: { color: Brand.ink, fontSize: 16, fontWeight: "600" },
+  signupBody: { color: Brand.ink, fontSize: 14, lineHeight: 20 },
+  signup: {
+    minHeight: 52,
+    width: "100%",
+    borderWidth: 1.5,
+    borderColor: Brand.green,
+    borderRadius: 10,
+    backgroundColor: Brand.card,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  signupText: { color: Brand.green, fontWeight: "700", fontSize: 16 },
   brand: { marginBottom: 22, backgroundColor: "transparent" },
   button: {
     minHeight: 52,
@@ -89,7 +124,7 @@ const styles = StyleSheet.create({
   },
   buttonText: { color: Brand.white, fontWeight: "700", fontSize: 16 },
   container: {
-    flex: 1,
+    flexGrow: 1,
     justifyContent: "center",
     padding: 24,
     gap: 12,

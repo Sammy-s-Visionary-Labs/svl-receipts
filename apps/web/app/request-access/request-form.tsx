@@ -100,7 +100,7 @@ export function RequestAccessForm() {
         </p>
       )}
       <button className={styles.submit} type="submit" disabled={busy}>
-        {busy ? "Sending request…" : "Request access"}
+        {busy ? "Creating account…" : "Create account"}
       </button>
     </form>
   );
