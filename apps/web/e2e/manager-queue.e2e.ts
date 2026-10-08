@@ -111,17 +111,17 @@ test.beforeEach(async ({ context, page }) => {
   );
 });
 
-test("oldest-first inbox exposes history and status views and required row evidence", async ({
+test("newest-first inbox exposes history and status views and required row evidence", async ({
   page,
 }) => {
   await routeQueue(page, (route) => fulfillQueue(route));
   const firstRequest = queueRequest(page, () => true);
   await page.goto("/");
   const initial = new URL((await firstRequest).url()).searchParams;
-  expect(initial.get("sort") ?? "oldest").toBe("oldest");
+  expect(initial.get("sort") ?? "newest").toBe("newest");
   expect(initial.get("tab") ?? "needs-review").toBe("needs-review");
   await expect(page.getByRole("heading", { name: "Receipt inbox" })).toBeVisible();
-  await expect(page.getByRole("combobox", { name: "Sort receipts" })).toHaveValue("oldest");
+  await expect(page.getByRole("combobox", { name: "Sort receipts" })).toHaveValue("newest");
   const tabs = page.getByRole("navigation", { name: "Receipt status" });
   await expect(tabs.getByRole("link")).toHaveText([
     "Needs review",
@@ -229,8 +229,8 @@ test("filters, search, sort and page size are submitted and clear the cursor", a
   const searched = queueRequest(page, (params) => params.get("search") === "INV-1042");
   await page.getByRole("button", { name: "Search receipts" }).click();
   await searched;
-  const sorted = queueRequest(page, (params) => params.get("sort") === "newest");
-  await page.getByRole("combobox", { name: "Sort receipts" }).selectOption("newest");
+  const sorted = queueRequest(page, (params) => params.get("sort") === "oldest");
+  await page.getByRole("combobox", { name: "Sort receipts" }).selectOption("oldest");
   await sorted;
   const resized = queueRequest(page, (params) => params.get("limit") === "50");
   await page.getByRole("combobox", { name: "Receipts per page" }).selectOption("50");
@@ -238,7 +238,7 @@ test("filters, search, sort and page size are submitted and clear the cursor", a
   const cleared = queueRequest(page, (params) => !params.has("vendor") && !params.has("search"));
   await page.getByRole("button", { name: "Clear filters", exact: true }).click();
   const afterClear = new URL((await cleared).url()).searchParams;
-  expect(afterClear.get("sort")).toBe("newest");
+  expect(afterClear.get("sort")).toBe("oldest");
   expect(afterClear.get("limit")).toBe("50");
   expect(afterClear.has("cursor")).toBe(false);
   await expect(

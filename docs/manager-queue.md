@@ -2,7 +2,7 @@
 
 The manager home page provides the review queue for active managers and administrators.
 Worker accounts cannot load the queue, its database function, or its thumbnails.
-Inbox opens Needs review with the oldest submissions first. History opens completed
+Inbox opens Needs review with the newest submissions first. History opens completed
 submissions and provides access to the rejected/duplicate view. Selecting a receipt
 opens a read-only summary; the two-pane editing workspace belongs to RA-28 onward.
 

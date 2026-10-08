@@ -44,7 +44,7 @@ export type QueueFilters = {
 };
 export const DEFAULT_QUEUE_FILTERS: QueueFilters = {
   tab: "needs-review",
-  sort: "oldest",
+  sort: "newest",
   status: "all",
   age: "all",
   submitter: "",

@@ -22,7 +22,7 @@ export const TAB_LABELS: Record<QueueTab, string> = {
 };
 export const TAB_DESCRIPTIONS: Record<QueueTab, string> = {
   history: "Approved, declined, duplicate, failed, partial, and exported receipts.",
-  "needs-review": "Start with the oldest receipts awaiting a manager’s attention.",
+  "needs-review": "Receipts awaiting a manager’s review.",
   processing: "Receipts moving through upload, extraction, or export.",
   "partial-success": "Receipts with an incomplete Housecall export.",
   failed: "Receipts that need attention after a processing or readability failure.",

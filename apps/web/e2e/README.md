@@ -16,7 +16,7 @@ Most browser cases intercept only the browser's queue response, providing synthe
 
 The 17 cases cover:
 
-- Default oldest order, all six tabs, Inbox/History navigation, required row evidence and unavailable data.
+- Default newest order, all six tabs, Inbox/History navigation, required row evidence and unavailable data.
 - All queue filter fields, search, sorting, page size, cursor reset, next/previous/first page, and browser Back followed by Previous.
 - Loading, initial failure, empty and filtered-empty results, an emptied later page, invalid-filter reset, retry, network failure, stale results, and a superseded request.
 - Thumbnail failure and refresh recovery; keyboard receipt summary, focus restoration, warnings and read-only controls.

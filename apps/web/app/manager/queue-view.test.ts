@@ -11,7 +11,7 @@ import {
 } from "./queue-view";
 
 describe("manager queue URL state", () => {
-  it("opens the needs-review queue oldest first and bounds unsupported deep links", () => {
+  it("opens the needs-review queue newest first and bounds unsupported deep links", () => {
     expect(filtersFromSearch(new URLSearchParams())).toEqual(DEFAULT_QUEUE_FILTERS);
     const filters = filtersFromSearch(
       new URLSearchParams({
@@ -24,7 +24,7 @@ describe("manager queue URL state", () => {
     );
     expect(filters.tab).toBe("needs-review");
     expect(filters.status).toBe("all");
-    expect(filters.sort).toBe("oldest");
+    expect(filters.sort).toBe("newest");
     expect(filters.limit).toBe(25);
     expect(filters.search).toHaveLength(120);
     expect(filtersFromSearch(new URLSearchParams({ limit: "2" })).limit).toBe(2);
@@ -34,7 +34,7 @@ describe("manager queue URL state", () => {
     const filters = {
       ...DEFAULT_QUEUE_FILTERS,
       tab: "completed" as const,
-      sort: "newest" as const,
+      sort: "oldest" as const,
       status: "exported" as const,
       age: "over-7d" as const,
       submitter: "11111111-1111-4111-8111-111111111111",
