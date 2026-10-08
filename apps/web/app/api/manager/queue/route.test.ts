@@ -55,7 +55,7 @@ describe("manager review queue API", () => {
     expect(response.headers.get("cache-control")).toBe("private, no-store");
   });
 
-  it("uses authenticated RPC, oldest needs review defaults, and an allowlist response", async () => {
+  it("uses authenticated RPC, newest needs review defaults, and an allowlist response", async () => {
     rpc.mockResolvedValue({
       data: [
         {
@@ -74,7 +74,7 @@ describe("manager review queue API", () => {
       "manager_review_queue",
       expect.objectContaining({
         p_tab: "needs-review",
-        p_sort: "oldest",
+        p_sort: "newest",
         p_limit: 26,
         p_cursor_at: null,
         p_submitter: null,
@@ -114,7 +114,7 @@ describe("manager review queue API", () => {
         p_limit: 2,
       }),
     );
-    expect((await GET(request(`?limit=1&sort=newest&cursor=${body.nextCursor}`))).status).toBe(400);
+    expect((await GET(request(`?limit=1&sort=oldest&cursor=${body.nextCursor}`))).status).toBe(400);
   });
 
   it("sends every validated filter to SQL as a bound parameter", async () => {
