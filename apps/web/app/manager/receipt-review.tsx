@@ -66,7 +66,15 @@ function sourceLineText(detail: ReceiptDetail, line: ReviewLine) {
     ? `${original.description} · ${original.qty} × ${original.unitCost}`
     : "No line mapping to this extraction";
 }
-export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manager" | "admin" }) {
+export function ReceiptReview({
+  id,
+  actorRole,
+  laborEnabled,
+}: {
+  id: string;
+  actorRole: "manager" | "admin";
+  laborEnabled: boolean;
+}) {
   const [detail, setDetail] = useState<ReceiptDetail | null>(null);
   const [draft, setDraft] = useState<ReviewDraft | null>(null);
   const [error, setError] = useState("");
@@ -447,7 +455,11 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
     ...(detail?.assignedJobs ?? []),
   ].filter((j, i, rows) => rows.findIndex((x) => x.id === j.id) === i);
   return (
-    <ManagerShell actorRole={actorRole} active={detail?.editable ? "inbox" : "history"}>
+    <ManagerShell
+      actorRole={actorRole}
+      laborEnabled={laborEnabled}
+      active={detail?.editable ? "inbox" : "history"}
+    >
       <main id="main-content" className={styles.main}>
         <div className={styles.heading}>
           <div>

@@ -1,0 +1,58 @@
+name: Supercrew labor imports
+
+on:
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: supercrew-labor-production
+  cancel-in-progress: false
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      LABOR_APP_URL: ${{ vars.LABOR_APP_URL }}
+      LABOR_APP_HOST: ${{ vars.LABOR_APP_HOST }}
+      SUPERCREW_REPORT_DOWNLOADS_APPROVED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      # Uses only Node built-ins. No npm installation/browser/cache on idle polls.
+      - name: Check for due or requested work
+        id: preflight
+        env:
+          LABOR_WORKER_TOKEN: ${{ secrets.LABOR_WORKER_TOKEN }}
+          LABOR_SESSION_ENCRYPTION_KEY: ${{ secrets.LABOR_SESSION_ENCRYPTION_KEY }}
+        run: node scripts/supercrew-worker/hosted.mjs --preflight
+      - name: Install the pinned worker dependencies
+        if: steps.preflight.outputs.claimed == 'true'
+        run: npm ci --prefix scripts/supercrew-worker --ignore-scripts
+      - name: Install Chromium
+        if: steps.preflight.outputs.claimed == 'true'
+        working-directory: scripts/supercrew-worker
+        run: npx --no-install playwright install --with-deps chromium
+      - name: Import the paired reports
+        id: worker
+        if: steps.preflight.outputs.claimed == 'true'
+        env:
+          LABOR_WORKER_TOKEN: ${{ secrets.LABOR_WORKER_TOKEN }}
+          LABOR_SESSION_ENCRYPTION_KEY: ${{ secrets.LABOR_SESSION_ENCRYPTION_KEY }}
+        run: node scripts/supercrew-worker/hosted.mjs --run
+      - name: Record an interrupted setup or run
+        if: failure() && steps.preflight.outputs.claimed == 'true'
+        continue-on-error: true
+        env:
+          LABOR_WORKER_TOKEN: ${{ secrets.LABOR_WORKER_TOKEN }}
+          LABOR_SESSION_ENCRYPTION_KEY: ${{ secrets.LABOR_SESSION_ENCRYPTION_KEY }}
+        run: node scripts/supercrew-worker/hosted.mjs --abort
+      - name: Remove private temporary files
+        if: always()
+        run: node -e "require('node:fs').rmSync('.local/labor-worker', {recursive:true, force:true})"

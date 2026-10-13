@@ -1,8 +1,9 @@
 import type { AuthzActor } from "@svl/domain";
 import type { ComponentProps } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import Home from "../page";
+import ReceiptPage from "../receipts/[id]/page";
 import SettingsPage from "../settings/page";
 import { ManagerShell } from "./shell";
 
@@ -14,7 +15,16 @@ vi.mock("next/navigation", () => ({
     throw new Error(`redirect:${url}`);
   },
 }));
-vi.mock("./dashboard", () => ({ ManagerDashboard: () => <div>Authorized manager dashboard</div> }));
+vi.mock("./dashboard", () => ({
+  ManagerDashboard: ({ laborEnabled }: { laborEnabled: boolean }) => (
+    <div data-labor-enabled={String(laborEnabled)}>Authorized manager dashboard</div>
+  ),
+}));
+vi.mock("./receipt-review", () => ({
+  ReceiptReview: ({ laborEnabled }: { laborEnabled: boolean }) => (
+    <div data-labor-enabled={String(laborEnabled)}>Authorized receipt review</div>
+  ),
+}));
 vi.mock("../sign-out-button", () => ({
   SignOutButton: () => <button type="button">Sign out</button>,
 }));
@@ -24,7 +34,11 @@ function actor(role: AuthzActor["role"]): AuthzActor {
 }
 
 describe("manager page access and role-aware navigation", () => {
-  beforeEach(() => loadActor.mockReset());
+  beforeEach(() => {
+    loadActor.mockReset();
+    vi.stubEnv("NODE_ENV", "production");
+  });
+  afterEach(() => vi.unstubAllEnvs());
 
   it("redirects signed-out visitors before returning a dashboard", async () => {
     loadActor.mockResolvedValue(null);
@@ -43,12 +57,12 @@ describe("manager page access and role-aware navigation", () => {
 
   it("hides Settings from managers while exposing it to administrators", () => {
     const manager = renderToStaticMarkup(
-      <ManagerShell actorRole="manager" active="inbox">
+      <ManagerShell actorRole="manager" laborEnabled={false} active="inbox">
         Queue
       </ManagerShell>,
     );
     const admin = renderToStaticMarkup(
-      <ManagerShell actorRole="admin" active="settings">
+      <ManagerShell actorRole="admin" laborEnabled={false} active="settings">
         Settings
       </ManagerShell>,
     );
@@ -57,6 +71,38 @@ describe("manager page access and role-aware navigation", () => {
     expect(manager).not.toContain('href="/settings"');
     expect(admin).toContain('href="/settings"');
   });
+
+  it("uses the supplied navigation flag even when private feature environment is absent", () => {
+    vi.stubEnv("LABOR_ENABLED", undefined);
+    vi.stubEnv("LABOR_DEVELOPMENT_ENABLED", undefined);
+    const render = (laborEnabled: boolean) =>
+      renderToStaticMarkup(
+        <ManagerShell actorRole="manager" laborEnabled={laborEnabled} active="inbox">
+          Queue
+        </ManagerShell>,
+      );
+    expect(render(true)).toContain('href="/labor-hours"');
+    expect(render(true)).toContain('href="/jobs"');
+    expect(render(false)).not.toContain('href="/labor-hours"');
+    expect(render(false)).not.toContain('href="/jobs"');
+    vi.stubEnv("LABOR_ENABLED", "1");
+    expect(render(false)).not.toContain('href="/labor-hours"');
+  });
+
+  it.each(["1", "0"])(
+    "passes server-evaluated feature flag %s to both receipt clients",
+    async (flag) => {
+      vi.stubEnv("LABOR_ENABLED", flag);
+      loadActor.mockResolvedValue(actor("manager"));
+      const attribute = `data-labor-enabled="${flag === "1"}"`;
+      expect(renderToStaticMarkup(await Home())).toContain(attribute);
+      expect(
+        renderToStaticMarkup(
+          await ReceiptPage({ params: Promise.resolve({ id: "TEST-receipt" }) }),
+        ),
+      ).toContain(attribute);
+    },
+  );
 
   it("protects direct navigation to Settings", async () => {
     loadActor.mockResolvedValue(actor("manager"));

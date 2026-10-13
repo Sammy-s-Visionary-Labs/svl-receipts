@@ -12,7 +12,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@svl/domain": "*"
+    "@svl/domain": "*",
+    "exceljs": "4.4.0"
   },
   "devDependencies": {
     "typescript": "^5.8.2",
