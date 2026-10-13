@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { ReceiptReview } from "@/app/manager/receipt-review";
 import { getActorFromCookies } from "@/lib/auth/guards";
+import { laborFeatureEnabled } from "@/lib/labor/config";
 export const dynamic = "force-dynamic";
 export default async function ReceiptPage({ params }: { params: Promise<{ id: string }> }) {
   const actor = await getActorFromCookies();
@@ -12,5 +13,5 @@ export default async function ReceiptPage({ params }: { params: Promise<{ id: st
       </main>
     );
   const { id } = await params;
-  return <ReceiptReview id={id} actorRole={actor.role} />;
+  return <ReceiptReview id={id} actorRole={actor.role} laborEnabled={laborFeatureEnabled()} />;
 }

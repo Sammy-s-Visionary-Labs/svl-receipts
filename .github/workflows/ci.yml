@@ -62,6 +62,11 @@ jobs:
         run: npm run test:email:concurrency
         env:
           SVL_APPLIED_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+      - name: Check concurrent labor approvals, manual sends and dispatch expiry
+        run: node scripts/labor-approval-concurrency.mjs
+        env:
+          SVL_APPLIED_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+          SVL_LABOR_APPROVAL_QA: isolated-disposable
       - name: Stop the local stack
         if: always()
         run: npm run db:stop

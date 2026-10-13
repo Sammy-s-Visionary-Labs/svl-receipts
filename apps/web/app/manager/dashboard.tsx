@@ -31,7 +31,13 @@ import { ManagerShell } from "./shell";
 
 type LoadError = { kind: "auth" | "forbidden" | "request" | "network"; message: string };
 
-export function ManagerDashboard({ actorRole }: { actorRole: "manager" | "admin" }) {
+export function ManagerDashboard({
+  actorRole,
+  laborEnabled,
+}: {
+  actorRole: "manager" | "admin";
+  laborEnabled: boolean;
+}) {
   const router = useRouter();
   const params = useSearchParams();
   const filters = filtersFromSearch(params);
@@ -156,7 +162,11 @@ export function ManagerDashboard({ actorRole }: { actorRole: "manager" | "admin"
   const denied = failure?.kind === "auth" || failure?.kind === "forbidden";
 
   return (
-    <ManagerShell actorRole={actorRole} active={isHistory ? "history" : "inbox"}>
+    <ManagerShell
+      actorRole={actorRole}
+      laborEnabled={laborEnabled}
+      active={isHistory ? "history" : "inbox"}
+    >
       <main id="main-content" className={styles.main}>
         <div className={styles.pageHeading}>
           <div>

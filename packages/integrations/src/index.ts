@@ -8,4 +8,5 @@ export const INTEGRATIONS_PACKAGE = "@svl/integrations" as const;
 
 export * from "./housecall";
 export * from "./push";
+export * from "./supercrew";
 export * from "./vision";

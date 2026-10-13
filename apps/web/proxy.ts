@@ -1,5 +1,6 @@
 import { AUTH_ERROR_CODES } from "@svl/domain";
 import { type NextRequest, NextResponse } from "next/server";
+import { isLoopbackHost, laborFeatureEnabled, laborLocalPreviewEnabled } from "./lib/labor/config";
 import { updateSession } from "./lib/supabase/proxy-session";
 
 function isPublicPath(pathname: string): boolean {
@@ -10,6 +11,24 @@ function isPublicPath(pathname: string): boolean {
 }
 
 export async function proxy(request: NextRequest) {
+  const developmentPath =
+    request.nextUrl.pathname === "/labor-hours" ||
+    request.nextUrl.pathname === "/jobs" ||
+    request.nextUrl.pathname.startsWith("/api/manager/labor") ||
+    request.nextUrl.pathname === "/api/manager/jobs/activity";
+  if (developmentPath && !laborFeatureEnabled()) {
+    return NextResponse.json(
+      { error: { code: "not_found", message: "Not found" } },
+      { status: 404 },
+    );
+  }
+  if (
+    developmentPath &&
+    laborFeatureEnabled() &&
+    isLoopbackHost(request.nextUrl.hostname) &&
+    (laborLocalPreviewEnabled() || request.headers.get("authorization")?.startsWith("Bearer "))
+  )
+    return NextResponse.next();
   if (request.nextUrl.pathname === "/field/manifest.webmanifest") return NextResponse.next();
   const { supabaseResponse, signedIn } = await updateSession(request);
   const { pathname } = request.nextUrl;
