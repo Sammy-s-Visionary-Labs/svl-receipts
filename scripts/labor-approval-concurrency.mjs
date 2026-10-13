@@ -1,5 +1,5 @@
 // Synthetic acceptance on a fresh disposable loopback database. Never HTTP.
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -32,7 +32,18 @@ const second = postgres(url, {
   prepare: false,
   connection: { application_name: "labor_approval_qa_second" },
 });
-const manager = "93000000-0000-4000-8000-000000000001";
+// Rollback SQL suites use fixed IDs. This suite commits synthetic race winners,
+// so each run gets its own identities and cannot collide with earlier suites.
+const runId = randomUUID();
+const manager = randomUUID();
+const sourceImportId = randomUUID();
+const fixtureIds = new Map([
+  ["93000000-0000-4000-8000-000000000001", manager],
+  ["93000000-0000-4000-8000-000000000002", randomUUID()],
+  ["93000000-0000-4000-8000-000000000003", randomUUID()],
+  ["93000000-0000-4000-8000-000000000004", randomUUID()],
+  ["93000000-0000-4000-8000-000000000010", sourceImportId],
+]);
 const canonical = (value) => {
   if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
   if (value && typeof value === "object")
@@ -104,15 +115,35 @@ async function race(firstOperation, secondOperation, holdMs = 0) {
 }
 
 try {
-  const [initial] =
-    await admin`select revision,control,(select count(*) from public.labor_job_hour_approvals) as approvals from public.labor_state where singleton`;
-  check(initial.revision === "0" || initial.revision === 0, "QA ledger must be fresh");
-  check(
-    initial.control === null && Number(initial.approvals) === 0,
-    "QA project already contains labor records",
-  );
   const fixture = await readFile(join(root, "supabase/tests/labor_approval_applied.sql"), "utf8");
-  await admin.unsafe(`${fixture.slice(0, fixture.indexOf("do $$ declare tab"))}\ncommit;`).simple();
+  const boundary = fixture.indexOf("do $$ declare tab");
+  check(boundary > 0, "Rollback fixture setup boundary was not found");
+  let setup = fixture
+    .slice(0, boundary)
+    .replace("begin;", "")
+    .replace("update public.labor_source_imports set active=false;", "")
+    .replace(
+      /(approval-(?:manager|admin|worker|disabled))@example\.invalid/g,
+      `$1+${runId}@example.invalid`,
+    );
+  for (const [fixed, unique] of fixtureIds) setup = setup.replaceAll(fixed, unique);
+  await admin.begin(async (tx) => {
+    const [initial] =
+      await tx`select revision,control from public.labor_state where singleton for update`;
+    check(initial.revision === "0" || initial.revision === 0, "QA ledger must be fresh");
+    const [records] = await tx`select
+      (select count(*) from public.labor_source_imports) +
+      (select count(*) from public.labor_control_events) +
+      (select count(*) from public.labor_job_hour_approvals) +
+      (select count(*) from public.labor_job_hour_attempts) +
+      (select count(*) from public.labor_job_hour_reservations) +
+      (select count(*) from public.labor_job_hour_events) as count`;
+    check(
+      initial.control === null && Number(records.count) === 0,
+      "QA project already contains labor records",
+    );
+    await tx.unsafe(setup).simple();
+  });
 
   const source = await snapshot(7);
   const overlapping = { ...source, toDate: "2026-09-19" };
@@ -218,7 +249,7 @@ try {
       expiredAtAttempt.value.approval.status === "failed",
     "Lease expiry during attempt-row wait authorized dispatch",
   );
-  await admin`update public.labor_source_imports i set report=jsonb_set(i.report,'{entries}',(select jsonb_agg(case when e->>'id'='TEST_ROW_12' then e||jsonb_build_object('hours',0.01,'clockOut','08:00') else e end)from jsonb_array_elements(i.report->'entries')e))where i.id='93000000-0000-4000-8000-000000000010'`;
+  await admin`update public.labor_source_imports i set report=jsonb_set(i.report,'{entries}',(select jsonb_agg(case when e->>'id'='TEST_ROW_12' then e||jsonb_build_object('hours',0.01,'clockOut','08:00') else e end)from jsonb_array_elements(i.report->'entries')e))where i.id=${sourceImportId}`;
   const point = await snapshot(12);
   point.totalHourHundredths = 1;
   point.entries[0].endMinute = point.entries[0].startMinute;
