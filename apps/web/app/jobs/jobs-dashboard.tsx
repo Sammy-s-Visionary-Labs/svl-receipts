@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { JobActivity, JobReceiptActivity, JobsDashboardData } from "@/lib/labor/contract";
 import { allocatedWorkerDays, allocationReason } from "../labor-hours/allocation-view";
 import styles from "../labor-hours/labor.module.css";
+import { LaborApprovalWorkspace } from "../labor-hours/labor-approval-workspace";
 import { hours, localTime, readApi, shortDate, sourceMoney } from "../labor-hours/labor-view";
 import { Icon } from "../manager/icons";
 import { resolveJobSelection } from "./job-view";
@@ -23,6 +24,7 @@ export function JobsDashboard() {
   const [worker, setWorker] = useState("");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
+  const [approvalRefresh, setApprovalRefresh] = useState(0);
   const sequence = useRef(0);
 
   const load = useCallback(async () => {
@@ -33,6 +35,7 @@ export function JobsDashboard() {
       );
       if (current !== sequence.current) return;
       setData(result);
+      setApprovalRefresh((value) => value + 1);
       setError("");
       setSelectedKey((value) => value || result.jobs[0]?.key || "");
     } catch (cause) {
@@ -90,6 +93,8 @@ export function JobsDashboard() {
   const receipts = filteredReceipts(selected?.receipts ?? []);
   const unassignedReceipts = filteredReceipts(data?.unassignedReceipts ?? []);
   const filteredHours = entries.reduce((sum, entry) => sum + entry.allocatedHours, 0);
+  const approvalDates = selectedAllocations.map((entry) => entry.date).sort();
+  const sourceDates = (data?.entries ?? []).map((entry) => entry.date).sort();
   const filteredTravel = entries.reduce(
     (sum, entry) => sum + (entry.sourceKind === "travel" ? entry.allocatedHours : 0),
     0,
@@ -209,7 +214,8 @@ export function JobsDashboard() {
           </div>
           <p className={styles.notice}>
             Materials under Housecall Job Inputs is the intended destination. This preview does not
-            post hours or costs. Worker-day lunch is separate from job hours.
+            send hours. Sending requires job-hour approval and a separate confirmation. Worker-day
+            lunch is separate from job hours.
           </p>
           {data.allocation.totals.pendingHours > 0 && (
             <p className={styles.warnings}>
@@ -301,6 +307,9 @@ export function JobsDashboard() {
                         Housecall job ID: {selected.housecallJobId}
                       </p>
                     )}
+                    <a className={styles.textButton} href="#job-labor-approval">
+                      Review and approve hours
+                    </a>
                     <dl className={styles.detailMetrics}>
                       <div>
                         <dt>Allocated hours</dt>
@@ -434,13 +443,22 @@ export function JobsDashboard() {
                   </details>
                   <div className={styles.footer}>
                     Job hours use the allocated intervals. Daily lunch remains a worker-day
-                    adjustment. Weekly pay estimates are available in Labor Hours; assigning
-                    overtime and pay costs to individual jobs is not configured.
+                    adjustment. Weekly pay estimates are available in Labor Hours. Review the
+                    estimated paid hours and labor cost below before approving this job’s hours.
                   </div>
                 </>
               )}
             </div>
           </section>
+          {selected && (
+            <LaborApprovalWorkspace
+              key={selected.key}
+              job={selected}
+              initialFrom={from || approvalDates[0] || sourceDates[0] || ""}
+              initialTo={to || approvalDates.at(-1) || sourceDates.at(-1) || ""}
+              refreshToken={approvalRefresh}
+            />
+          )}
           <section className={styles.card} aria-label="Pending labor allocation">
             <div className={styles.cardHeader}>
               <div>

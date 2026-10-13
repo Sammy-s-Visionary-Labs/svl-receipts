@@ -319,8 +319,10 @@ export function AllocationWorkspace({
                       <td>{group.entryCount}</td>
                       <td>{group.workers.size}</td>
                       <td>
-                        Job cost allocation pending
-                        <small>Overtime assignment to jobs is not configured.</small>
+                        Review estimated labor cost in Jobs
+                        <small>
+                          Manager approval includes paid hours, lunch and overtime treatment.
+                        </small>
                         <small>
                           {group.job.housecallJobId
                             ? `Housecall ${group.job.housecallJobId}`

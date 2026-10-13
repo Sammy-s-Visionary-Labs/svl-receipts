@@ -400,8 +400,8 @@ export function LaborPayWorkspace({
         </div>
       )}
       <div className={styles.footer}>
-        Weekly estimates cover all imported workers and dates. Customer-job cost allocation and
-        overtime assignment to jobs are not configured.
+        Weekly estimates cover all imported workers and dates. Job approval reviews distribute lunch
+        and weekly overtime across source intervals to estimate each linked job’s labor cost.
       </div>
     </section>
   );

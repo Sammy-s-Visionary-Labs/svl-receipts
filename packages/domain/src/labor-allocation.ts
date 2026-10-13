@@ -95,7 +95,7 @@ export interface LaborJobAllocationSummary {
   readonly hours: number;
   readonly entryCount: number;
   readonly workerCount: number;
-  /** Cost redistribution and pay rates remain unconfigured. */
+  /** Job cost estimates are calculated separately for manager approval. */
   readonly costCents: null;
 }
 
@@ -866,7 +866,7 @@ export function allocateLaborHours(input: LaborAllocationInput): LaborAllocation
       "Some source break totals differ from the day-only lunch policy. Lunch was applied once, without changing source deductions.",
     );
   warnings.push(
-    "Pay rates and cost treatment remain unconfigured. Reported source costs were not redistributed.",
+    "Original source costs are preserved. Review estimated job labor costs and approvals separately in Jobs.",
   );
   return Object.freeze({
     rulesVersion: LABOR_ALLOCATION_POLICY.version,

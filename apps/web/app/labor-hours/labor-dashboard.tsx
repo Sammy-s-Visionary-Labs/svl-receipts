@@ -603,8 +603,8 @@ export function LaborDashboard() {
                 <div className={styles.footer}>
                   <span>
                     Original source hours and costs remain unchanged. Allocation and weekly pay
-                    estimates use separate calculations; customer-job cost allocation remains
-                    pending.
+                    estimates use separate calculations. Review job labor-cost estimates in each
+                    linked job’s approval workspace.
                   </span>
                   {pageCount > 1 && (
                     <div className={styles.pagination}>
@@ -634,6 +634,24 @@ export function LaborDashboard() {
             </>
           )}
           <LaborJobMappingEditor data={data} onChanged={load} />
+          <section className={styles.card} aria-label="Job-hour approvals">
+            <div className={styles.cardHeader}>
+              <div>
+                <h2>Review and approve hours by job</h2>
+                <p>
+                  Open a linked job, choose its work dates, then review all workers and intervals.
+                </p>
+              </div>
+              <a className={styles.button} href="/jobs#job-labor-approval">
+                Open Jobs for approval
+              </a>
+            </div>
+            <p className={styles.cardBody}>
+              Approval records the exact reviewed hours and estimated labor costs. Sending is a
+              separate action with its own confirmation and availability check. Changed hours, pay
+              settings or job links require review again.
+            </p>
+          </section>
           <LaborPayWorkspace
             settings={data.paySettings}
             revision={data.payRevision}
