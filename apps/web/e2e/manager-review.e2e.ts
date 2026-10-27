@@ -273,7 +273,7 @@ test("checks decimal amounts, missing job and exact two-job approval", async ({ 
   await page.getByLabel("Quantity", { exact: true }).first().fill("-1");
   await page.getByRole("button", { name: "Approve receipt", exact: true }).click();
   await expect(
-    page.getByText("Use a positive quantity with up to three decimal places."),
+    page.getByText("Use a nonnegative quantity with up to three decimal places."),
   ).toBeVisible();
   expect(state.requests).toHaveLength(0);
   await page.getByLabel("Quantity", { exact: true }).first().fill("1.005");
@@ -991,15 +991,110 @@ test("bulk job selection has the same named destinations as materials and only u
   page,
 }) => {
   const state = await setup(page);
-  page.on("dialog", (dialog) => dialog.accept());
+  const acceptReplacement = (dialog: import("@playwright/test").Dialog) => dialog.accept();
+  page.on("dialog", acceptReplacement);
   const bulk = page.getByRole("combobox", { name: "Job for all materials", exact: true });
   await expect(
     bulk.getByRole("option", { name: "River family · Kitchen renovation #1043", exact: true }),
   ).toHaveCount(1);
   await bulk.selectOption("job-b");
-  await page.getByRole("button", { name: "Apply selected job to all", exact: true }).click();
   const fields = page.getByRole("combobox", { name: "Housecall job", exact: true });
   await expect(fields.nth(0)).toHaveValue("job-b");
   await expect(fields.nth(1)).toHaveValue("job-b");
+  page.off("dialog", acceptReplacement);
+  page.once("dialog", (dialog) => dialog.dismiss());
+  await bulk.selectOption("job-a");
+  await expect(bulk).toHaveValue("job-b");
+  await expect(fields.nth(0)).toHaveValue("job-b");
+  await page.route("**/api/manager/jobs?*", (route) => route.fulfill({ json: { jobs: [] } }));
+  const searchFinished = page.waitForResponse((response) =>
+    response.url().includes("search=no%20matching%20jobs"),
+  );
+  await page.getByLabel("Find a Housecall job", { exact: true }).fill("no matching jobs");
+  await searchFinished;
+  await expect(bulk.getByRole("option", { name: /1043/ })).toHaveCount(1);
+  await expect(fields.nth(0)).toHaveValue("job-b");
+  await page.getByRole("button", { name: "+ Add material", exact: true }).click();
+  await expect(fields.nth(2)).toHaveValue("job-b");
+  expect(state.requests).toEqual([]);
+});
+
+test("zero quantities and zero unit costs survive saving, and approval explains exclusions", async ({
+  page,
+}) => {
+  const state = await setup(page);
+  await page.getByLabel("Quantity", { exact: true }).first().fill("0");
+  await page.getByLabel("Unit cost", { exact: true }).first().fill("0");
+  await page.getByLabel("Housecall job", { exact: true }).first().selectOption("");
+  await page.getByLabel("Unit cost", { exact: true }).nth(1).fill("0.00");
+  await page.getByRole("button", { name: "Save for later", exact: true }).click();
+  await expect(page.getByText("Draft saved.", { exact: true })).toBeVisible();
+  await page.reload();
+  await expect(page.getByLabel("Quantity", { exact: true }).first()).toHaveValue("0");
+  await expect(page.getByLabel("Unit cost", { exact: true }).nth(1)).toHaveValue("0.00");
+  await page.getByRole("button", { name: "Approve receipt", exact: true }).click();
+  const modal = page.getByRole("dialog");
+  await expect(modal).toContainText("1 lines to 1 jobs");
+  await expect(modal).toContainText("1 zero-quantity lines stay in the review history");
+  expect(state.requests[0]).toMatchObject({
+    decision: "save_draft",
+    draft: { lines: [{ qty: "0", unitCost: "0" }, { unitCost: "0.00" }] },
+  });
+});
+
+test("approval failures are visible inside the confirmation dialog with their actual reason", async ({
+  page,
+}) => {
+  await setup(page);
+  await page.getByLabel("Quantity", { exact: true }).first().fill("1");
+  await page.route(`**/api/manager/receipts/${id}/review`, (route) =>
+    route.fulfill({
+      status: 409,
+      json: {
+        error: {
+          code: "duplicate_review_required",
+          message:
+            "Compare and resolve possible duplicates before approval. Your approval was not saved.",
+        },
+      },
+    }),
+  );
+  await page.getByRole("button", { name: "Approve receipt", exact: true }).click();
+  const modal = page.getByRole("dialog");
+  await modal.getByRole("checkbox").check();
+  await modal.getByRole("button", { name: "Approve receipt", exact: true }).click();
+  await expect(modal.getByRole("alert")).toContainText("Compare and resolve possible duplicates");
+  await expect(modal).not.toContainText("changed since you opened");
+  await expect(page.getByLabel("Quantity", { exact: true }).first()).toHaveValue("1");
+});
+
+test("continues pending approved steps while preserving successful Housecall work", async ({
+  page,
+}) => {
+  const state = await setup(page, { historical: true });
+  state.detail.automaticExport = true;
+  state.detail.steps[1].status = "ready";
+  state.detail.steps[1].error = null;
+  await page.reload();
+  const requests: string[] = [];
+  await page.route(`**/api/manager/receipts/${id}/export-continue`, (route) => {
+    requests.push(route.request().method());
+    state.detail.status = "exported";
+    state.detail.steps[1].status = "succeeded";
+    state.detail.steps[1].externalId = "material-43";
+    return route.fulfill({
+      status: 202,
+      json: {
+        message: "Housecall export continuation requested. Check progress for confirmation.",
+      },
+    });
+  });
+  await page
+    .getByRole("button", { name: "Continue approved Housecall export", exact: true })
+    .click();
+  await expect(page.getByText(`${id} · exported`, { exact: true })).toBeVisible();
+  await expect(page.getByText("attachment-42", { exact: true })).toBeVisible();
+  await expect(page.getByText("material-43", { exact: true })).toBeVisible();
+  expect(requests).toEqual(["POST"]);
   expect(state.requests).toEqual([]);
 });

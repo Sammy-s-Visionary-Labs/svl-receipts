@@ -19,6 +19,18 @@ type Normalized<T> = { value: T | null; issue?: string };
 const MAX_CENTS = 2147483647;
 const text = (value: string | null) => value?.trim() || null;
 
+/** Only unmistakable header/identifier rows; purchased tickets and services remain reviewable. */
+function referenceOnlyLine(description: string) {
+  return (
+    /^(?:ticket|invoice|receipt|transaction|order)\s*(?:number|no\.?)?\s*[:#]?\s*(?=[A-Z0-9./-]*\d)[A-Z0-9][A-Z0-9./-]*\s*:?$/i.test(
+      description,
+    ) ||
+    /^(?:(?:ticket|invoice|receipt|transaction|order)\s+(?:number|no\.?)|unit\s+(?:cost|price)|qty|quantity|description)\s*:?$/i.test(
+      description,
+    )
+  );
+}
+
 /** USD decimal point, optional correctly grouped commas, $ or USD. No exponent/coercion/rounding. */
 export function normalizeReceiptMoney(value: string | null): Normalized<number> {
   const trimmed = text(value);
@@ -278,6 +290,14 @@ export function normalizeReceiptObservation(
       };
     })
     .filter((line) => {
+      if (line.description && referenceOnlyLine(line.description)) {
+        warn(
+          "reference_line_excluded",
+          `lines.${line.source_index}`,
+          "Document identifiers and column headers are reference information, even when a nearby price was extracted. The original observation is preserved.",
+        );
+        return false;
+      }
       if (
         line.description &&
         /^(?:sales tax|tax|subtotal|grand total|receipt total|total|balance due|amount due|cash|change|tender|visa|mastercard)\s*:?$/i.test(

@@ -105,6 +105,35 @@ describe("strict extraction boundaries", () => {
 });
 
 describe("deterministic US receipt normalization", () => {
+  it.each([
+    "Ticket #72885",
+    "Ticket 72885",
+    "Invoice No. INV-42",
+    "Receipt: 12345",
+    "Unit Cost",
+    "Quantity",
+  ])(
+    "keeps reference row %s out of material costs even when a price was extracted",
+    (description) => {
+      const input = observedReceipt();
+      input.lines.push({ ...first(input.lines), description, qty: "1", unit_cost: "45.00" });
+      const result = normalizeReceiptObservation(input);
+      expect(result.lines.map((line) => line.description)).toEqual(["Pipe"]);
+      expect(result.material_total_cents).toBe(15000);
+      expect(result.warnings).toContainEqual(
+        expect.objectContaining({ code: "reference_line_excluded", field: "lines.1" }),
+      );
+      expect(result.original_observation.lines[1]?.description).toBe(description);
+    },
+  );
+  it.each(["Disposal fee", "Ticket admission", "Ticket roll 72885", "Order picker rental"])(
+    "retains an actual purchase or service called %s",
+    (description) => {
+      const input = observedReceipt();
+      input.lines[0] = { ...first(input.lines), description };
+      expect(normalizeReceiptObservation(input).lines[0]?.description).toBe(description);
+    },
+  );
   it("normalizes decimal money without floating point rounding or permissive coercion", () => {
     expect(normalizeReceiptMoney("$1,234.56")).toEqual({ value: 123456 });
     expect(normalizeReceiptMoney("USD 0.29")).toEqual({ value: 29 });

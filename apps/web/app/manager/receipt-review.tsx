@@ -1,5 +1,6 @@
 "use client";
 import {
+  decimalUnits,
   lineCostCents,
   type ReceiptCategory,
   type ReviewDraft,
@@ -81,6 +82,7 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
   const [tax, setTax] = useState(false);
   const [correction, setCorrection] = useState(false);
   const [jobs, setJobs] = useState<ManagerJob[]>([]);
+  const [selectedJobs, setSelectedJobs] = useState<ManagerJob[]>([]);
   const [jobSearch, setJobSearch] = useState("");
   const [bulkJobId, setBulkJobId] = useState("");
   const [olderJobs, setOlderJobs] = useState(true);
@@ -102,6 +104,10 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
   const dirty = !!draft && !!detail && JSON.stringify(draft) !== JSON.stringify(detail.draft);
   const editable = !!detail && (detail.editable || correction);
   const summary = draft ? reviewSummary(draft) : null;
+  const pendingExport =
+    !!detail &&
+    ["approved", "exporting", "partial_success", "export_failed"].includes(detail.status) &&
+    detail.steps.some((step) => ["ready", "pending", "in_progress"].includes(step.status));
   const load = useCallback(async () => {
     const sequence = ++loadSequence.current;
     setLoading(true);
@@ -142,6 +148,8 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
   useEffect(() => {
     setDetail(null);
     setDraft(null);
+    setSelectedJobs([]);
+    setBulkJobId("");
     void load();
     return () => {
       loadSequence.current++;
@@ -160,7 +168,7 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
   useEffect(() => {
     if (
       !detail ||
-      !["approved", "exporting"].includes(detail.status) ||
+      (!["approved", "exporting"].includes(detail.status) && !pendingExport) ||
       dirty ||
       correction ||
       action ||
@@ -172,7 +180,7 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
       void load();
     }, 4000);
     return () => clearTimeout(timer);
-  }, [detail, dirty, correction, action, busy, loading, load]);
+  }, [detail, dirty, correction, action, busy, loading, load, pendingExport]);
   useEffect(() => {
     if (action) {
       dialog.current?.showModal();
@@ -324,7 +332,13 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
     const next = validateReview(draft, decision === "approve");
     if (decision === "approve")
       draft.lines.forEach((line, index) => {
-        if (allJobs.find((job) => job.id === line.jobId)?.unavailable)
+        if (decimalUnits(line.qty, 3) !== 0 && allJobs.find((job) => job.id === line.jobId)?.stale)
+          next[`lines.${index}.jobId`] =
+            "Refresh Housecall jobs before approving this destination.";
+        if (
+          decimalUnits(line.qty, 3) !== 0 &&
+          allJobs.find((job) => job.id === line.jobId)?.unavailable
+        )
           next[`lines.${index}.jobId`] =
             "This Housecall job is unavailable. Choose an available job.";
       });
@@ -369,12 +383,11 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
         headers: { "content-type": "application/json" },
         body: JSON.stringify(payload),
       });
-      const body = await res.json();
+      const body = await res.json().catch(() => ({}));
       if (!res.ok) {
         if (body.fields) setErrors(body.fields);
         throw new Error(
-          res.status === 409 &&
-            !["test_export_scope", "test_export_budget"].includes(body.error?.code)
+          res.status === 409 && (!body.error?.code || body.error.code === "conflict")
             ? "This receipt changed since you opened it. Your edits are preserved. Reload the latest receipt before saving again."
             : res.status === 401
               ? "Your session ended. Sign in again."
@@ -417,6 +430,38 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
         suggestionId: job.suggestionId,
       })),
     });
+    setBulkJobId(job.id);
+    setSelectedJobs((current) => [job, ...current.filter((selected) => selected.id !== job.id)]);
+    setErrors((current) =>
+      Object.fromEntries(
+        Object.entries(current).filter(([key]) => !/^lines\.\d+\.jobId$/.test(key)),
+      ),
+    );
+    setMessage(
+      `Assigned ${jobLabel(job)} to all ${draft.lines.length} materials. Save or approve to keep these assignments.`,
+    );
+  }
+  async function continueExport() {
+    if (actionLock.current) return;
+    actionLock.current = true;
+    setBusy(true);
+    setError("");
+    setMessage("");
+    try {
+      const response = await fetch(`/api/manager/receipts/${id}/export-continue`, {
+        method: "POST",
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok)
+        throw new Error(body.error?.message || "Could not continue Housecall export. Try again.");
+      await load();
+      setMessage(body.message);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Could not continue Housecall export.");
+    } finally {
+      actionLock.current = false;
+      setBusy(false);
+    }
   }
   async function moreEvents() {
     if (!eventCursor || eventBusy) return;
@@ -439,11 +484,13 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
   const allJobs = [
     ...(detail?.suggestions ?? []).map((suggestion) => ({
       ...suggestion,
+      ...selectedJobs.find((job) => job.id === suggestion.id),
       ...detail?.assignedJobs?.find((job) => job.id === suggestion.id),
       ...jobs.find((job) => job.id === suggestion.id),
       suggestionId: suggestion.suggestionId,
     })),
     ...jobs,
+    ...selectedJobs,
     ...(detail?.assignedJobs ?? []),
   ].filter((j, i, rows) => rows.findIndex((x) => x.id === j.id) === i);
   return (
@@ -476,7 +523,7 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
             Reload latest receipt
           </button>
         </div>
-        {error && (
+        {error && !action && (
           <div role="alert" className={styles.error}>
             {error}
             {error.includes("session") && (
@@ -757,7 +804,11 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
                       id="bulk-housecall-job"
                       value={bulkJobId}
                       disabled={busy}
-                      onChange={(event) => setBulkJobId(event.target.value)}
+                      onChange={(event) => {
+                        const selected = allJobs.find((job) => job.id === event.target.value);
+                        if (selected) applyJob(selected);
+                        else setBulkJobId("");
+                      }}
                     >
                       <option value="">Choose a job</option>
                       {allJobs.map((job) => (
@@ -921,10 +972,15 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
                         aria-invalid={!!errors[`lines.${index}.jobId`]}
                         onChange={(e) => {
                           const chosen = allJobs.find((j) => j.id === e.target.value);
-                          if (chosen?.unavailable) return;
+                          if (chosen?.unavailable || chosen?.stale) return;
+                          if (chosen)
+                            setSelectedJobs((current) => [
+                              chosen,
+                              ...current.filter((job) => job.id !== chosen.id),
+                            ]);
                           updateLine(index, {
                             jobId: e.target.value,
-                            suggestionId: chosen?.suggestionId ?? line.suggestionId,
+                            suggestionId: chosen?.suggestionId,
                           });
                         }}
                       >
@@ -936,7 +992,7 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
                           {allJobs
                             .filter((j) => j.suggestionId)
                             .map((j) => (
-                              <option key={j.id} value={j.id} disabled={j.unavailable}>
+                              <option key={j.id} value={j.id} disabled={j.unavailable || j.stale}>
                                 {jobLabel(j)}
                                 {j.unavailable
                                   ? " · Unavailable"
@@ -950,7 +1006,7 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
                           {allJobs
                             .filter((j) => !j.suggestionId)
                             .map((j) => (
-                              <option key={j.id} value={j.id} disabled={j.unavailable}>
+                              <option key={j.id} value={j.id} disabled={j.unavailable || j.stale}>
                                 {jobLabel(j)}
                                 {j.unavailable
                                   ? " · Unavailable"
@@ -998,6 +1054,12 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
                         </p>
                       )}
                       <div className={styles.lineFooter}>
+                        {decimalUnits(line.qty, 3) === 0 && (
+                          <p>
+                            Zero quantity: kept in this review and excluded from Housecall materials
+                            and costs.
+                          </p>
+                        )}
                         <output aria-label={`Material ${index + 1} extended cost`}>
                           {lineCostCents(line) === null ? "—" : money(lineCostCents(line))}
                         </output>
@@ -1037,7 +1099,10 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
                     disabled={busy || draft.lines.length >= 100}
                     onClick={() => {
                       pendingLineFocus.current = true;
-                      setDraft({ ...draft, lines: [...draft.lines, emptyLine()] });
+                      setDraft({
+                        ...draft,
+                        lines: [...draft.lines, { ...emptyLine(), jobId: bulkJobId }],
+                      });
                     }}
                   >
                     + Add material
@@ -1067,6 +1132,20 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
             />
             <section className={styles.section}>
               <h2>Housecall progress</h2>
+              {detail.automaticExport && pendingExport && !editable && (
+                <div>
+                  <p>
+                    Approval is saved. Delivery is complete when all steps below show succeeded.
+                  </p>
+                  <button
+                    type="button"
+                    disabled={busy || loading || detail.correctionPending}
+                    onClick={() => void continueExport()}
+                  >
+                    Continue approved Housecall export
+                  </button>
+                </div>
+              )}
               <p>
                 For the current frozen plan, the export preview above shows each receipt page and
                 material line separately.
@@ -1249,12 +1328,23 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
                     ? "Correction impact"
                     : nice(action ?? "")}
               </h2>
+              {error && (
+                <p role="alert" className={styles.error}>
+                  {error}
+                </p>
+              )}
               {(action === "approve" || action === "correction") && (
                 <>
                   <p>
-                    {summary?.lineCount} lines to {summary?.jobCount} jobs ·{" "}
+                    {summary?.exportLineCount} lines to {summary?.jobCount} jobs ·{" "}
                     {money(summary?.totalCents ?? 0)}
                   </p>
+                  {!!summary?.excludedLineCount && (
+                    <p>
+                      {summary.excludedLineCount} zero-quantity lines stay in the review history and
+                      will not be sent to Housecall.
+                    </p>
+                  )}
                   {action === "approve" && (
                     <p>
                       {detail?.automaticExport
@@ -1335,11 +1425,6 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
                     onChange={(e) => setCanonical(e.target.value)}
                   />
                 </>
-              )}
-              {error && (
-                <p role="alert" className={styles.error}>
-                  {error}
-                </p>
               )}
               <div className={styles.dialogActions}>
                 <button type="button" disabled={busy} onClick={() => setAction(null)}>

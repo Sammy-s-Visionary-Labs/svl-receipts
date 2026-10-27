@@ -39,6 +39,20 @@ beforeEach(() => {
   rpc.mockResolvedValue({ data: { id, version: 1, status: "approved" }, error: null });
 });
 describe("manager review API", () => {
+  it("preserves zero quantities and unit costs in the sanitized snapshot", async () => {
+    const reviewed = {
+      ...draft,
+      lines: [
+        { ...draft.lines[0], qty: "0", unitCost: "0", jobId: "" },
+        { ...draft.lines[0], unitCost: "0.00" },
+      ],
+    };
+    expect((await run({ ...body, draft: reviewed })).status).toBe(200);
+    expect(rpc).toHaveBeenCalledWith(
+      "manager_review_command",
+      expect.objectContaining({ p_snapshot: reviewed }),
+    );
+  });
   it("uses database-role approval for all jobs without accepting a browser actor or test-session lock", async () => {
     vi.stubEnv("HOUSECALL_ACCESS_MODE", "all_jobs");
     vi.stubEnv("HOUSECALL_EXPORT_MODE", "manager_approved");

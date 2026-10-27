@@ -39,7 +39,7 @@ export function decimalUnits(value: string, precision: number): number | null {
 export function lineCostCents(line: ReviewLine): number | null {
   const qty = decimalUnits(line.qty, 3);
   const unit = decimalUnits(line.unitCost, 2);
-  if (qty === null || qty <= 0 || unit === null || unit > 2147483647) return null;
+  if (qty === null || unit === null || unit > 2147483647) return null;
   const cents = (BigInt(qty) * BigInt(unit) + BigInt(500)) / BigInt(1000);
   return cents <= BigInt(2147483647) ? Number(cents) : null;
 }
@@ -61,17 +61,20 @@ export function validateReview(draft: ReviewDraft, approval = false): ReviewErro
       (decimalUnits(draft.referenceTotal, 2) ?? 0) > 2147483647)
   )
     errors.referenceTotal = "Use a nonnegative amount with up to two decimal places.";
-  if (approval && !draft.lines.length) errors.lines = "Add at least one material line.";
+  if (approval && !draft.lines.some((line) => (decimalUnits(line.qty, 3) ?? 0) > 0))
+    errors.lines = "Add at least one material with a quantity above zero before approval.";
   let total = 0;
   draft.lines.forEach((line, index) => {
     const key = `lines.${index}`;
     if (approval && !line.description.trim()) errors[`${key}.description`] = "Enter a description.";
+    if ((approval || line.qty) && decimalUnits(line.qty, 3) === null)
+      errors[`${key}.qty`] = "Use a nonnegative quantity with up to three decimal places.";
     if (
-      (approval || line.qty) &&
-      (decimalUnits(line.qty, 3) === null || (decimalUnits(line.qty, 3) ?? 0) <= 0)
+      approval &&
+      !errors[`${key}.qty`] &&
+      decimalUnits(line.qty, 3) !== 0 &&
+      decimalUnits(line.qty, 2) === null
     )
-      errors[`${key}.qty`] = "Use a positive quantity with up to three decimal places.";
-    if (approval && !errors[`${key}.qty`] && decimalUnits(line.qty, 2) === null)
       errors[`${key}.qty`] =
         "Housecall supports at most two decimal places. Keep this receipt in review until the quantity is resolved; it will not be rounded.";
     if (
@@ -88,7 +91,7 @@ export function validateReview(draft: ReviewDraft, approval = false): ReviewErro
       !errors[`${key}.unitCost`]
     )
       errors[`${key}.unitCost`] = "Extended cost is too large.";
-    if (approval && !line.jobId.trim())
+    if (approval && decimalUnits(line.qty, 3) !== 0 && !line.jobId.trim())
       errors[`${key}.jobId`] = "Choose a Housecall job. Overhead is not enabled.";
     total += lineCostCents(line) ?? 0;
   });
@@ -98,6 +101,7 @@ export function validateReview(draft: ReviewDraft, approval = false): ReviewErro
 export function reviewSummary(draft: ReviewDraft) {
   const jobs = new Map<string, { lines: number; totalCents: number }>();
   for (const line of draft.lines) {
+    if (decimalUnits(line.qty, 3) === 0) continue;
     const entry = jobs.get(line.jobId) ?? { lines: 0, totalCents: 0 };
     entry.lines++;
     entry.totalCents += lineCostCents(line) ?? 0;
@@ -105,6 +109,8 @@ export function reviewSummary(draft: ReviewDraft) {
   }
   return {
     lineCount: draft.lines.length,
+    exportLineCount: draft.lines.filter((line) => decimalUnits(line.qty, 3) !== 0).length,
+    excludedLineCount: draft.lines.filter((line) => decimalUnits(line.qty, 3) === 0).length,
     jobCount: [...jobs.keys()].filter(Boolean).length,
     totalCents: [...jobs.values()].reduce((sum, job) => sum + job.totalCents, 0),
     jobs: [...jobs].map(([id, value]) => ({ id, ...value })),

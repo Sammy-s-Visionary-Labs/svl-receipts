@@ -12,7 +12,7 @@ import type { GeminiReadabilityPage, GeminiReadabilityUsage } from "./gemini-rea
 
 export const GEMINI_RECEIPT_PROVIDER = "google_gemini" as const;
 export const GEMINI_RECEIPT_MODEL = "gemini-3.5-flash-lite" as const;
-export const GEMINI_RECEIPT_PROMPT_VERSION = "ra6-receipt-v1.4" as const;
+export const GEMINI_RECEIPT_PROMPT_VERSION = "ra6-receipt-v1.5" as const;
 export type GeminiReceiptPage = GeminiReadabilityPage;
 export type GeminiReceiptResult = {
   receipt: ParsedReceiptV1;
@@ -239,6 +239,7 @@ function buildRequest(mediaParts: MediaPart[]) {
             "Return only JSON matching the schema. Transcribe visible strings exactly; use null for missing or uncertain fields and never invent prices, quantities, dates, identifiers, or currency.",
             "Keep amounts and dates as printed strings; do not calculate, fix arithmetic, convert units, choose an ambiguous date order, or infer quantity 1. Unit cost and printed extended cost are different fields.",
             "Extract material/product/fee charge lines; tax, subtotal, balance, tender, change and summary totals are reference fields, never material lines. Keep discounts or credits as printed negative strings for review.",
+            "Ticket, invoice, receipt, transaction and order numbers identify the document; put them in reference fields, never in material lines. Column headings such as Unit Cost, Unit Price, Qty and Description are not purchases. A nearby price or handwritten unit cost does not turn an identifier or heading into a purchased item. For weight or disposal tickets, extract a charge only when the document identifies the actual material or service; do not invent a charge from the ticket number alone. Preserve uncertain text in raw_text for manager review.",
             "Identify receipt, invoice, weight_ticket, picking_list or unknown from the document's evidence. A picking list saying THIS IS NOT A RECEIPT remains picking_list.",
             "All images are one ordered document with zero-based page indexes. Merge continuation pages, include each actual charge once, and do not duplicate repeated headers, carried-forward totals or summary lines. Do not merge distinct identical purchases.",
             "Look carefully for the purchase/invoice date in printed, handwritten, stamped, and faint date fields, including the top corners. Transcribe a legible date even when it uses spaces, numeric month/day order, or a two-digit year: for example 7 20 26 stays 7 20 26. Date normalization is performed separately; a two-digit year or ambiguous order alone is not a reason to omit visible date text. Use purchase/invoice date rather than card settlement date; if competing dates cannot be resolved, retain the competing date evidence and use null purchase_date.",

@@ -37,15 +37,35 @@ describe("review money and validation", () => {
     ["2.5", "19.99", 4998],
     ["3", "0.00", 0],
     ["0.001", "0.01", 0],
+    ["0", "19.99", 0],
   ])("rounds %s × %s deterministically", (qty, unitCost, expected) =>
     expect(lineCostCents({ ...line, qty, unitCost })).toBe(expected),
   );
-  it.each(["-1", "1e3", "1,000", "NaN", "Infinity", "1.0001", " 1", "0"])(
+  it.each(["-1", "1e3", "1,000", "NaN", "Infinity", "1.0001", " 1"])(
     "rejects invalid quantity %s",
     (qty) =>
       expect(
         validateReview({ ...draft, lines: [{ ...line, qty }] }, true)["lines.0.qty"],
       ).toBeTruthy(),
+  );
+  it.each(["0", "0.0", "0.00", "0.000"])(
+    "saves zero quantity %s, excludes its destination, and exports zero-cost materials",
+    (qty) => {
+      const zero = { ...line, qty, unitCost: "0", jobId: "" };
+      const free = { ...line, qty: "2", unitCost: "0.00" };
+      const reviewed = { ...draft, lines: [zero, free] };
+      expect(validateReview(reviewed)).toEqual({});
+      expect(validateReview(reviewed, true)).toEqual({});
+      expect(reviewSummary(reviewed)).toMatchObject({
+        lineCount: 2,
+        exportLineCount: 1,
+        excludedLineCount: 1,
+        jobCount: 1,
+        totalCents: 0,
+        jobs: [{ id: "job-a", lines: 1, totalCents: 0 }],
+      });
+      expect(validateReview({ ...draft, lines: [zero] }, true).lines).toContain("above zero");
+    },
   );
   it.each(["-1", "1.001", "1e2", "Infinity", "21474836.48"])(
     "rejects invalid unit cost %s",
