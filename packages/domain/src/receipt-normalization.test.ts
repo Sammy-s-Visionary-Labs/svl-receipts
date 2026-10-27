@@ -168,6 +168,119 @@ describe("deterministic US receipt normalization", () => {
       expect(normalizeReceiptObservation(input).lines[0]?.description).toBe(description);
     },
   );
+  it.each([null, "85.00"])(
+    "excludes a customer pickup/job row with Qty 1 and price %s without losing its hint or source",
+    (borrowedPrice) => {
+      const base = observedReceipt();
+      const note = {
+        ...first(base.lines),
+        description: "Customer Pick Up - Job Tricia",
+        qty: "1",
+        uom: null,
+        unit_cost: borrowedPrice,
+        extended_cost: borrowedPrice,
+        job_hint: "Tricia",
+      };
+      const material = {
+        ...first(base.lines),
+        description: "Concrete wall cap",
+        qty: "1",
+        unit_cost: "85.00",
+        extended_cost: "85.00",
+        job_hint: "Tricia",
+      };
+      const input = observedReceipt({
+        lines: [note, material],
+        job_hints: [],
+        subtotal: "85.00",
+        tax: "0.00",
+        receipt_total: "85.00",
+      });
+      const before = structuredClone(input);
+      const result = normalizeReceiptObservation(input);
+      expect(result.lines).toMatchObject([
+        { source_index: 1, description: "Concrete wall cap", qty: 1, unit_cost_cents: 8500 },
+      ]);
+      expect(result.lines).toHaveLength(1);
+      expect(result.material_total_cents).toBe(8500);
+      expect(result.job_hints).toEqual([{ text: "Tricia", page_index: 0 }]);
+      expect(result.warnings).toContainEqual(
+        expect.objectContaining({ code: "reference_line_excluded", field: "lines.0" }),
+      );
+      expect(result.original_observation).toEqual(before);
+      expect(input).toEqual(before);
+      expect(isParsedReceiptV1(result)).toBe(true);
+    },
+  );
+  it("excludes unpriced customer labels while retaining a real zero-priced pickup service", () => {
+    const base = observedReceipt();
+    const result = normalizeReceiptObservation({
+      ...base,
+      job_hints: [{ text: "Tricia", page_index: 0 }],
+      subtotal: "0.00",
+      tax: "0.00",
+      receipt_total: "0.00",
+      lines: [
+        {
+          ...first(base.lines),
+          description: "Bill To: Tricia",
+          qty: "1",
+          unit_cost: null,
+          extended_cost: null,
+          job_hint: "Tricia",
+        },
+        {
+          ...first(base.lines),
+          description: "Customer pickup service fee",
+          qty: "1",
+          unit_cost: "0.00",
+          extended_cost: "0.00",
+          job_hint: "Tricia",
+        },
+      ],
+    });
+    expect(result.lines).toMatchObject([
+      {
+        source_index: 1,
+        description: "Customer pickup service fee",
+        unit_cost_cents: 0,
+        extended_cost_cents: 0,
+      },
+    ]);
+    expect(result.lines).toHaveLength(1);
+    expect(result.job_hints).toEqual([{ text: "Tricia", page_index: 0 }]);
+    expect(result.material_total_cents).toBe(0);
+  });
+  it.each([
+    "Crushed limestone",
+    "Disposal fee",
+    "Job: Drain cleaning",
+    "Customer supplied pipe",
+    "Customer name plate",
+    "Customer pickup service fee",
+  ])("preserves an actual unpriced material/service called %s for review", (description) => {
+    const base = observedReceipt();
+    const result = normalizeReceiptObservation({
+      ...base,
+      document_kind: "weight_ticket",
+      lines: [{ ...first(base.lines), description, unit_cost: null, extended_cost: null }],
+    });
+    expect(result.lines).toHaveLength(1);
+    expect(result.lines[0]).toMatchObject({ source_index: 0, description, unit_cost_cents: null });
+    expect(result.warnings).not.toContainEqual(
+      expect.objectContaining({ code: "reference_line_excluded" }),
+    );
+  });
+  it("preserves an actual named pickup delivery fee instead of mistaking it for an identity label", () => {
+    const base = observedReceipt();
+    const description = "Customer Pick Up - Job Tricia - delivery fee";
+    const result = normalizeReceiptObservation({
+      ...base,
+      lines: [{ ...first(base.lines), description }],
+    });
+    expect(result.lines).toHaveLength(1);
+    expect(result.lines[0]?.description).toBe(description);
+  });
   it("normalizes decimal money without floating point rounding or permissive coercion", () => {
     expect(normalizeReceiptMoney("$1,234.56")).toEqual({ value: 123456 });
     expect(normalizeReceiptMoney("USD 0.29")).toEqual({ value: 29 });

@@ -95,6 +95,43 @@ describe("Gemini receipt parsing", () => {
     });
     expect(result.receipt.original_observation.lines[0]?.qty).toBe("2.500");
   });
+  it("distinguishes item-table customer notes from charges while keeping real unpriced materials", async () => {
+    const request = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+      const prompt = JSON.parse(String(init?.body)).systemInstruction.parts[0].text;
+      expect(prompt).toContain('"Customer Pick Up - Job Tricia" is a customer/job note');
+      expect(prompt).toContain("in the item table or have a printed Qty of 1");
+      expect(prompt).toContain(
+        "Never borrow or copy quantities, units or prices from a neighboring row",
+      );
+      expect(prompt).toContain("missing prices as an incomplete line for review");
+      expect(prompt).toContain("Actual pickup/delivery fees remain charge lines");
+      return response({
+        ...observation,
+        lines: [
+          {
+            page_index: 0,
+            description: "Crushed limestone",
+            qty: null,
+            uom: "ton",
+            unit_cost: null,
+            extended_cost: null,
+            job_hint: "Tricia",
+          },
+        ],
+        job_hints: [{ text: "Tricia", page_index: 0 }],
+        raw_text: "SYNTHETIC TEST FIXTURE Customer Pick Up - Job Tricia; Crushed limestone",
+      });
+    });
+    const result = await createGeminiReceiptAdapter({
+      apiKey: "test-key",
+      fetch: request,
+    }).parseReceipt([page]);
+    expect(result.promptVersion).toBe("ra6-receipt-v1.7");
+    expect(result.receipt.lines).toMatchObject([
+      { description: "Crushed limestone", qty: null, unit_cost_cents: null, job_hint: "Tricia" },
+    ]);
+    expect(result.receipt.job_hints).toEqual([{ text: "Tricia", page_index: 0 }]);
+  });
   it("sends all ordered pages in one request and validates page-specific evidence", async () => {
     const request = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
       expect(JSON.parse(String(init?.body)).contents[0].parts).toHaveLength(3);

@@ -11,7 +11,7 @@ import {
 } from "@svl/domain";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { jobLabel } from "@/lib/manager/presentation";
+import { jobLabel, jobMetadata } from "@/lib/manager/presentation";
 import type {
   ExportStep,
   ManagerJob,
@@ -1097,17 +1097,7 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
                         ))}
                       {allJobs.find((j) => j.id === line.jobId) && (
                         <p className={styles.meta}>
-                          {allJobs.find((j) => j.id === line.jobId)?.status || "Status unavailable"}{" "}
-                          · {allJobs.find((j) => j.id === line.jobId)?.scheduledAt || "Unscheduled"}{" "}
-                          ·{" "}
-                          {allJobs.find((j) => j.id === line.jobId)?.technicians.join(", ") ||
-                            "Technicians unavailable"}{" "}
-                          {allJobs.find((j) => j.id === line.jobId)?.syncedAt && (
-                            <>
-                              {" "}
-                              · Last checked {allJobs.find((j) => j.id === line.jobId)?.syncedAt}
-                            </>
-                          )}
+                          {jobMetadata(allJobs.find((job) => job.id === line.jobId) ?? {})}
                           {allJobs.find((j) => j.id === line.jobId)?.unavailable
                             ? " · This job is unavailable. Choose another destination."
                             : allJobs.find((j) => j.id === line.jobId)?.stale

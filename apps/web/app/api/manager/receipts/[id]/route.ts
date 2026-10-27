@@ -168,10 +168,9 @@ export async function GET(request: Request, context: Context) {
     let savedDraft = review?.snapshot
       ? { ...review.snapshot, receiptType: review.snapshot.receiptType ?? original.receiptType }
       : original;
-    let pristineDraft =
-      !review?.snapshot &&
-      (receipt.review_version === 0 ||
-        (classification?.source_review_version === 0 && receipt.review_version === 1));
+    // Automated classification/re-extraction can increment the version without
+    // creating a manager decision. Reviews and legacy patches establish edits.
+    let pristineDraft = !review;
     if (!review?.snapshot) {
       const [patches, legacyLines] = await Promise.all([
         supabase.rpc("manager_legacy_review_edits", { p_receipt_id: id }),

@@ -130,6 +130,13 @@ describe("manager receipt detail API", () => {
       "manager_receipt_timeline",
     ]);
   });
+  it("retains document-based job autofill after automated classification and re-extraction", async () => {
+    freshMatchedExtraction();
+    rows.receipts = { ...(rows.receipts as object), review_version: 2 };
+    const body = await (await run()).json();
+    expect(body.draft.lines[0].jobId).toBe("singh");
+    expect(body.automaticJobAssignments[0].jobId).toBe("singh");
+  });
   it.each(["saved", "legacy", "historical"])(
     "does not autofill over %s manager decisions",
     async (kind) => {
