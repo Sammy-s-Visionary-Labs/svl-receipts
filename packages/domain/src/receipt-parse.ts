@@ -20,6 +20,8 @@ export type ReceiptAdapterError = { kind: "retryable" | "permanent"; code: strin
 
 /** Strings are verbatim observations, never the provider's guessed normalized numbers. */
 export type ReceiptObservationV1 = {
+  /** Absent on legacy observations; new extraction must classify or say unknown. */
+  receipt_type?: "debit" | "credit" | "unknown";
   schema_version: 1;
   document_kind: ReceiptDocumentKind;
   vendor: string | null;
@@ -57,6 +59,7 @@ export type ParsedReceiptLineV1 = {
 };
 
 export type ParsedReceiptV1 = {
+  receipt_type?: "debit" | "credit" | "unknown";
   schema_version: typeof PARSED_RECEIPT_SCHEMA_VERSION;
   provider: "gemini";
   document_kind: ReceiptDocumentKind;
@@ -113,12 +116,15 @@ export function isReceiptObservationV1(
       "schema_version",
       "document_kind",
       ...rootTextKeys,
+      ...(Object.hasOwn(value, "receipt_type") ? ["receipt_type"] : []),
       "lines",
       "job_hints",
       "raw_text",
       "evidence",
     ]) &&
     value.schema_version === 1 &&
+    (value.receipt_type === undefined ||
+      ["debit", "credit", "unknown"].includes(String(value.receipt_type))) &&
     RECEIPT_DOCUMENT_KINDS.includes(value.document_kind as ReceiptDocumentKind) &&
     rootTextKeys.every((key) => nullableText(value[key])) &&
     typeof value.raw_text === "string" &&
@@ -150,7 +156,7 @@ export function isReceiptObservationV1(
         isRecord(item) &&
         keysAre(item, ["field", "text", "page_index", "confidence"]) &&
         typeof item.field === "string" &&
-        /^(vendor|purchase_date|invoice_number|ticket_number|receipt_total|tax|subtotal|currency|job_hints\.\d+|lines\.\d+\.(description|qty|uom|unit_cost|extended_cost|job_hint))$/.test(
+        /^(receipt_type|vendor|purchase_date|invoice_number|ticket_number|receipt_total|tax|subtotal|currency|job_hints\.\d+|lines\.\d+\.(description|qty|uom|unit_cost|extended_cost|job_hint))$/.test(
           item.field,
         ) &&
         validEvidencePath(item.field, value.lines as unknown[], value.job_hints as unknown[]) &&
@@ -213,9 +219,12 @@ export function isParsedReceiptV1(value: unknown): value is ParsedReceiptV1 {
       "confidence",
       "warnings",
       "original_observation",
+      ...(Object.hasOwn(value, "receipt_type") ? ["receipt_type"] : []),
     ]) &&
     value.schema_version === 1 &&
     value.provider === "gemini" &&
+    (value.receipt_type === undefined ||
+      ["debit", "credit", "unknown"].includes(String(value.receipt_type))) &&
     RECEIPT_DOCUMENT_KINDS.includes(value.document_kind as ReceiptDocumentKind) &&
     ["vendor", "invoice_number", "ticket_number"].every((key) => nullableText(value[key])) &&
     isoDate(value.purchase_date) &&

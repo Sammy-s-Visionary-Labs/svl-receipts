@@ -158,6 +158,12 @@ export function normalizeQueueRow(value: Record<string, unknown>): QueueReceipt 
   const job = value.suggestedJob as Record<string, unknown> | null;
   return {
     id: value.id,
+    receiptType:
+      value.receiptType === "credit"
+        ? "credit"
+        : value.receiptType === "unknown" || value.receiptType === ""
+          ? ""
+          : "debit",
     status: value.status,
     submittedAt: value.submittedAt,
     submitter: { id: value.submitterId, label: `Worker ${value.submitterId.slice(0, 8)}` },

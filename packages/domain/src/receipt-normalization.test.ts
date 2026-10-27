@@ -105,6 +105,40 @@ describe("strict extraction boundaries", () => {
 });
 
 describe("deterministic US receipt normalization", () => {
+  it.each(["-5.00", "($5.00)", "$-5.00", "5.00 CR"])(
+    "normalizes a printed credit %s to a magnitude without changing its evidence",
+    (printed) => {
+      const observation = observedReceipt({
+        receipt_type: "credit",
+        receipt_total: printed,
+        subtotal: printed,
+        tax: "0.00",
+      });
+      observation.lines = [
+        { ...first(observation.lines), qty: "-2", unit_cost: "-2.50", extended_cost: printed },
+      ];
+      const result = normalizeReceiptObservation(observation);
+      expect(result).toMatchObject({
+        receipt_type: "credit",
+        receipt_total_cents: 500,
+        material_total_cents: 500,
+        lines: [{ qty: 2, unit_cost_cents: 250 }],
+      });
+      expect(result.original_observation.receipt_total).toBe(printed);
+      expect(isParsedReceiptV1(result)).toBe(true);
+    },
+  );
+  it("requires review for ambiguous direction and leaves a debit card purchase positive", () => {
+    const uncertain = normalizeReceiptObservation(observedReceipt({ receipt_type: "unknown" }));
+    expect(uncertain.warnings).toContainEqual(
+      expect.objectContaining({ code: "receipt_type_requires_review" }),
+    );
+    const debit = normalizeReceiptObservation(
+      observedReceipt({ receipt_type: "debit", raw_text: "PURCHASE PAID WITH CREDIT CARD" }),
+    );
+    expect(debit.material_total_cents).toBe(15000);
+    expect(debit.receipt_type).toBe("debit");
+  });
   it.each([
     "Ticket #72885",
     "Ticket 72885",

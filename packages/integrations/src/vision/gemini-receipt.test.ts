@@ -11,6 +11,7 @@ const page = {
   bytes: new TextEncoder().encode("abc"),
 };
 const observation = {
+  receipt_type: "debit",
   schema_version: 1,
   document_kind: "receipt",
   vendor: "Select",

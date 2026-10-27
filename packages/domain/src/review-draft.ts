@@ -1,3 +1,4 @@
+import { type ReceiptTypeSelection, receiptDirection } from "./receipt-type";
 /** RA-4 review snapshots. Empty fields are allowed in drafts; approval is strict. */
 export type ReviewLine = {
   id?: string;
@@ -10,6 +11,8 @@ export type ReviewLine = {
   suggestionId?: string;
 };
 export type ReviewDraft = {
+  /** Missing only on legacy debit snapshots; blank requires a manager decision. */
+  receiptType?: ReceiptTypeSelection;
   vendor: string;
   purchaseDate: string;
   invoiceNumber: string;
@@ -21,6 +24,7 @@ export type ReviewDraft = {
 };
 export type ReviewErrors = Record<string, string>;
 export const EMPTY_REVIEW: ReviewDraft = {
+  receiptType: "debit",
   vendor: "",
   purchaseDate: "",
   invoiceNumber: "",
@@ -36,15 +40,23 @@ export function decimalUnits(value: string, precision: number): number | null {
   const result = Number(whole) * 10 ** precision + Number(fraction.padEnd(precision, "0"));
   return Number.isSafeInteger(result) ? result : null;
 }
-export function lineCostCents(line: ReviewLine): number | null {
+export function lineCostCents(line: ReviewLine, receiptType?: ReceiptTypeSelection): number | null {
   const qty = decimalUnits(line.qty, 3);
   const unit = decimalUnits(line.unitCost, 2);
   if (qty === null || unit === null || unit > 2147483647) return null;
   const cents = (BigInt(qty) * BigInt(unit) + BigInt(500)) / BigInt(1000);
-  return cents <= BigInt(2147483647) ? Number(cents) : null;
+  return cents <= BigInt(2147483647)
+    ? cents === BigInt(0)
+      ? 0
+      : receiptDirection(receiptType) * Number(cents)
+    : null;
 }
 export function validateReview(draft: ReviewDraft, approval = false): ReviewErrors {
   const errors: ReviewErrors = {};
+  if (draft.receiptType !== undefined && !["debit", "credit", ""].includes(draft.receiptType))
+    errors.receiptType = "Choose Credit or Debit.";
+  if (approval && draft.receiptType === "")
+    errors.receiptType = "Choose Credit or Debit before approval.";
   for (const key of ["vendor", "purchaseDate", "category"] as const)
     if (approval && !draft[key].trim()) errors[key] = "Required before approval.";
   if (
@@ -104,7 +116,7 @@ export function reviewSummary(draft: ReviewDraft) {
     if (decimalUnits(line.qty, 3) === 0) continue;
     const entry = jobs.get(line.jobId) ?? { lines: 0, totalCents: 0 };
     entry.lines++;
-    entry.totalCents += lineCostCents(line) ?? 0;
+    entry.totalCents += lineCostCents(line, draft.receiptType) ?? 0;
     jobs.set(line.jobId, entry);
   }
   return {

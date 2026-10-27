@@ -160,7 +160,8 @@ export function buildHousecallExportPreview(input: {
       });
       job.materialCostCents += line.extended_cost_cents;
       result.totalMaterialCostCents += line.extended_cost_cents;
-      if (result.totalMaterialCostCents > 2147483647) throw new Error("invalid_export_preview");
+      if (Math.abs(result.totalMaterialCostCents) > 2147483647)
+        throw new Error("invalid_export_preview");
     } else throw new Error("invalid_export_preview");
   }
   if (!result.jobs.length || result.jobs.some((job) => !job.images.length || !job.lines.length))

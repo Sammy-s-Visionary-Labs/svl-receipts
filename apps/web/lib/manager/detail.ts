@@ -9,6 +9,13 @@ const amount = (v: unknown) =>
 export function extractionDraft(row: Row | null): ReviewDraft {
   if (!row) return { ...EMPTY_REVIEW, lines: [] };
   return {
+    receiptType:
+      (row.normalized as Row | undefined)?.receipt_type === "credit"
+        ? "credit"
+        : (row.normalized as Row | undefined)?.receipt_type !== undefined &&
+            (row.normalized as Row | undefined)?.receipt_type !== "debit"
+          ? ""
+          : "debit",
     vendor: textValue(row.vendor),
     purchaseDate: textValue(row.purchase_date),
     invoiceNumber: textValue(row.invoice_number),

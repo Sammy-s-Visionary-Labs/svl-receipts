@@ -11,6 +11,7 @@ const identifier = (value: string | null | undefined) => norm(value).replaceAll(
 const presentEqual = (a: string | null | undefined, b: string | null | undefined) =>
   !!identifier(a) && identifier(a) === identifier(b);
 export type DuplicateReceipt = {
+  receiptType?: "debit" | "credit" | "unknown";
   id: string;
   accessScope: string;
   deleted?: boolean;
@@ -76,6 +77,8 @@ export function scoreDuplicateReceipts(
         };
       }
       let score = 0;
+      if ((receipt.receiptType ?? "debit") !== (other.receiptType ?? "debit"))
+        return { receiptId: other.id, score: -1, reasons: [], scoringVersion };
       const sameVendor = !!norm(receipt.vendor) && norm(receipt.vendor) === norm(other.vendor);
       if (sameVendor) {
         score += 15;

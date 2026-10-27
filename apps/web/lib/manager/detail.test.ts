@@ -13,6 +13,11 @@ const intent = {
   job_cost_lines: [{ job_id: "job", receipt_line_id: "line" }],
 };
 describe("manager detail normalization", () => {
+  it("populates credit/debit choices without treating unknown extraction as a debit", () => {
+    expect(extractionDraft({ normalized: { receipt_type: "credit" } }).receiptType).toBe("credit");
+    expect(extractionDraft({ normalized: { receipt_type: "unknown" } }).receiptType).toBe("");
+    expect(extractionDraft({}).receiptType).toBe("debit");
+  });
   it("keeps two frozen pages on one job independent and targets retry by its exact attempt", () => {
     const steps = buildFrozenSteps(
       "current-intent",

@@ -14,6 +14,10 @@ export function parseDraft(value: unknown): ReviewDraft {
     typeof v === "string" && v.length <= max ? v.trim() : fail();
   if (!Array.isArray(d.lines) || d.lines.length > 100) return fail();
   const draft: ReviewDraft = {
+    receiptType:
+      d.receiptType === undefined
+        ? "debit"
+        : (string(d.receiptType, 6) as ReviewDraft["receiptType"]),
     vendor: string(d.vendor, 200),
     purchaseDate: string(d.purchaseDate, 10),
     invoiceNumber: string(d.invoiceNumber, 120),

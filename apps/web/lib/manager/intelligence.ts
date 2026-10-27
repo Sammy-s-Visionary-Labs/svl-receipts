@@ -27,6 +27,12 @@ export const categoryRow = (r: Row): ReceiptCategory => ({
 function duplicateRow(row: Row): DuplicateReceipt {
   return {
     id: textValue(row.id),
+    receiptType:
+      row.receipt_type === "credit"
+        ? "credit"
+        : row.receipt_type === "unknown"
+          ? "unknown"
+          : "debit",
     accessScope: "workspace",
     deleted: !!row.content_deleted_at,
     purging: !!row.purge_claimed_at,
@@ -137,6 +143,7 @@ export async function buildReceiptIntelligence(
     vendor: parsed.vendor,
     purchaseDate: parsed.purchase_date,
     totalCents: parsed.receipt_total_cents,
+    receiptType: parsed.receipt_type ?? "debit",
     invoiceNumber: parsed.invoice_number,
     ticketNumber: parsed.ticket_number,
   };

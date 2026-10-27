@@ -5,6 +5,7 @@ import {
   type ReceiptCategory,
   type ReviewDraft,
   type ReviewLine,
+  receiptTypeLabel,
   reviewSummary,
   validateReview,
 } from "@svl/domain";
@@ -765,6 +766,37 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
                     {summary?.lineCount} lines · {summary?.jobCount} jobs
                   </span>
                 </div>
+                <div>
+                  <label htmlFor="receipt-type">Receipt type *</label>
+                  <select
+                    id="receipt-type"
+                    value={draft.receiptType ?? "debit"}
+                    disabled={!editable || busy}
+                    aria-invalid={!!errors.receiptType}
+                    onChange={(event) =>
+                      setDraft({
+                        ...draft,
+                        receiptType: event.target.value as ReviewDraft["receiptType"],
+                      })
+                    }
+                  >
+                    <option value="">Choose Credit or Debit</option>
+                    <option value="debit">Debit — purchase / charge</option>
+                    <option value="credit">Credit — return / refund</option>
+                  </select>
+                  {errors.receiptType && (
+                    <p role="alert" className={styles.fieldError}>
+                      {errors.receiptType}
+                    </p>
+                  )}
+                  <p>
+                    {draft.receiptType === ""
+                      ? "Choose Credit or Debit before approving this receipt."
+                      : draft.receiptType === "credit"
+                        ? "Credit: enter the amount to credit as a positive value. Approval sends negative material costs to reduce the selected Housecall job totals."
+                        : "Debit: approval adds material costs to the selected Housecall job totals."}
+                  </p>
+                </div>
                 <p>
                   Job cost = quantity × unit cost. Tax is excluded. Receipt total is reference only.
                 </p>
@@ -1061,7 +1093,9 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
                           </p>
                         )}
                         <output aria-label={`Material ${index + 1} extended cost`}>
-                          {lineCostCents(line) === null ? "—" : money(lineCostCents(line))}
+                          {lineCostCents(line, draft.receiptType) === null
+                            ? "—"
+                            : money(lineCostCents(line, draft.receiptType))}
                         </output>
                         {editable && (
                           <button
@@ -1113,7 +1147,8 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
                   <strong>{money(summary?.totalCents ?? 0)}</strong>
                 </div>
                 {draft.referenceTotal &&
-                  Number(draft.referenceTotal) * 100 !== summary?.totalCents && (
+                  Math.abs(Number(draft.referenceTotal) * 100) !==
+                    Math.abs(summary?.totalCents ?? 0) && (
                     <p className={styles.notice}>
                       Material costs differ from the receipt reference total. Check quantities and
                       unit costs; tax, fees, or non-material purchases may explain the difference.
@@ -1352,6 +1387,12 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
                         : "Approval freezes this receipt's export plan. Live Housecall writes require separate explicit approval before any data is sent."}
                     </p>
                   )}
+                  <p>
+                    {receiptTypeLabel(draft.receiptType)}
+                    {draft.receiptType === "credit"
+                      ? ": the negative total below reduces Housecall job costs."
+                      : ": this amount adds to Housecall job costs."}
+                  </p>
                   <ul>
                     {summary?.jobs.map((job) => (
                       <li key={job.id}>

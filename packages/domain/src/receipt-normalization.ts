@@ -18,6 +18,15 @@ export type ReceiptNormalizationOptions = {
 type Normalized<T> = { value: T | null; issue?: string };
 const MAX_CENTS = 2147483647;
 const text = (value: string | null) => value?.trim() || null;
+function creditMagnitude(value: string | null): string | null {
+  if (value === null) return null;
+  return value
+    .trim()
+    .replace(/^\((.*)\)$/, "$1")
+    .replace(/^-\s*/, "")
+    .replace(/^(\$\s*|USD\s*)-\s*/i, "$1")
+    .replace(/\s+(?:CR|CREDIT)$/i, "");
+}
 
 /** Only unmistakable header/identifier rows; purchased tickets and services remain reviewable. */
 function referenceOnlyLine(description: string) {
@@ -227,6 +236,13 @@ export function normalizeReceiptObservation(
   const warnings: ReceiptWarning[] = [];
   const warn = (code: string, field: string, message = messages[code] || code) =>
     warnings.push({ code, field, message });
+  const receiptType = observation.receipt_type ?? "debit";
+  if (receiptType === "unknown")
+    warn(
+      "receipt_type_requires_review",
+      "receipt_type",
+      "Choose Credit or Debit before approval. The document direction is uncertain or mixed.",
+    );
   const take = <T>(normalized: Normalized<T>, field: string, required = false): T | null => {
     if (normalized.issue) warn(normalized.issue, field);
     else if (required && normalized.value === null) warn("missing_field", field);
@@ -243,7 +259,13 @@ export function normalizeReceiptObservation(
       "This currency cannot be imported as USD; verify all amounts.",
     );
   const money = (value: string | null, field: string, required = false) =>
-    currency ? take(normalizeReceiptMoney(value), field, required) : null;
+    currency
+      ? take(
+          normalizeReceiptMoney(receiptType === "credit" ? creditMagnitude(value) : value),
+          field,
+          required,
+        )
+      : null;
   const vendor = text(observation.vendor);
   if (!vendor) warn("missing_field", "vendor");
   const purchaseDate = take(
@@ -257,7 +279,11 @@ export function normalizeReceiptObservation(
   const lines = observation.lines
     .map((line, index) => {
       const path = `lines.${index}`;
-      const qty = take(normalizeReceiptQuantity(line.qty), `${path}.qty`, true);
+      const qty = take(
+        normalizeReceiptQuantity(receiptType === "credit" ? creditMagnitude(line.qty) : line.qty),
+        `${path}.qty`,
+        true,
+      );
       const unit = money(line.unit_cost, `${path}.unit_cost_cents`, true);
       const printed = money(line.extended_cost, `${path}.printed_extended_cost_cents`);
       const uom = take(normalizeReceiptUnit(line.uom), `${path}.uom`);
@@ -372,6 +398,8 @@ export function normalizeReceiptObservation(
     "subtotal",
     "currency",
   ].filter((key) => text(observation[key as "vendor"]));
+  if (observation.receipt_type && observation.receipt_type !== "unknown")
+    expectedEvidence.push("receipt_type");
   observation.lines.forEach((line, index) => {
     for (const key of [
       "description",
@@ -396,6 +424,7 @@ export function normalizeReceiptObservation(
   return {
     schema_version: 1,
     provider: "gemini",
+    receipt_type: receiptType,
     document_kind: observation.document_kind,
     vendor,
     purchase_date: purchaseDate,

@@ -140,22 +140,19 @@ test("newest-first inbox exposes history and status views and required row evide
     "$128.45",
     "Worker a2700000",
     "#14 · Orchard House",
-    "Low",
+    "Debit",
   ])
     await expect(rows.nth(0)).toContainText(evidence);
   await expect(rows.nth(1)).toContainText("Northgate Tools");
-  for (const evidence of [
-    "Vendor unavailable",
-    "Total unavailable",
-    "No suggestion yet",
-    "Unavailable",
-  ])
+  for (const evidence of ["Vendor unavailable", "Total unavailable", "No suggestion yet", "Debit"])
     await expect(rows.nth(2)).toContainText(evidence);
   await expect(rows.nth(0).getByRole("img", { name: "Receipt first page" })).toBeVisible();
   await expect(rows.nth(0).locator("time")).toHaveAttribute("datetime", RECEIPTS[0].submittedAt);
+  await expect(page.getByRole("columnheader", { name: "Receipt type", exact: true })).toBeVisible();
   await expect(
-    rows.nth(0).getByRole("button", { name: /warnings for Copperfield Supply/ }),
-  ).toBeVisible();
+    page.getByRole("columnheader", { name: "Field confidence", exact: true }),
+  ).toHaveCount(0);
+  await expect(page.getByRole("columnheader", { name: "Signals", exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: /approve/i })).toHaveCount(0);
   await page.screenshot({ path: test.info().outputPath("manager-desktop.png"), fullPage: true });
 });
@@ -482,7 +479,9 @@ test("receipt summaries open by keyboard, contain evidence, and remain read only
   await page.keyboard.press("Escape");
   await expect(dialog).not.toBeVisible();
   await expect(opener).toBeFocused();
-  await page.getByRole("button", { name: /warnings for Copperfield Supply/ }).click();
+  await page
+    .getByRole("button", { name: "Open receipt summary for Copperfield Supply", exact: true })
+    .click();
   await expect(dialog).toBeVisible();
   await dialog.getByRole("button", { name: "Back to queue" }).click();
   await expect(dialog).not.toBeVisible();
@@ -596,4 +595,30 @@ test("narrow screens keep navigation, filtering and receipt summary usable", asy
     true,
   );
   await page.getByRole("button", { name: "Close receipt summary" }).click();
+});
+
+test("queue shows Credit or Debit and keeps confidence and signals inside the receipt summary", async ({
+  page,
+}) => {
+  await routeQueue(page, (route) =>
+    fulfillQueue(route, [{ ...RECEIPTS[0], receiptType: "credit" }]),
+  );
+  await page.goto("/");
+  await expect(page.getByRole("columnheader", { name: "Receipt type", exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("columnheader", { name: "Field confidence", exact: true }),
+  ).toHaveCount(0);
+  await expect(page.getByRole("columnheader", { name: "Signals", exact: true })).toHaveCount(0);
+  await expect(page.locator("tbody tr").first()).toContainText("Credit");
+  await expect(page.locator("tbody tr").first()).toContainText("-$128.45");
+  await page.screenshot({
+    path: test.info().outputPath("credit-queue-desktop.png"),
+    fullPage: true,
+  });
+  await page
+    .getByRole("button", { name: "Open receipt summary for Copperfield Supply", exact: true })
+    .click();
+  await expect(page.getByRole("dialog")).toContainText("Field confidence");
+  await expect(page.getByRole("dialog")).toContainText("Low confidence");
+  await expect(page.getByRole("dialog")).toContainText("Low extraction confidence");
 });

@@ -25,6 +25,19 @@ const draft: ReviewDraft = {
   lines: [line],
 };
 describe("review money and validation", () => {
+  it("applies credit direction once while keeping entered values and quantities unchanged", () => {
+    const credit = {
+      ...draft,
+      receiptType: "credit" as const,
+      lines: [{ ...line, qty: "1.5", unitCost: "2.51" }],
+    };
+    expect(validateReview(credit, true)).toEqual({});
+    expect(reviewSummary(credit).totalCents).toBe(-377);
+    expect(lineCostCents({ ...line, qty: "1.5", unitCost: "2.51" }, "credit")).toBe(-377);
+    expect(credit.lines[0]?.unitCost).toBe("2.51");
+    expect(reviewSummary({ ...credit, receiptType: "debit" }).totalCents).toBe(377);
+    expect(validateReview({ ...credit, receiptType: "" }, true).receiptType).toBeTruthy();
+  });
   it("retains three-decimal evidence in a draft but blocks approval without rounding", () => {
     expect(validateReview(draft)).toEqual({});
     expect(validateReview(draft, true)["lines.0.qty"]).toContain("will not be rounded");

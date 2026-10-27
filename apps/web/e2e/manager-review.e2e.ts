@@ -1098,3 +1098,43 @@ test("continues pending approved steps while preserving successful Housecall wor
   expect(requests).toEqual(["POST"]);
   expect(state.requests).toEqual([]);
 });
+
+test("credit type persists and approval clearly shows a negative Housecall total", async ({
+  page,
+}) => {
+  const state = await setup(page);
+  await page.getByLabel("Quantity", { exact: true }).first().fill("1.5");
+  await page.getByLabel("Unit cost", { exact: true }).first().fill("2.51");
+  await page.getByRole("combobox", { name: "Receipt type *", exact: true }).selectOption("credit");
+  await expect(page.getByRole("status", { name: "Material 1 extended cost" })).toHaveText("-$3.77");
+  await page.getByRole("button", { name: "Save for later", exact: true }).click();
+  await expect(page.getByText("Draft saved.", { exact: true })).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole("combobox", { name: "Receipt type *", exact: true })).toHaveValue(
+    "credit",
+  );
+  await page.getByRole("button", { name: "Approve receipt", exact: true }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toContainText("-$10.27");
+  await expect(dialog).toContainText("reduces Housecall job costs");
+  await page.screenshot({ path: test.info().outputPath("credit-approval.png"), fullPage: true });
+  await dialog.getByRole("checkbox").check();
+  await dialog.getByRole("button", { name: "Approve receipt", exact: true }).click();
+  await expect.poll(() => state.requests.length).toBe(2);
+  expect(state.requests[1]).toMatchObject({
+    decision: "approve",
+    draft: { receiptType: "credit", lines: [{ qty: "1.5", unitCost: "2.51" }, {}] },
+  });
+});
+
+test("uncertain receipt direction requires a manager choice before approval", async ({ page }) => {
+  const state = await setup(page);
+  state.detail.draft.receiptType = "";
+  state.detail.draft.lines[0].qty = "1";
+  await page.reload();
+  await page.getByRole("button", { name: "Approve receipt", exact: true }).click();
+  await expect(
+    page.getByText("Choose Credit or Debit before approval.", { exact: true }),
+  ).toBeVisible();
+  expect(state.requests).toEqual([]);
+});

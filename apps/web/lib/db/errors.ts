@@ -2,6 +2,12 @@ import { HttpError } from "@/lib/http";
 
 export function rpcHttpError(error: { message?: string } | null | undefined): HttpError {
   const message = error?.message ?? "";
+  if (message === "invalid_request_receipt_type")
+    return new HttpError(
+      400,
+      "invalid_request",
+      "Choose Credit or Debit before approval. Approval was not saved.",
+    );
   if (message === "invalid_request_material_required")
     return new HttpError(
       400,
