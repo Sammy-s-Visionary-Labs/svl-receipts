@@ -14,7 +14,7 @@ const RECEIPTS: QueueReceipt[] = [
     id: "b2700000-0000-4000-8000-000000000001",
     status: "needs_review",
     submittedAt: "2026-09-01T10:00:00.000Z",
-    submitter: { id: FIXTURE_USERS.worker.id, label: "Worker a2700000" },
+    submitter: { id: FIXTURE_USERS.worker.id, label: "Marcy Kuehnle" },
     vendor: "Copperfield Supply",
     reference: "INV-1042",
     referenceTotalCents: 12845,
@@ -32,7 +32,7 @@ const RECEIPTS: QueueReceipt[] = [
     id: "b2700000-0000-4000-8000-000000000002",
     status: "needs_review",
     submittedAt: "2026-09-02T13:00:00.000Z",
-    submitter: { id: "a2700000-0000-4000-8000-000000000005", label: "Worker b2800000" },
+    submitter: { id: "a2700000-0000-4000-8000-000000000005", label: "Email" },
     vendor: "Northgate Tools",
     reference: "TICKET-201",
     referenceTotalCents: 4599,
@@ -50,7 +50,7 @@ const RECEIPTS: QueueReceipt[] = [
     id: "b2700000-0000-4000-8000-000000000003",
     status: "needs_review",
     submittedAt: "2026-09-03T15:30:00.000Z",
-    submitter: { id: FIXTURE_USERS.worker.id, label: "Worker a2700000" },
+    submitter: { id: FIXTURE_USERS.worker.id, label: "Marcy Kuehnle" },
     vendor: null,
     reference: null,
     referenceTotalCents: null,
@@ -138,7 +138,7 @@ test("newest-first inbox exposes history and status views and required row evide
     "Copperfield Supply",
     "INV-1042",
     "$128.45",
-    "Worker a2700000",
+    "Marcy Kuehnle",
     "#14 · Orchard House",
     "Debit",
   ])
@@ -147,7 +147,16 @@ test("newest-first inbox exposes history and status views and required row evide
   for (const evidence of ["Vendor unavailable", "Total unavailable", "No suggestion yet", "Debit"])
     await expect(rows.nth(2)).toContainText(evidence);
   await expect(rows.nth(0).getByRole("img", { name: "Receipt first page" })).toBeVisible();
-  await expect(rows.nth(0).locator("time")).toHaveAttribute("datetime", RECEIPTS[0].submittedAt);
+  await expect(rows.nth(0).locator("time").first()).toHaveAttribute(
+    "datetime",
+    RECEIPTS[0].submittedAt,
+  );
+  await expect(rows.nth(0).locator('td[data-label="Age"]')).toContainText("Sep 1, 2026");
+  await expect(rows.nth(0).getByText("Debit", { exact: true })).toHaveCSS(
+    "color",
+    "rgb(180, 35, 24)",
+  );
+  await expect(rows.nth(1).locator('td[data-label="Submitted by"]')).toContainText("Email");
   await expect(page.getByRole("columnheader", { name: "Receipt type", exact: true })).toBeVisible();
   await expect(
     page.getByRole("columnheader", { name: "Field confidence", exact: true }),
@@ -610,6 +619,10 @@ test("queue shows Credit or Debit and keeps confidence and signals inside the re
   ).toHaveCount(0);
   await expect(page.getByRole("columnheader", { name: "Signals", exact: true })).toHaveCount(0);
   await expect(page.locator("tbody tr").first()).toContainText("Credit");
+  await expect(page.locator("tbody tr").first().getByText("Credit", { exact: true })).toHaveCSS(
+    "color",
+    "rgb(24, 121, 78)",
+  );
   await expect(page.locator("tbody tr").first()).toContainText("-$128.45");
   await page.screenshot({
     path: test.info().outputPath("credit-queue-desktop.png"),

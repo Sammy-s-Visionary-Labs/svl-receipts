@@ -166,7 +166,7 @@ export function normalizeQueueRow(value: Record<string, unknown>): QueueReceipt 
           : "debit",
     status: value.status,
     submittedAt: value.submittedAt,
-    submitter: { id: value.submitterId, label: `Worker ${value.submitterId.slice(0, 8)}` },
+    submitter: { id: value.submitterId, label: "Name unavailable" },
     vendor: nullableText(value.vendor),
     reference: nullableText(value.reference),
     referenceTotalCents:

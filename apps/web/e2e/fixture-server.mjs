@@ -1,6 +1,11 @@
 import { createServer } from "node:http";
 import { fieldQueueRows, handleFieldFixture } from "./field-fixture.mjs";
-import { fixtureSession, fixtureUser, profileFromAuthorization } from "./fixture-auth.mjs";
+import {
+  FIXTURE_USERS,
+  fixtureSession,
+  fixtureUser,
+  profileFromAuthorization,
+} from "./fixture-auth.mjs";
 
 const port = Number(process.env.RA27_E2E_AUTH_PORT ?? 54877);
 
@@ -38,9 +43,20 @@ const server = createServer(async (request, response) => {
   if (url.pathname === "/auth/v1/user") return send(200, fixtureUser(profile.id));
   if (url.pathname === "/rest/v1/profiles") {
     const selectedId = url.searchParams.get("id");
+    if (url.searchParams.get("select") === "id,full_name" && selectedId?.startsWith("in.(")) {
+      const ids = new Set(selectedId.slice(4, -1).split(","));
+      return send(
+        200,
+        Object.values(FIXTURE_USERS)
+          .filter((user) => ids.has(user.id))
+          .map((user) => ({ id: user.id, full_name: `Synthetic ${user.role}` })),
+      );
+    }
     if (selectedId && selectedId !== `eq.${profile.id}`) return send(200, null);
     return send(200, { ...profile, access_status: "approved" });
   }
+  if (url.pathname === "/rest/v1/email_receipt_documents" && request.method === "GET")
+    return send(200, []);
   if (url.pathname === "/rest/v1/email_importer_health" && request.method === "GET")
     return send(200, null);
   if (url.pathname === "/rest/v1/email_receipt_imports" && request.method === "GET")

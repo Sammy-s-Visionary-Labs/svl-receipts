@@ -6,6 +6,7 @@
 **/.expo
 **/test-results
 **/playwright-report
+supabase/.temp
 apps/mobile/android
 apps/mobile/ios
 fixtures

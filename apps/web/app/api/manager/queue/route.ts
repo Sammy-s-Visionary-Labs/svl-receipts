@@ -26,6 +26,32 @@ export async function GET(request: Request) {
     if (!Array.isArray(data)) throw new Error("Invalid manager queue response");
     const hasMore = data.length > parsed.filters.limit;
     const receipts = data.slice(0, parsed.filters.limit).map(normalizeQueueRow);
+    if (receipts.length) {
+      const [profiles, emailDocuments] = await Promise.all([
+        supabase
+          .from("profiles")
+          .select("id,full_name")
+          .in("id", [...new Set(receipts.map((receipt) => receipt.submitter.id))]),
+        supabase
+          .from("email_receipt_documents")
+          .select("receipt_id")
+          .in(
+            "receipt_id",
+            receipts.map((receipt) => receipt.id),
+          ),
+      ]);
+      if (profiles.error || emailDocuments.error)
+        throw new Error("Manager queue submitter query failed");
+      const names = new Map(
+        (profiles.data ?? []).map((profile) => [profile.id, profile.full_name?.trim()]),
+      );
+      const emailed = new Set((emailDocuments.data ?? []).map((document) => document.receipt_id));
+      for (const receipt of receipts) {
+        receipt.submitter.label = emailed.has(receipt.id)
+          ? "Email"
+          : names.get(receipt.submitter.id) || "Name unavailable";
+      }
+    }
     const last = receipts.at(-1);
     const body: QueueResponse = {
       receipts,

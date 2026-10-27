@@ -543,7 +543,7 @@ function QueueFiltersPanel({
     receipts.map((receipt) => [receipt.submitter.id, receipt.submitter.label]),
   );
   if (draft.submitter && !submitters.has(draft.submitter))
-    submitters.set(draft.submitter, `Worker ${draft.submitter.slice(0, 8)}`);
+    submitters.set(draft.submitter, "Selected submitter");
   const field = <K extends keyof QueueFilters>(key: K, value: QueueFilters[K]) =>
     setDraft((previous) => ({ ...previous, [key]: value }));
   return (
@@ -761,6 +761,13 @@ function ReceiptRow({
         >
           {receiptAge(receipt.submittedAt, asOf)}
         </time>
+        <time className={styles.submittedDate} dateTime={receipt.submittedAt}>
+          {new Date(receipt.submittedAt).toLocaleDateString("en-US", {
+            month: "short",
+            day: "numeric",
+            year: "numeric",
+          })}
+        </time>
       </td>
       <td data-label="Job assignment / suggestion">
         <span className={receipt.suggestedJob ? styles.jobLabel : styles.unavailable}>
@@ -779,7 +786,17 @@ function ReceiptRow({
         </span>
       </td>
       <td data-label="Receipt type">
-        <strong>{receiptTypeLabel(receipt.receiptType)}</strong>
+        <strong
+          className={
+            receipt.receiptType === "credit"
+              ? styles.creditType
+              : receipt.receiptType === ""
+                ? undefined
+                : styles.debitType
+          }
+        >
+          {receiptTypeLabel(receipt.receiptType)}
+        </strong>
       </td>
       <td className={styles.openCell}>
         <button

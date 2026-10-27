@@ -30,15 +30,25 @@ const row = {
 };
 const request = (query = "") => new Request(`http://localhost/api/manager/queue${query}`);
 const rpc = vi.fn();
+const profilesIn = vi.fn();
+const emailDocumentsIn = vi.fn();
+const from = vi.fn((table: string) => ({
+  select: vi.fn(() => ({ in: table === "profiles" ? profilesIn : emailDocumentsIn })),
+}));
 
 describe("manager review queue API", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(requireManager).mockResolvedValue({
       actor: { userId: owner, role: "manager", disabled: false },
-      supabase: { rpc },
+      supabase: { rpc, from },
     } as never);
     rpc.mockResolvedValue({ data: [row], error: null });
+    profilesIn.mockResolvedValue({
+      data: [{ id: owner, full_name: "Marcy Kuehnle" }],
+      error: null,
+    });
+    emailDocumentsIn.mockResolvedValue({ data: [], error: null });
   });
 
   it.each([
@@ -85,13 +95,40 @@ describe("manager review queue API", () => {
     expect(body.nextCursor).toBeNull();
     expect(body.receipts[0]).toMatchObject({
       id,
-      submitter: { id: owner, label: "Worker 22222222" },
+      submitter: { id: owner, label: "Marcy Kuehnle" },
       thumbnailUrl: `/api/manager/receipts/${id}/thumbnail`,
       confidence: 0.7,
     });
     expect(JSON.stringify(body)).not.toMatch(
       /secret-path|private raw data|private notes|storage_key|hasThumbnail/,
     );
+  });
+
+  it("labels each emailed receipt Email even when its owner has a name", async () => {
+    const emailReceipt = "11111111-1111-4111-8111-111111111112";
+    rpc.mockResolvedValue({ data: [row, { ...row, id: emailReceipt }], error: null });
+    emailDocumentsIn.mockResolvedValue({ data: [{ receipt_id: emailReceipt }], error: null });
+    const body = await (await GET(request())).json();
+    expect(
+      body.receipts.map((receipt: { submitter: { label: string } }) => receipt.submitter.label),
+    ).toEqual(["Marcy Kuehnle", "Email"]);
+    expect(profilesIn).toHaveBeenCalledWith("id", [owner]);
+    expect(emailDocumentsIn).toHaveBeenCalledWith("receipt_id", [id, emailReceipt]);
+  });
+
+  it("uses an honest fallback when an account has no saved name", async () => {
+    profilesIn.mockResolvedValue({ data: [{ id: owner, full_name: "  " }], error: null });
+    const body = await (await GET(request())).json();
+    expect(body.receipts[0].submitter).toEqual({ id: owner, label: "Name unavailable" });
+  });
+
+  it("does not return misleading submitters when the source lookup fails", async () => {
+    emailDocumentsIn.mockResolvedValue({ data: null, error: { message: "private source error" } });
+    const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const response = await GET(request());
+    expect(response.status).toBe(500);
+    expect(await response.text()).not.toContain("private source error");
+    log.mockRestore();
   });
 
   it("returns bounded pages and preserves microsecond timestamp/UUID cursor ties", async () => {

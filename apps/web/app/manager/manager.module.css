@@ -99,9 +99,9 @@
 .receiptTable th { text-align: left; background: #f7f8f3; padding: 12px 13px; font-size: 9px; font-weight: 500; color: #858e7c; white-space: nowrap; border-top: 1px solid #eceee7; border-bottom: 1px solid #eceee7; }
 .receiptTable th:first-child { padding-left: 23px; width: 25%; }
 .receiptTable th:nth-child(2) { width: 15%; }
-.receiptTable th:nth-child(3) { width: 9%; }
+.receiptTable th:nth-child(3) { width: 12%; }
 .receiptTable th:nth-child(4) { width: 23%; }
-.receiptTable th:nth-child(5) { width: 17%; }
+.receiptTable th:nth-child(5) { width: 14%; }
 .receiptTable th:nth-child(6) { width: 4%; }
 
 .receiptTable td { padding: 21px 13px; border-bottom: 1px solid #eef0e8; vertical-align: middle; overflow-wrap: anywhere; }
@@ -122,6 +122,9 @@
 .jobLabel { color: #56624c; line-height: 1.5; }
 .unavailable { color: #89947c; font-size: 10px; }
 .oldAge { color: #9c7b45; }
+.submittedDate { display: block; margin-top: 5px; color: #65715e; font-size: 12px; line-height: 1.5; }
+.debitType { color: #b42318; }
+.creditType { color: #18794e; }
 .confidenceBadge { display: inline-flex; align-items: center; gap: 5px; font-size: 9px; padding: 4px 6px; border-radius: 4px; white-space: nowrap; }
 .confidenceBadge > span:first-child { width: 4px; height: 4px; border-radius: 50%; background: currentColor; }
 .confidenceHigh { background: #eff4e8; color: #64804c; }
