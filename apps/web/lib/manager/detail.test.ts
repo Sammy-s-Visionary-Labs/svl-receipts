@@ -13,8 +13,26 @@ const intent = {
   job_cost_lines: [{ job_id: "job", receipt_line_id: "line" }],
 };
 describe("manager detail normalization", () => {
-  it("populates credit/debit choices without treating unknown extraction as a debit", () => {
-    expect(extractionDraft({ normalized: { receipt_type: "credit" } }).receiptType).toBe("credit");
+  it.each(["debit", "credit"] as const)(
+    "retains an explicit %s type from a fresh extraction",
+    (receiptType) => {
+      expect(
+        extractionDraft({
+          id: "fresh-extraction",
+          normalized: { receipt_type: receiptType },
+          vendor: "Synthetic supply",
+          receipt_total_cents: 8500,
+          lines: [{ description: "Cap", qty: 1, unit_cost_cents: 8500 }],
+        }),
+      ).toMatchObject({
+        receiptType,
+        vendor: "Synthetic supply",
+        referenceTotal: "85.00",
+        lines: [{ qty: "1", unitCost: "85.00" }],
+      });
+    },
+  );
+  it("requires review for unknown or missing extraction types instead of inferring debit", () => {
     expect(extractionDraft({ normalized: { receipt_type: "unknown" } }).receiptType).toBe("");
     expect(extractionDraft({}).receiptType).toBe("");
     expect(extractionDraft(null).receiptType).toBe("");

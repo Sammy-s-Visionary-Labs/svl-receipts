@@ -8,14 +8,9 @@ const amount = (v: unknown) =>
   typeof v === "number" && Number.isFinite(v) ? (v / 100).toFixed(2) : "";
 export function extractionDraft(row: Row | null): ReviewDraft {
   if (!row) return { ...EMPTY_REVIEW, receiptType: "", lines: [] };
+  const receiptType = (row.normalized as Row | undefined)?.receipt_type;
   return {
-    receiptType:
-      (row.normalized as Row | undefined)?.receipt_type === "credit"
-        ? "credit"
-        : (row.normalized as Row | undefined)?.receipt_type !== undefined &&
-            (row.normalized as Row | undefined)?.receipt_type !== "debit"
-          ? ""
-          : "",
+    receiptType: receiptType === "credit" || receiptType === "debit" ? receiptType : "",
     vendor: textValue(row.vendor),
     purchaseDate: textValue(row.purchase_date),
     invoiceNumber: textValue(row.invoice_number),
