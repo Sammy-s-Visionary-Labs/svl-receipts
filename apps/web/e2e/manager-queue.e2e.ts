@@ -12,6 +12,7 @@ const AS_OF = "2026-09-07T12:00:00.000Z";
 const RECEIPTS: QueueReceipt[] = [
   {
     id: "b2700000-0000-4000-8000-000000000001",
+    receiptType: "debit",
     status: "needs_review",
     submittedAt: "2026-09-01T10:00:00.000Z",
     submitter: { id: FIXTURE_USERS.worker.id, label: "Marcy Kuehnle" },
@@ -30,6 +31,7 @@ const RECEIPTS: QueueReceipt[] = [
   },
   {
     id: "b2700000-0000-4000-8000-000000000002",
+    receiptType: "debit",
     status: "needs_review",
     submittedAt: "2026-09-02T13:00:00.000Z",
     submitter: { id: "a2700000-0000-4000-8000-000000000005", label: "Email" },
@@ -48,6 +50,7 @@ const RECEIPTS: QueueReceipt[] = [
   },
   {
     id: "b2700000-0000-4000-8000-000000000003",
+    receiptType: "debit",
     status: "needs_review",
     submittedAt: "2026-09-03T15:30:00.000Z",
     submitter: { id: FIXTURE_USERS.worker.id, label: "Marcy Kuehnle" },

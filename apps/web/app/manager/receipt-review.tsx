@@ -770,6 +770,7 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
                   <label htmlFor="receipt-type">Receipt type *</label>
                   <select
                     id="receipt-type"
+                    data-receipt-type={draft.receiptType ?? "debit"}
                     value={draft.receiptType ?? "debit"}
                     disabled={!editable || busy}
                     aria-invalid={!!errors.receiptType}
@@ -793,8 +794,8 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
                     {draft.receiptType === ""
                       ? "Choose Credit or Debit before approving this receipt."
                       : draft.receiptType === "credit"
-                        ? "Credit: enter the amount to credit as a positive value. Approval sends negative material costs to reduce the selected Housecall job totals."
-                        : "Debit: approval adds material costs to the selected Housecall job totals."}
+                        ? "Credit is the default for materials. Enter costs as positive amounts; Credit lines reduce Housecall job costs. You can override each material below."
+                        : "Debit is the default for materials. Debit lines add to Housecall job costs; individual materials can be changed to Credit below."}
                   </p>
                 </div>
                 <p>
@@ -970,6 +971,35 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
                           </div>
                         ))}
                       <div className={styles.lineFields}>
+                        <div className={styles.full}>
+                          <label htmlFor={`line-${index}-type`}>Material type</label>
+                          <select
+                            id={`line-${index}-type`}
+                            data-receipt-type={line.receiptType ?? draft.receiptType ?? "debit"}
+                            value={line.receiptType ?? "inherit"}
+                            aria-invalid={!!errors[`lines.${index}.receiptType`]}
+                            onChange={(event) =>
+                              updateLine(index, {
+                                receiptType:
+                                  event.target.value === "inherit"
+                                    ? undefined
+                                    : (event.target.value as ReviewDraft["receiptType"]),
+                              })
+                            }
+                          >
+                            <option value="inherit">
+                              Use receipt type ({receiptTypeLabel(draft.receiptType)})
+                            </option>
+                            <option value="debit">Debit — purchase / charge</option>
+                            <option value="credit">Credit — return / refund</option>
+                            {line.receiptType === "" && <option value="">Choose a type</option>}
+                          </select>
+                          {errors[`lines.${index}.receiptType`] && (
+                            <small className={styles.fieldError}>
+                              {errors[`lines.${index}.receiptType`]}
+                            </small>
+                          )}
+                        </div>
                         {(Object.keys(lineLabels) as Array<keyof typeof lineLabels>).map((key) => (
                           <div key={key}>
                             <label htmlFor={`line-${index}-${key}`}>{lineLabels[key]}</label>
@@ -1388,10 +1418,8 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
                     </p>
                   )}
                   <p>
-                    {receiptTypeLabel(draft.receiptType)}
-                    {draft.receiptType === "credit"
-                      ? ": the negative total below reduces Housecall job costs."
-                      : ": this amount adds to Housecall job costs."}
+                    Receipt default: {receiptTypeLabel(draft.receiptType)}. Each material's selected
+                    type determines whether its cost adds to or reduces Housecall job costs.
                   </p>
                   <ul>
                     {summary?.jobs.map((job) => (

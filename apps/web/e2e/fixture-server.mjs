@@ -36,8 +36,22 @@ const server = createServer(async (request, response) => {
     return send(400, { error_code: "invalid_credentials", msg: "Invalid test credentials" });
   }
   const profile = profileFromAuthorization(request.headers.authorization);
+  if (
+    url.pathname === "/rest/v1/rpc/receipt_type_classification_status" &&
+    request.headers.authorization === "Bearer sb_secret_ra27_browser_fixture_only"
+  )
+    return send(200, {
+      total: 0,
+      completed: 0,
+      credit: 0,
+      debit: 0,
+      unknown: 0,
+      remaining: 0,
+      failed: 0,
+    });
   if (await handleFieldFixture(request, response, url, profile, send)) return;
   if (!profile) return send(401, { code: "bad_jwt", message: "Fixture sign in required" });
+  if (url.pathname === "/rest/v1/receipt_type_classifications") return send(200, []);
   if (url.pathname === "/auth/v1/logout") return send(204, null);
 
   if (url.pathname === "/auth/v1/user") return send(200, fixtureUser(profile.id));

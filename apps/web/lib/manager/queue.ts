@@ -159,11 +159,7 @@ export function normalizeQueueRow(value: Record<string, unknown>): QueueReceipt 
   return {
     id: value.id,
     receiptType:
-      value.receiptType === "credit"
-        ? "credit"
-        : value.receiptType === "unknown" || value.receiptType === ""
-          ? ""
-          : "debit",
+      value.receiptType === "credit" ? "credit" : value.receiptType === "debit" ? "debit" : "",
     status: value.status,
     submittedAt: value.submittedAt,
     submitter: { id: value.submitterId, label: "Name unavailable" },

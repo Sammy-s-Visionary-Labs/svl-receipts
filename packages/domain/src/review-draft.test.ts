@@ -25,6 +25,27 @@ const draft: ReviewDraft = {
   lines: [line],
 };
 describe("review money and validation", () => {
+  it("saves individual material directions, including positive lines on a credit receipt", () => {
+    const mixed: ReviewDraft = {
+      ...draft,
+      receiptType: "credit",
+      lines: [
+        { ...line, receiptType: "debit", qty: "2", unitCost: "5.00" },
+        { ...line, qty: "1", unitCost: "2.50" },
+      ],
+    };
+    expect(validateReview(mixed, true)).toEqual({});
+    expect(reviewSummary(mixed).totalCents).toBe(750);
+    expect(lineCostCents(mixed.lines[0] as ReviewLine, mixed.receiptType)).toBe(1000);
+    expect(lineCostCents(mixed.lines[1] as ReviewLine, mixed.receiptType)).toBe(-250);
+    expect(reviewSummary({ ...mixed, receiptType: "debit" }).totalCents).toBe(1250);
+    expect(
+      validateReview(
+        { ...mixed, lines: [{ ...(mixed.lines[0] as ReviewLine), receiptType: "" }] },
+        true,
+      )["lines.0.receiptType"],
+    ).toBeTruthy();
+  });
   it("applies credit direction once while keeping entered values and quantities unchanged", () => {
     const credit = {
       ...draft,

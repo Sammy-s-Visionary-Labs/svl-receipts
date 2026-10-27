@@ -26,6 +26,8 @@
 .form,.section { padding:24px; background:#fffef9; border:1px solid #d9dfd4; border-radius:12px; }
 .fields,.lineFields { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
 .full { grid-column:1/-1; }
+.main select[data-receipt-type="credit"] { color:#18794e; }
+.main select[data-receipt-type="debit"] { color:#b42318; }
 .sectionHeading { display:flex; justify-content:space-between; gap:10px; margin-top:32px; }
 .sectionHeading span { font-size:13px; }
 .jobSearch { border:1px solid #d9dfd4; padding:12px; border-radius:8px; margin-bottom:15px; }

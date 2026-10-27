@@ -1138,3 +1138,34 @@ test("uncertain receipt direction requires a manager choice before approval", as
   ).toBeVisible();
   expect(state.requests).toEqual([]);
 });
+
+test("individual material Credit and Debit overrides persist and produce a mixed signed total", async ({
+  page,
+}) => {
+  const state = await setup(page);
+  await page.getByLabel("Quantity", { exact: true }).first().fill("1");
+  await page.getByLabel("Unit cost", { exact: true }).first().fill("10.00");
+  await page.getByRole("combobox", { name: "Receipt type *", exact: true }).selectOption("credit");
+  await page.getByLabel("Material type", { exact: true }).first().selectOption("debit");
+  await page.getByLabel("Material type", { exact: true }).nth(1).selectOption("credit");
+  await expect(page.getByRole("status", { name: "Material 1 extended cost" })).toHaveText("$10.00");
+  await expect(page.getByRole("status", { name: "Material 2 extended cost" })).toHaveText("-$6.50");
+  await page.getByRole("button", { name: "Save for later", exact: true }).click();
+  await expect(page.getByText("Draft saved.", { exact: true })).toBeVisible();
+  await page.reload();
+  await expect(page.getByLabel("Material type", { exact: true }).first()).toHaveValue("debit");
+  await expect(page.getByLabel("Material type", { exact: true }).nth(1)).toHaveValue("credit");
+  await page.screenshot({
+    path: test.info().outputPath("mixed-material-editor.png"),
+    fullPage: true,
+  });
+  await page.getByRole("button", { name: "Approve receipt", exact: true }).click();
+  await expect(page.getByRole("dialog")).toContainText("$3.50");
+  await page.screenshot({
+    path: test.info().outputPath("mixed-material-types.png"),
+    fullPage: true,
+  });
+  expect(state.requests[0]).toMatchObject({
+    draft: { receiptType: "credit", lines: [{ receiptType: "debit" }, { receiptType: "credit" }] },
+  });
+});

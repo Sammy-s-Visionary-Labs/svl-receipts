@@ -1,6 +1,8 @@
 import { type ReceiptTypeSelection, receiptDirection } from "./receipt-type";
 /** RA-4 review snapshots. Empty fields are allowed in drafts; approval is strict. */
 export type ReviewLine = {
+  /** Omitted means inherit the receipt type; blank requires a decision. */
+  receiptType?: ReceiptTypeSelection;
   id?: string;
   sourceIndex?: number;
   description: string;
@@ -48,7 +50,7 @@ export function lineCostCents(line: ReviewLine, receiptType?: ReceiptTypeSelecti
   return cents <= BigInt(2147483647)
     ? cents === BigInt(0)
       ? 0
-      : receiptDirection(receiptType) * Number(cents)
+      : receiptDirection(line.receiptType ?? receiptType) * Number(cents)
     : null;
 }
 export function validateReview(draft: ReviewDraft, approval = false): ReviewErrors {
@@ -78,6 +80,10 @@ export function validateReview(draft: ReviewDraft, approval = false): ReviewErro
   let total = 0;
   draft.lines.forEach((line, index) => {
     const key = `lines.${index}`;
+    if (line.receiptType !== undefined && !["credit", "debit", ""].includes(line.receiptType))
+      errors[`${key}.receiptType`] = "Choose Credit, Debit, or the receipt default.";
+    if (approval && decimalUnits(line.qty, 3) !== 0 && line.receiptType === "")
+      errors[`${key}.receiptType`] = "Choose a type for this material before approval.";
     if (approval && !line.description.trim()) errors[`${key}.description`] = "Enter a description.";
     if ((approval || line.qty) && decimalUnits(line.qty, 3) === null)
       errors[`${key}.qty`] = "Use a nonnegative quantity with up to three decimal places.";
@@ -105,7 +111,7 @@ export function validateReview(draft: ReviewDraft, approval = false): ReviewErro
       errors[`${key}.unitCost`] = "Extended cost is too large.";
     if (approval && decimalUnits(line.qty, 3) !== 0 && !line.jobId.trim())
       errors[`${key}.jobId`] = "Choose a Housecall job. Overhead is not enabled.";
-    total += lineCostCents(line) ?? 0;
+    total += Math.abs(lineCostCents(line) ?? 0);
   });
   if (total > 2147483647) errors.lines = "The material total is too large.";
   return errors;

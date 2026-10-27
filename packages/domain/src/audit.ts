@@ -2,6 +2,7 @@
 
 export const AUDIT_ACTIONS = [
   "receipt_created",
+  "receipt_type_classified",
   "receipt_status_changed",
   "review_recorded",
   "receipt_approved",

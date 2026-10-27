@@ -60,6 +60,26 @@ beforeEach(() => {
   } as never);
 });
 describe("manager receipt detail API", () => {
+  it("uses a backfilled type without replacing saved manager edits or explicit choices", async () => {
+    rows.receipt_type_classifications = { receipt_type: "credit", source_extraction_id: "e" };
+    rows.reviews = [
+      {
+        snapshot: { vendor: "Manager edit", lines: [], managerNotes: "Keep this note" },
+        extraction_id: "e",
+      },
+    ];
+    let body = await (await run()).json();
+    expect(body.draft).toMatchObject({
+      vendor: "Manager edit",
+      managerNotes: "Keep this note",
+      receiptType: "credit",
+    });
+    rows.reviews = [
+      { snapshot: { vendor: "Manager edit", lines: [], receiptType: "debit" }, extraction_id: "e" },
+    ];
+    body = await (await run()).json();
+    expect(body.draft.receiptType).toBe("debit");
+  });
   function freshMatchedExtraction() {
     rows.extractions = [
       {

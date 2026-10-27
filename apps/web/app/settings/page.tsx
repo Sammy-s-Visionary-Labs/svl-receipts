@@ -8,6 +8,7 @@ import { ManagerShell } from "../manager/shell";
 import { CategorySettings } from "./categories";
 import { EmailSettings } from "./email";
 import { HousecallSettings } from "./housecall";
+import { ReceiptTypeSettings } from "./receipt-types";
 
 export const dynamic = "force-dynamic";
 
@@ -48,6 +49,7 @@ export default async function SettingsPage() {
             Return to inbox <Icon name="arrow" size={16} />
           </Link>
         </section>
+        <ReceiptTypeSettings />
         <EmailSettings />
         <CategorySettings />
         <HousecallSettings />

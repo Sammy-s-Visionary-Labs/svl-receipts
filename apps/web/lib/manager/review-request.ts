@@ -31,6 +31,9 @@ export function parseDraft(value: unknown): ReviewDraft {
       const suggestionId = l.suggestionId === undefined ? undefined : string(l.suggestionId, 36);
       if (suggestionId && !UUID.test(suggestionId)) return fail();
       return {
+        ...(l.receiptType !== undefined
+          ? { receiptType: string(l.receiptType, 6) as ReviewDraft["receiptType"] }
+          : {}),
         ...(typeof l.id === "string" && l.id.length <= 80 ? { id: l.id } : {}),
         ...(Number.isInteger(l.sourceIndex) &&
         Number(l.sourceIndex) >= 0 &&

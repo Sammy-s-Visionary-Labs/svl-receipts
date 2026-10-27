@@ -147,21 +147,37 @@ export async function GET(request: Request, context: Context) {
         frozenSteps = currentSteps ?? [];
       }
     }
+    const classificationResult = await supabase
+      .from("receipt_type_classifications")
+      .select("receipt_type,source_extraction_id,source_review_version")
+      .eq("receipt_id", id)
+      .eq("status", "completed")
+      .maybeSingle();
+    if (classificationResult.error) throw classificationResult.error;
+    const classification = classificationResult.data;
     const original = extractionDraft(extraction);
+    if (classification && classification.source_extraction_id === (extraction?.id ?? null))
+      original.receiptType =
+        classification.receipt_type === "unknown" ? "" : classification.receipt_type;
     if (Array.isArray(extraction?.lines) && extraction.lines.length > 100)
       throw new HttpError(
         422,
         "review_limit",
         "This receipt exceeds the 100-line review limit. Ask an administrator to split it before approval.",
       );
-    let savedDraft = review?.snapshot ?? original;
-    let pristineDraft = !review?.snapshot && receipt.review_version === 0;
+    let savedDraft = review?.snapshot
+      ? { ...review.snapshot, receiptType: review.snapshot.receiptType ?? original.receiptType }
+      : original;
+    let pristineDraft =
+      !review?.snapshot &&
+      (receipt.review_version === 0 ||
+        (classification?.source_review_version === 0 && receipt.review_version === 1));
     if (!review?.snapshot) {
       const [patches, legacyLines] = await Promise.all([
         supabase.rpc("manager_legacy_review_edits", { p_receipt_id: id }),
         supabase
           .from("receipt_lines")
-          .select("id,description,qty,uom,unit_cost_cents,job_id")
+          .select("id,description,qty,uom,unit_cost_cents,job_id,receipt_type")
           .eq("receipt_id", id)
           .order("sort_index", { ascending: true })
           .limit(101),
