@@ -12,14 +12,14 @@ export function ManagerShell({
   children,
 }: {
   actorRole: "manager" | "admin";
-  active: "inbox" | "history" | "settings" | "team";
+  active: "inbox" | "history" | "settings" | "team" | "updates";
   reviewCount?: number;
   children: ReactNode;
 }) {
   return (
     <div className={styles.workspace}>
       <a className={styles.skipLink} href="#main-content">
-        Skip to receipts
+        Skip to main content
       </a>
       <aside className={styles.sidebar}>
         <WorkspaceSwitcher
@@ -40,20 +40,12 @@ export function ManagerShell({
         <nav className={styles.navigation} aria-label="Main navigation">
           <Link
             href="/"
-            aria-current={active === "inbox" ? "page" : undefined}
-            className={active === "inbox" ? styles.navActive : undefined}
+            aria-current={active === "inbox" || active === "history" ? "page" : undefined}
+            className={active === "inbox" || active === "history" ? styles.navActive : undefined}
           >
             <Icon name="inbox" />
             <span>Inbox</span>
             {reviewCount !== undefined && <span className={styles.navCount}>{reviewCount}</span>}
-          </Link>
-          <Link
-            href="/?tab=history&sort=newest"
-            aria-current={active === "history" ? "page" : undefined}
-            className={active === "history" ? styles.navActive : undefined}
-          >
-            <Icon name="history" />
-            <span>History</span>
           </Link>
           <Link
             href="/team"
@@ -62,6 +54,14 @@ export function ManagerShell({
           >
             <Icon name="check" />
             <span>Team</span>
+          </Link>
+          <Link
+            href="/updates"
+            aria-current={active === "updates" ? "page" : undefined}
+            className={active === "updates" ? styles.navActive : undefined}
+          >
+            <Icon name="updates" />
+            <span>Updates</span>
           </Link>
           {actorRole === "admin" && (
             <Link
@@ -97,13 +97,15 @@ export function ManagerShell({
           <span>
             Workspace <span className={styles.breadcrumbSlash}>/</span>{" "}
             <strong>
-              {active === "team"
-                ? "Team"
-                : active === "history"
-                  ? "History"
-                  : active === "settings"
-                    ? "Settings"
-                    : "Inbox"}
+              {active === "updates"
+                ? "Updates"
+                : active === "team"
+                  ? "Team"
+                  : active === "history"
+                    ? "History"
+                    : active === "settings"
+                      ? "Settings"
+                      : "Inbox"}
             </strong>
           </span>
           <span className={styles.topbarCaption}>SVL RECEIPTS</span>

@@ -169,7 +169,9 @@ test("newest-first inbox exposes history and status views and required row evide
   await page.screenshot({ path: test.info().outputPath("manager-desktop.png"), fullPage: true });
 });
 
-test("all queue tabs navigate with their status and history navigation works", async ({ page }) => {
+test("all queue tabs navigate with their status and All history remains available", async ({
+  page,
+}) => {
   await routeQueue(page, (route) => fulfillQueue(route));
   await page.goto("/");
   const tabs = page.getByRole("navigation", { name: "Receipt status" });
@@ -189,12 +191,23 @@ test("all queue tabs navigate with their status and history navigation works", a
       "page",
     );
   }
-  await page
-    .getByRole("navigation", { name: "Main navigation" })
-    .getByRole("link", { name: "History" })
-    .click();
+  await expect(
+    page
+      .getByRole("navigation", { name: "Main navigation" })
+      .getByRole("link", { name: "History", exact: true }),
+  ).toHaveCount(0);
+  await tabs.getByRole("link", { name: "All history", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Receipt history" })).toBeVisible();
   await expect(page).toHaveURL(/tab=history/);
+  await expect(tabs.getByRole("link", { name: "All history", exact: true })).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
+  await expect(
+    page
+      .getByRole("navigation", { name: "Main navigation" })
+      .getByRole("link", { name: "Inbox", exact: true }),
+  ).toHaveAttribute("aria-current", "page");
 });
 
 test("filters, search, sort and page size are submitted and clear the cursor", async ({ page }) => {
