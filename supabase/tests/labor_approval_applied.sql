@@ -63,7 +63,7 @@ do $$ declare s jsonb:=pg_temp.snapshot(1); approved jsonb; other jsonb; claim j
  begin perform public.approve_labor_job_hours(s,s::text,repeat('0',64),1,'93000000-0000-4000-8000-000000000001');raise exception 'wrong content hash approved';exception when others then if sqlerrm<>'labor_approval_invalid_snapshot' then raise;end if;end;
  begin perform public.approve_labor_job_hours(s,s::text,pg_catalog.encode(pg_catalog.sha256(pg_catalog.convert_to(s::text,'UTF8')),'hex'),0,'93000000-0000-4000-8000-000000000001');raise exception 'stale preview approved';exception when others then if sqlerrm<>'labor_approval_stale' then raise;end if;end;
  approved:=pg_temp.approve(s);approval_key:=(approved->>'id')::uuid;
- if approved->>'status'<>'approved' or (select count(*) from public.labor_job_hour_attempts)<>0 then raise exception 'approval implicitly sent or claimed';end if;
+ if approved->>'status'<>'approved' or (select count(*) from public.labor_job_hour_attempts where approval_id=approval_key)<>0 then raise exception 'approval implicitly sent or claimed';end if;
  if pg_temp.approve(s)->>'id'<>approval_key::text then raise exception 'approval retry not idempotent';end if;
  if (select count(*) from public.labor_job_hour_reservations where approval_id=approval_key and released_at is null)<>1 then raise exception 'approved interval unreserved';end if;
  other:=jsonb_set(s,'{toDate}','"2026-09-19"');

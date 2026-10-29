@@ -47,6 +47,7 @@ update public.labor_source_imports set report=jsonb_set(report,'{entries}',(
   when 'TEST_ROW_5' then jsonb_build_object('workerName','TEST Unrelated Worker')
   when 'TEST_ROW_6' then jsonb_build_object('workerName','TEST Alias','clockIn','09:00','clockOut','10:00')
   when 'TEST_ROW_7' then jsonb_build_object('workerName','TEST New Alias','clockIn','09:00','clockOut','10:00')
+  when 'TEST_ROW_8' then jsonb_build_object('workerName','TEST Unrelated Renamed Worker','employeeId','TEST_EMPLOYEE_1')
   else '{}'::jsonb end order by (e->>'sourceRow')::integer)
  from jsonb_array_elements(report->'entries')e))where id='93000000-0000-4000-8000-000000000010';
 
@@ -85,9 +86,11 @@ do $$ declare s jsonb; saved jsonb; before_keys text[]; aliases jsonb; fn record
  begin perform pg_temp.approve(s-'workerAliases');raise exception 'unreviewed alias config accepted';exception when others then if sqlerrm<>'labor_approval_invalid_snapshot' then raise;end if;end;
  begin perform pg_temp.approve(s);raise exception 'alias bypassed legacy raw reservation';exception when others then if sqlerrm<>'labor_approval_duplicate_interval' then raise;end if;end;
  begin perform pg_temp.approve(pg_temp.alias_snapshot(3));raise exception 'reverse-comma spelling bypassed legacy reservation';exception when others then if sqlerrm<>'labor_approval_duplicate_interval' then raise;end if;end;
+ begin perform pg_temp.approve(pg_temp.snapshot(8)||jsonb_build_object('workerAliases',s->'workerAliases'));raise exception 'same employee ID with unrelated name bypassed legacy reservation';exception when others then if sqlerrm<>'labor_approval_duplicate_interval' then raise;end if;end;
  saved:=pg_temp.approve(pg_temp.alias_snapshot(6));
  select identity_keys into before_keys from public.labor_job_hour_reservations where approval_id=(saved->>'id')::uuid;
  if before_keys is distinct from array['test alias','test canonical worker']then raise exception 'new approval did not reserve both identities';end if;
+ begin update public.labor_job_hour_reservations set identity_keys=array['test forged owner']where approval_id=(saved->>'id')::uuid;raise exception 'reservation identity keys mutable';exception when others then if sqlerrm<>'labor_approval_immutable'then raise;end if;end;
  if saved#>>'{snapshot,entries,0,workerName}'<>'TEST Alias' or saved#>>'{snapshot,entries,0,normalizedWorkerName}'<>'test alias' or saved#>>'{snapshot,entries,0,canonicalWorkerName}'<>'TEST Canonical Worker'then raise exception 'raw/canonical provenance changed';end if;
  if saved#>>'{snapshot,entries,0,employeeId}'<>'TEST_EMPLOYEE_6'then raise exception 'source employee ID replaced';end if;
  -- An unrelated worker at exactly the same clock span still has independent hours.
