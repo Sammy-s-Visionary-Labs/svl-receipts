@@ -7,6 +7,7 @@ declare
   email_receipt uuid := gen_random_uuid();
   email_id uuid := gen_random_uuid();
   token uuid;
+  readability_work uuid;
   pages jsonb;
   confirmed jsonb;
   result jsonb;
@@ -83,11 +84,43 @@ begin
     not exists(select 1 from public.work_items where receipt_id=email_receipt and kind='readability') then
     raise exception 'Ten-page email did not enter the receipt workflow';
   end if;
+
+  -- Page-ten readability failures must be recorded, not retried as DB errors.
+  update public.work_items
+    set status='leased', lease_owner='test-ten-pages',
+      lease_expires_at=now()+interval '5 minutes', attempt_count=1
+    where receipt_id=email_receipt and kind='readability'
+    returning id into readability_work;
+  perform public.start_queued_work(readability_work,'test-ten-pages');
+  invalid_seen := false;
+  begin
+    perform public.record_readability_result(readability_work,'test-ten-pages',
+      '{"schema_version":1,"readable":false,"failed_page_indexes":[10],"reasons":["blurry"]}'::jsonb,
+      'test','test-ten-pages');
+  exception when others then
+    if sqlerrm <> 'invalid_request' then raise; end if;
+    invalid_seen := true;
+  end;
+  if not invalid_seen then raise exception 'Eleventh readability page index accepted'; end if;
+  perform public.record_readability_result(readability_work,'test-ten-pages',
+    '{"schema_version":1,"readable":false,"failed_page_indexes":[5,6,7,8,9],"reasons":["blurry"]}'::jsonb,
+    'test','test-ten-pages');
+  perform public.complete_work(readability_work,'test-ten-pages');
+  if not exists(select 1 from public.readability_checks where receipt_id=email_receipt
+      and failed_page_indexes=array[5,6,7,8,9]::smallint[] and not readable) or
+    (select status from public.receipts where id=email_receipt) <> 'rejected_unreadable' or
+    (select status from public.work_items where id=readability_work) <> 'succeeded' or
+    exists(select 1 from public.work_items where receipt_id=email_receipt and kind='extract') then
+    raise exception 'Page-six through page-ten readability failures did not complete correctly';
+  end if;
   if exists(select 1 from public.housecall_intents where receipt_id in (receipt,email_receipt)) then
     raise exception 'Test intake bypassed manager approval';
   end if;
   if has_function_privilege('authenticated','public.create_upload_pending_receipt_set(uuid,uuid,jsonb,double precision,double precision,double precision,timestamptz,uuid)','EXECUTE') or
-    has_function_privilege('anon','public.submit_confirmed_receipt_set(uuid,uuid,jsonb,text,bigint,uuid)','EXECUTE') then
+    has_function_privilege('anon','public.submit_confirmed_receipt_set(uuid,uuid,jsonb,text,bigint,uuid)','EXECUTE') or
+    has_function_privilege('authenticated','public.record_readability_result(uuid,text,jsonb,text,text,jsonb)','EXECUTE') or
+    has_function_privilege('anon','public.record_readability_result(uuid,text,jsonb,text,text,jsonb)','EXECUTE') or
+    not has_function_privilege('service_role','public.record_readability_result(uuid,text,jsonb,text,text,jsonb)','EXECUTE') then
     raise exception 'Upload RPC client privileges expanded';
   end if;
 end;
