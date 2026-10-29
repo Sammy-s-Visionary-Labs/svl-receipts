@@ -7,6 +7,7 @@ import {
   getClaimPeriod,
   heartbeatWorker,
   LABOR_WORKER_LEASE_MS,
+  LABOR_WORKER_RECOVERY_DELAY_MS,
   type LaborWorkerControlState,
   nextWorkerRun,
   recoverExpiredLaborLease,
@@ -124,6 +125,29 @@ describe("hosted worker leases and calendar scheduling", () => {
     expect(workerClaimAvailable(value, now)).toBe(false);
   });
 
+  it("a Mac restarted after missed weeks claims every missing completed date before today's start hour", () => {
+    const value = state({
+      intervalDays: 7,
+      coverageThrough: "2026-10-28",
+      lastSuccessAt: "2026-10-29T13:00:00Z",
+    });
+    value.lastScheduledDate = "2026-10-29";
+    const restarted = new Date("2026-11-15T07:00:00Z");
+    expect(nextWorkerRun(value, restarted)).toBe("2026-11-05T14:17:00.000Z");
+    const claim = claimWorker(
+      JSON.parse(JSON.stringify(value)),
+      "mac:after-power-off",
+      restarted,
+      ids,
+    );
+    expect(claim?.period).toEqual({ from: "2026-10-29", to: "2026-11-14" });
+    value.sync.enabled = false;
+    expect(claimWorker(value, "mac:paused-start", restarted, ids)).toBeNull();
+    value.sync.enabled = true;
+    value.sync.status = "not_connected";
+    expect(claimWorker(value, "mac:before-first-connection", restarted, ids)).toBeNull();
+  });
+
   it("uses the first repeated fall gate and the next real spring gate", () => {
     expect(nextWorkerRun(state({ hour: 1 }), new Date("2026-11-01T04:00:00Z"))).toBe(
       "2026-11-01T05:17:00.000Z",
@@ -213,11 +237,42 @@ describe("hosted worker leases and calendar scheduling", () => {
     const value = state({ coverageThrough: "2026-08-01" });
     claimWorker(value, "interrupted", now, ids);
     assertWorkerLease(value, ids.leaseToken, now).imported = true;
-    recoverExpiredLaborLease(value, new Date(now.getTime() + LABOR_WORKER_LEASE_MS));
+    const recovered = new Date(now.getTime() + LABOR_WORKER_LEASE_MS);
+    recoverExpiredLaborLease(value, recovered);
     expect(value.sync.coverageThrough).toBe("2026-09-01");
     expect(value.workerCatchup?.nextFrom).toBe("2026-09-02");
     expect(value.sync.lastSuccessAt).toBeNull();
-    expect(workerClaimAvailable(value, new Date(now.getTime() + 3600000))).toBe(false);
+    expect(workerClaimAvailable(value, recovered)).toBe(false);
+    const next = new Date(recovered.getTime() + LABOR_WORKER_RECOVERY_DELAY_MS);
+    expect(claimWorker(value, "mac:remaining-after-crash", next, ids)?.period).toEqual({
+      from: "2026-09-02",
+      to: "2026-10-02",
+    });
+  });
+
+  it("retries an interrupted acquisition after a bounded recovery delay without waiting a yearly cadence", () => {
+    const value = state({ intervalDays: 365, coverageThrough: "2026-08-01" });
+    const first = claimWorker(value, "mac:before-power-loss", now, ids);
+    const restarted: LaborWorkerControlState = JSON.parse(JSON.stringify(value));
+    const boot = new Date(now.getTime() + 4 * 3600000);
+    expect(claimWorker(restarted, "mac:after-power-loss", boot, ids)).toBeNull();
+    expect(restarted.workerLease).toBeNull();
+    expect(restarted.sync.coverageThrough).toBe("2026-08-01");
+    const retryAt = new Date(boot.getTime() + LABOR_WORKER_RECOVERY_DELAY_MS);
+    expect(restarted.sync.nextRunAt).toBe(retryAt.toISOString());
+    expect(workerClaimAvailable(restarted, new Date(retryAt.getTime() - 1))).toBe(false);
+    expect(claimWorker(restarted, "mac:resumed", retryAt, ids)?.period).toEqual(first?.period);
+  });
+
+  it("does not auto-resume recovered pending dates while paused", () => {
+    const value = state({ intervalDays: 365 });
+    claimWorker(value, "mac:before-pause", now, ids);
+    value.sync.enabled = false;
+    const boot = new Date(now.getTime() + 4 * 3600000);
+    expect(claimWorker(value, "mac:paused-restart", boot, ids)).toBeNull();
+    expect(value.workerCatchup).not.toBeNull();
+    expect(value.sync.nextRunAt).toBeNull();
+    expect(workerClaimAvailable(value, new Date(boot.getTime() + 3600000))).toBe(false);
   });
 
   it("includes newly completed dates on a fresh manual catch-up request without replaying committed chunks", () => {
@@ -282,7 +337,7 @@ describe("hosted worker leases and calendar scheduling", () => {
     expect(value.sync.lastError).toBe("Reconnect Supercrew");
   });
 
-  it("recovers interrupted leases visibly without starting another automatic export that day", () => {
+  it("recovers interrupted leases visibly without immediately repeating their acquisition", () => {
     for (const imported of [true, false]) {
       const value = state();
       claimWorker(value, "github:123:1", now, ids);

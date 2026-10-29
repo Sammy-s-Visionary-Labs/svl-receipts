@@ -2,9 +2,9 @@ import sharp from "sharp";
 import { describe, expect, it } from "vitest";
 import { emailHtmlText, prepareEmail, renderEmailBody } from "./prepare";
 
-function email(body: string) {
+function email(body: string, from = "Vendor <vendor@example.invalid>") {
   return Buffer.from(
-    `From: Vendor <vendor@example.invalid>\r\nTo: recisvl@gmail.com\r\nSubject: TEST RECEIPT\r\nDate: Wed, 16 Sep 2026 09:00:00 -0400\r\nMIME-Version: 1.0\r\n${body}`,
+    `From: ${from}\r\nTo: recisvl@gmail.com\r\nSubject: TEST RECEIPT\r\nDate: Wed, 16 Sep 2026 09:00:00 -0400\r\nMIME-Version: 1.0\r\n${body}`,
   );
 }
 function attachment(type: string, name: string, bytes: Buffer) {
@@ -38,6 +38,24 @@ function pdf(pageCount = 1) {
   return Buffer.from(result);
 }
 describe("email document preparation", () => {
+  it.each([
+    [
+      "Vendor (x(y) <unexpected@example.invalid>) <vendor@example.invalid>",
+      '"Vendor" <vendor@example.invalid>',
+    ],
+    ["Vendor <vendor(comment)@example.invalid>", '"Vendor" <vendor@example.invalid>'],
+    [
+      'Vendor <"a@unexpected.invalid>"@example.invalid>',
+      '"Vendor" <"a@unexpected.invalid>"@example.invalid>',
+    ],
+  ])("preserves the actual sender mailbox in structured header %s", async (from, sender) => {
+    const result = await prepareEmail(
+      email("Content-Type: text/plain\r\n\r\nTEST RECEIPT\nTotal USD 80.00", from),
+    );
+    expect(result.sender).toBe(sender);
+    expect(result.documents).toHaveLength(1);
+  });
+
   it("renders a body receipt without inventing the purchase date from delivery time", async () => {
     const result = await prepareEmail(
       email(

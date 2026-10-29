@@ -42,11 +42,13 @@ new ledger with no verified pair starts with the configured recent window.
 
 Each claim covers at most 31 dates and keeps the existing eight-minute worker
 deadline. A successful chunk advances the persisted cursor; remaining chunks
-become eligible at the next hourly `:17` gate. A failed or expired attempt waits
-for a new explicit request or the next configured interval, rather than retrying
-on every poll. A chunk whose import already committed is retained even if its
-worker later fails. Successful downloads restart the interval from their local
-completion date; failed attempts also consume an interval.
+become eligible at the next hourly `:17` gate. A reported failure waits for a new
+explicit request or the next configured interval, rather than retrying on every
+poll. An expired acquisition lease after a crash or power loss is recovered with
+a 60-second delay and a fresh claim for the pending chunk. A chunk whose import
+already committed is retained; recovery advances to its remaining dates.
+Successful downloads restart the interval from their local completion date;
+reported failures also consume an interval.
 
 An explicit **Queue download** works while recurring downloads are paused, but
 claims only one chunk. Labor Hours shows the remaining dates and asks the manager
@@ -77,7 +79,7 @@ Before declaring production acceptance, run a real fresh Linux import using the 
 
 ## Finite runs and recovery
 
-The app grants at most one active 15-minute lease. The worker heartbeats every 30 seconds while Chromium is running and stops after an eight-minute operation deadline. The workflow allows 15 minutes including installation. Every import and session refresh carries the claim's command and lease identity. Expired or superseded leases cannot overwrite the ledger or newer source session. Lease recovery exposes a failed run and its import state; it does not silently repeat the current interval's automatic export.
+The app grants at most one active 15-minute lease. The worker heartbeats every 30 seconds while Chromium is running and stops after an eight-minute operation deadline. The workflow allows 15 minutes including installation. Every import and session refresh carries the claim's command and lease identity. Expired or superseded leases cannot overwrite the ledger or newer source session. Lease recovery exposes the interruption and preserves committed dates; pending acquisition resumes through a fresh claim after a 60-second delay when recurring downloads are enabled.
 
 Successful finish is accepted only after the paired import commits. If the import succeeds but session refresh or finish fails, the message explicitly asks the operator to inspect import history before retrying. A manual retry remains available while recurring downloads are paused. A missing/expired login leaves automatic work stopped until reconnection. Browser layout, job/worker filter, date-selection or note-scope failures stop the import rather than accepting partial report coverage.
 
@@ -106,3 +108,8 @@ docker run --rm --network none svl-supercrew-worker-acceptance:local
 ```
 
 The old `worker.mjs --watch`, `--once` and local connection interface remain available for loopback development. They support the recurrence interval but only import the recent lookback window; they do not implement shared coverage-aware catch-up and are not the production scheduling path. Hosted operation uses `hosted.mjs --preflight`, `--run` and `--abort`; the shared local supervisor uses the same server-owned claims through `hosted.mjs --watch`. Do not run a second worker beside either.
+
+For the selected Mac mini production host, use the pinned after-login service in
+[the Mac worker guide](../../docs/supercrew-worker-mac.md). The GitHub import job
+runs only when repository variable `LABOR_WORKER_HOST` is exactly `github`;
+selecting `mac` prevents cloud acquisition.

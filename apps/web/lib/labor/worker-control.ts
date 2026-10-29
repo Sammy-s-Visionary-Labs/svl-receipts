@@ -1,6 +1,7 @@
 import type { LaborSyncState } from "./contract";
 
 export const LABOR_WORKER_LEASE_MS = 15 * 60 * 1000;
+export const LABOR_WORKER_RECOVERY_DELAY_MS = 60 * 1000;
 const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
 
 export type LaborWorkerLease = {
@@ -154,8 +155,15 @@ export function nextWorkerRun(state: LaborWorkerControlState, now: Date) {
 export function recoverExpiredLaborLease(state: LaborWorkerControlState, now: Date) {
   const lease = state.workerLease;
   if (!lease || Date.parse(lease.expiresAt) > now.getTime()) return false;
+  // Older leases may predate persisted catch-up state. Recover their exact
+  // acquisition period, never infer completion from an attempt timestamp.
+  if (!state.workerCatchup && !lease.imported)
+    state.workerCatchup = { nextFrom: lease.period.from, to: lease.period.to, nextClaimAt: null };
   commitWorkerCoverage(state, lease);
-  if (state.workerCatchup) state.workerCatchup.nextClaimAt = null;
+  if (state.workerCatchup)
+    state.workerCatchup.nextClaimAt = new Date(
+      now.getTime() + LABOR_WORKER_RECOVERY_DELAY_MS,
+    ).toISOString();
   state.workerLease = null;
   if (state.sync.commandId === lease.commandId) {
     state.sync.command = null;
@@ -163,8 +171,8 @@ export function recoverExpiredLaborLease(state: LaborWorkerControlState, now: Da
   }
   state.sync.status = "failed";
   state.sync.lastError = lease.imported
-    ? "Previous worker stopped after importing reports. Review import history before requesting another download."
-    : "Previous worker stopped before completing its import. Request another download after checking the last import.";
+    ? "Previous worker stopped after importing reports. Committed dates are retained; any remaining dates resume after a short delay when recurring downloads are enabled."
+    : "Previous worker stopped before completing its import. Its pending dates resume after a short delay when recurring downloads are enabled, or with a new manual request.";
   state.sync.nextRunAt = nextWorkerRun(state, now);
   return true;
 }
