@@ -33,6 +33,11 @@
 .jobSearch { border:1px solid #d9dfd4; padding:12px; border-radius:8px; margin-bottom:15px; }
 .jobSearch strong { display:block; margin-top:14px; }
 .jobSearch span { font-size:13px; }
+.jobResults { margin-top:8px; padding:10px; border:1px solid #bbc8bd; border-radius:8px; background:#f5f7f1; max-height:320px; overflow:auto; }
+.jobResults p { margin:0 0 8px; }
+.jobResults ul { list-style:none; margin:0; padding:0; display:grid; gap:6px; }
+.jobResults button { width:100%; text-align:left; white-space:normal; overflow-wrap:anywhere; }
+.jobResults small { display:block; padding:4px 8px; color:#637366; }
 .lines { display:grid; gap:16px; margin-bottom:14px; }
 .line { min-width:0; margin:0; border:1px solid #c8d2c6; border-radius:8px; padding:14px; }
 .line legend { padding:0 8px; font-weight:600; font-size:14px; }

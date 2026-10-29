@@ -32,6 +32,31 @@ type SyncState = {
   last_full_sync_at: string | null;
   customer_scope?: string[] | null;
 };
+type PaginationFailure =
+  | "total_items_changed"
+  | "total_pages_changed"
+  | "wrong_page"
+  | "unexpected_empty_page"
+  | "duplicate_job"
+  | "final_count_mismatch";
+class CatalogPaginationError extends Error {
+  constructor(
+    readonly diagnostic: {
+      reason: PaginationFailure;
+      requestedPage: number;
+      returnedPage: number;
+      totalItems: number;
+      totalPages: number;
+      pageSize: number;
+      jobsOnPage: number;
+      observedJobs: number;
+      expectedTotalItems: number | null;
+      expectedTotalPages: number | null;
+    },
+  ) {
+    super("sync_unstable_pages");
+  }
+}
 export async function syncHousecallJobs(input?: {
   full?: boolean;
   client?: Pick<ReturnType<typeof createHousecallClient>, "listJobs">;
@@ -76,23 +101,36 @@ export async function syncHousecallJobs(input?: {
           sortDirection: "desc",
           ...(customerId ? { customerId } : {}),
         });
-        if (
-          (expectedTotal !== null && result.totalItems !== expectedTotal) ||
-          (expectedPages !== null && result.totalPages !== expectedPages) ||
-          result.page !== page ||
-          (result.jobs.length === 0 && result.totalItems > 0)
-        )
-          throw new Error("sync_unstable_pages");
+        const incomplete = (reason: PaginationFailure): never => {
+          throw new CatalogPaginationError({
+            reason,
+            requestedPage: page,
+            returnedPage: result.page,
+            totalItems: result.totalItems,
+            totalPages: result.totalPages,
+            pageSize: result.pageSize,
+            jobsOnPage: result.jobs.length,
+            observedJobs: customerCount,
+            expectedTotalItems: expectedTotal,
+            expectedTotalPages: expectedPages,
+          });
+        };
+        if (expectedTotal !== null && result.totalItems !== expectedTotal)
+          incomplete("total_items_changed");
+        if (expectedPages !== null && result.totalPages !== expectedPages)
+          incomplete("total_pages_changed");
+        if (result.page !== page) incomplete("wrong_page");
+        if (result.jobs.length === 0 && result.totalItems > 0) incomplete("unexpected_empty_page");
         expectedTotal = result.totalItems;
         expectedPages = result.totalPages;
         for (const job of result.jobs) {
           if (customerId && job.customerId !== customerId) throw new Error("sync_wrong_customer");
-          if (jobs.has(job.id)) throw new Error("sync_unstable_pages");
+          if (jobs.has(job.id)) incomplete("duplicate_job");
           jobs.set(job.id, job);
           customerCount++;
         }
         if (page >= result.totalPages) {
-          if (customerCount !== result.totalItems) throw new Error("sync_unstable_pages");
+          if (customerCount !== result.totalItems) incomplete("final_count_mismatch");
           complete = true;
           break;
         }
@@ -117,6 +155,8 @@ export async function syncHousecallJobs(input?: {
     if (finishError) throw finishError;
     return { count: changed.length, scanned: jobs.size, full, syncedAt: startedAt };
   } catch (cause) {
+    if (cause instanceof CatalogPaginationError)
+      console.error("[housecall-job-sync] incomplete_scan", cause.diagnostic);
     const reason =
       cause instanceof HousecallError
         ? ((

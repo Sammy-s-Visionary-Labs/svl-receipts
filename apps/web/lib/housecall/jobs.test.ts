@@ -260,6 +260,32 @@ describe("Housecall catalog read synchronization", () => {
     ).rejects.toThrow("sync_unstable_pages");
     expectFailedWithoutCommit(db);
   });
+  it("reports only pagination aggregates when a duplicate crosses page boundaries", async () => {
+    const db = database();
+    const diagnostics = vi.spyOn(console, "error").mockImplementation(() => {});
+    const privateJob = job("private_job_identifier", { customerName: "Private customer name" });
+    const listJobs = vi
+      .fn()
+      .mockResolvedValueOnce(page([privateJob], { totalPages: 2, totalItems: 2 }))
+      .mockResolvedValueOnce(page([privateJob], { page: 2, totalPages: 2, totalItems: 2 }));
+    await expect(run(db, listJobs)).rejects.toThrow("sync_unstable_pages");
+    expect(diagnostics).toHaveBeenCalledWith("[housecall-job-sync] incomplete_scan", {
+      reason: "duplicate_job",
+      requestedPage: 2,
+      returnedPage: 2,
+      totalItems: 2,
+      totalPages: 2,
+      pageSize: 100,
+      jobsOnPage: 1,
+      observedJobs: 1,
+      expectedTotalItems: 2,
+      expectedTotalPages: 2,
+    });
+    expect(JSON.stringify(diagnostics.mock.calls)).not.toMatch(
+      /private_job_identifier|Private customer name/,
+    );
+    expectFailedWithoutCommit(db, "sync_unstable_pages");
+  });
   it("allows a validated empty catalog", async () => {
     const db = database();
     expect(await run(db, vi.fn().mockResolvedValue(page([], { totalPages: 0 })))).toMatchObject({
