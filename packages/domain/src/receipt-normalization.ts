@@ -18,6 +18,47 @@ export type ReceiptNormalizationOptions = {
 type Normalized<T> = { value: T | null; issue?: string };
 const MAX_CENTS = 2147483647;
 const text = (value: string | null) => value?.trim() || null;
+function creditMagnitude(value: string | null): string | null {
+  if (value === null) return null;
+  return value
+    .trim()
+    .replace(/^\((.*)\)$/, "$1")
+    .replace(/^-\s*/, "")
+    .replace(/^(\$\s*|USD\s*)-\s*/i, "$1")
+    .replace(/\s+(?:CR|CREDIT)$/i, "");
+}
+
+/** Only unmistakable header/identifier rows; purchased tickets and services remain reviewable. */
+function referenceOnlyLine(description: string) {
+  return (
+    /^(?:ticket|invoice|receipt|transaction|order)\s*(?:number|no\.?)?\s*[:#]?\s*(?=[A-Z0-9./-]*\d)[A-Z0-9][A-Z0-9./-]*\s*:?$/i.test(
+      description,
+    ) ||
+    /^(?:(?:ticket|invoice|receipt|transaction|order)\s+(?:number|no\.?)|unit\s+(?:cost|price)|qty|quantity|description)\s*:?$/i.test(
+      description,
+    )
+  );
+}
+
+/** Identity labels are not charges. Generic pickup/services and unpriced products stay editable. */
+function customerContextLine(description: string, hasPrintedAmount: boolean) {
+  if (
+    /^(?:customer|job|project)\s+(?:name|reference|ref\.?|number|no\.?)\s*[:#]\s*\S/i.test(
+      description,
+    )
+  )
+    return true;
+  if (
+    /^customer\s+pick[\s-]*up\s*[-–—:]\s*job\b(?:\s+name)?\s*(?:[:#–—-]\s*)?\S/i.test(
+      description,
+    ) &&
+    !/\b(?:fee|charge|service|labor|rental)\b/i.test(description)
+  )
+    return true;
+  return (
+    !hasPrintedAmount && /^(?:customer|bill\s+to|ship\s+to|sold\s+to)\s*:\s*\S/i.test(description)
+  );
+}
 
 /** USD decimal point, optional correctly grouped commas, $ or USD. No exponent/coercion/rounding. */
 export function normalizeReceiptMoney(value: string | null): Normalized<number> {
@@ -215,6 +256,13 @@ export function normalizeReceiptObservation(
   const warnings: ReceiptWarning[] = [];
   const warn = (code: string, field: string, message = messages[code] || code) =>
     warnings.push({ code, field, message });
+  const receiptType = observation.receipt_type ?? "debit";
+  if (receiptType === "unknown")
+    warn(
+      "receipt_type_requires_review",
+      "receipt_type",
+      "Choose Credit or Debit before approval. The document direction is uncertain or mixed.",
+    );
   const take = <T>(normalized: Normalized<T>, field: string, required = false): T | null => {
     if (normalized.issue) warn(normalized.issue, field);
     else if (required && normalized.value === null) warn("missing_field", field);
@@ -231,7 +279,13 @@ export function normalizeReceiptObservation(
       "This currency cannot be imported as USD; verify all amounts.",
     );
   const money = (value: string | null, field: string, required = false) =>
-    currency ? take(normalizeReceiptMoney(value), field, required) : null;
+    currency
+      ? take(
+          normalizeReceiptMoney(receiptType === "credit" ? creditMagnitude(value) : value),
+          field,
+          required,
+        )
+      : null;
   const vendor = text(observation.vendor);
   if (!vendor) warn("missing_field", "vendor");
   const purchaseDate = take(
@@ -242,14 +296,38 @@ export function normalizeReceiptObservation(
   const total = money(observation.receipt_total, "receipt_total_cents");
   const tax = money(observation.tax, "tax_cents");
   const subtotal = money(observation.subtotal, "subtotal_cents");
+  const jobHints = observation.job_hints.map((hint) => ({ ...hint }));
   const lines = observation.lines
-    .map((line, index) => {
+    .flatMap((line, index) => {
       const path = `lines.${index}`;
-      const qty = take(normalizeReceiptQuantity(line.qty), `${path}.qty`, true);
+      const description = text(line.description);
+      if (
+        description &&
+        customerContextLine(description, !!(text(line.unit_cost) || text(line.extended_cost)))
+      ) {
+        warn(
+          "reference_line_excluded",
+          path,
+          "Customer/job labels and pickup instructions are receipt context, not material charges. The original observation is preserved.",
+        );
+        const hint = text(line.job_hint);
+        if (
+          hint &&
+          !jobHints.some(
+            (existing) => existing.page_index === line.page_index && existing.text.trim() === hint,
+          )
+        )
+          jobHints.push({ text: hint, page_index: line.page_index });
+        return [];
+      }
+      const qty = take(
+        normalizeReceiptQuantity(receiptType === "credit" ? creditMagnitude(line.qty) : line.qty),
+        `${path}.qty`,
+        true,
+      );
       const unit = money(line.unit_cost, `${path}.unit_cost_cents`, true);
       const printed = money(line.extended_cost, `${path}.printed_extended_cost_cents`);
       const uom = take(normalizeReceiptUnit(line.uom), `${path}.uom`);
-      const description = text(line.description);
       if (!description) warn("missing_field", `${path}.description`);
       let extended: number | null = null;
       if (qty !== null && unit !== null) {
@@ -265,19 +343,29 @@ export function normalizeReceiptObservation(
           `${path}.printed_extended_cost_cents`,
           "Printed line amount differs from quantity × unit cost; calculated material cost is preserved.",
         );
-      return {
-        source_index: index,
-        page_index: line.page_index,
-        description,
-        qty,
-        uom,
-        unit_cost_cents: unit,
-        extended_cost_cents: extended,
-        printed_extended_cost_cents: printed,
-        job_hint: text(line.job_hint),
-      };
+      return [
+        {
+          source_index: index,
+          page_index: line.page_index,
+          description,
+          qty,
+          uom,
+          unit_cost_cents: unit,
+          extended_cost_cents: extended,
+          printed_extended_cost_cents: printed,
+          job_hint: text(line.job_hint),
+        },
+      ];
     })
     .filter((line) => {
+      if (line.description && referenceOnlyLine(line.description)) {
+        warn(
+          "reference_line_excluded",
+          `lines.${line.source_index}`,
+          "Document identifiers and column headers are reference information, even when a nearby price was extracted. The original observation is preserved.",
+        );
+        return false;
+      }
       if (
         line.description &&
         /^(?:sales tax|tax|subtotal|grand total|receipt total|total|balance due|amount due|cash|change|tender|visa|mastercard)\s*:?$/i.test(
@@ -352,6 +440,8 @@ export function normalizeReceiptObservation(
     "subtotal",
     "currency",
   ].filter((key) => text(observation[key as "vendor"]));
+  if (observation.receipt_type && observation.receipt_type !== "unknown")
+    expectedEvidence.push("receipt_type");
   observation.lines.forEach((line, index) => {
     for (const key of [
       "description",
@@ -376,6 +466,7 @@ export function normalizeReceiptObservation(
   return {
     schema_version: 1,
     provider: "gemini",
+    receipt_type: receiptType,
     document_kind: observation.document_kind,
     vendor,
     purchase_date: purchaseDate,
@@ -387,7 +478,7 @@ export function normalizeReceiptObservation(
     subtotal_cents: subtotal,
     material_total_cents: materialTotal,
     lines,
-    job_hints: observation.job_hints.map((hint) => ({ ...hint })),
+    job_hints: jobHints,
     raw_text: observation.raw_text,
     evidence: observation.evidence.map((item) => ({ ...item })),
     confidence,

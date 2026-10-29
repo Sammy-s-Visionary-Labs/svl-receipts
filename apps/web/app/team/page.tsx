@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { getActorFromCookies } from "@/lib/auth/guards";
+import { laborFeatureEnabled } from "@/lib/labor/config";
 import { Icon } from "../manager/icons";
 import styles from "../manager/manager.module.css";
 import { ManagerShell } from "../manager/shell";
@@ -11,7 +12,7 @@ export default async function TeamPage() {
   if (!actor) redirect("/login");
   if (actor.role === "worker") redirect("/field");
   return (
-    <ManagerShell actorRole={actor.role} active="team">
+    <ManagerShell actorRole={actor.role} laborEnabled={laborFeatureEnabled()} active="team">
       <main id="main-content" className={styles.main}>
         <header className={teamStyles.pageHeader}>
           <div>

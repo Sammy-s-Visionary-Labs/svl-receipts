@@ -2,6 +2,24 @@ import { HttpError } from "@/lib/http";
 
 export function rpcHttpError(error: { message?: string } | null | undefined): HttpError {
   const message = error?.message ?? "";
+  if (message === "invalid_request_receipt_type")
+    return new HttpError(
+      400,
+      "invalid_request",
+      "Choose Credit or Debit before approval. Approval was not saved.",
+    );
+  if (message === "invalid_request_material_required")
+    return new HttpError(
+      400,
+      "invalid_request",
+      "Add at least one material with a quantity above zero before approval. Zero-quantity lines stay in review history and are not sent to Housecall.",
+    );
+  if (message === "invalid_request_category")
+    return new HttpError(
+      400,
+      "invalid_request",
+      "Choose an active category before approval. Refresh categories if the list is out of date.",
+    );
   if (message === "test_export_reviewer")
     return new HttpError(
       409,

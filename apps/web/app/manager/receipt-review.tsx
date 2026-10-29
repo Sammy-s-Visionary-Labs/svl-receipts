@@ -1,15 +1,17 @@
 "use client";
 import {
+  decimalUnits,
   lineCostCents,
   type ReceiptCategory,
   type ReviewDraft,
   type ReviewLine,
+  receiptTypeLabel,
   reviewSummary,
   validateReview,
 } from "@svl/domain";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { jobLabel } from "@/lib/manager/presentation";
+import { jobLabel, jobMetadata } from "@/lib/manager/presentation";
 import type {
   ExportStep,
   ManagerJob,
@@ -66,7 +68,15 @@ function sourceLineText(detail: ReceiptDetail, line: ReviewLine) {
     ? `${original.description} · ${original.qty} × ${original.unitCost}`
     : "No line mapping to this extraction";
 }
-export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manager" | "admin" }) {
+export function ReceiptReview({
+  id,
+  actorRole,
+  laborEnabled,
+}: {
+  id: string;
+  actorRole: "manager" | "admin";
+  laborEnabled: boolean;
+}) {
   const [detail, setDetail] = useState<ReceiptDetail | null>(null);
   const [draft, setDraft] = useState<ReviewDraft | null>(null);
   const [error, setError] = useState("");
@@ -81,10 +91,15 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
   const [tax, setTax] = useState(false);
   const [correction, setCorrection] = useState(false);
   const [jobs, setJobs] = useState<ManagerJob[]>([]);
+  const [selectedJobs, setSelectedJobs] = useState<ManagerJob[]>([]);
   const [jobSearch, setJobSearch] = useState("");
+  const [jobResultsQuery, setJobResultsQuery] = useState<string | null>(null);
+  const [searchingJobs, setSearchingJobs] = useState(true);
+  const [showJobResults, setShowJobResults] = useState(false);
   const [bulkJobId, setBulkJobId] = useState("");
   const [olderJobs, setOlderJobs] = useState(true);
   const [jobError, setJobError] = useState("");
+  const [jobRefreshError, setJobRefreshError] = useState("");
   const [refreshingJobs, setRefreshingJobs] = useState(false);
   const [refreshingCategories, setRefreshingCategories] = useState(false);
   const [categoryError, setCategoryError] = useState("");
@@ -97,11 +112,21 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
   const dialog = useRef<HTMLDialogElement>(null);
   const actionLock = useRef(false);
   const loadSequence = useRef(0);
+  const jobRefreshLock = useRef(false);
+  const automaticJobRefresh = useRef<string | null>(null);
+  const selectedJobIdsRef = useRef<string[]>([]);
+  selectedJobIdsRef.current = [
+    ...new Set(draft?.lines.map((line) => line.jobId).filter(Boolean) ?? []),
+  ];
   const pendingLineFocus = useRef(false);
   const form = useRef<HTMLFormElement>(null);
   const dirty = !!draft && !!detail && JSON.stringify(draft) !== JSON.stringify(detail.draft);
   const editable = !!detail && (detail.editable || correction);
   const summary = draft ? reviewSummary(draft) : null;
+  const pendingExport =
+    !!detail &&
+    ["approved", "exporting", "partial_success", "export_failed"].includes(detail.status) &&
+    detail.steps.some((step) => ["ready", "pending", "in_progress"].includes(step.status));
   const load = useCallback(async () => {
     const sequence = ++loadSequence.current;
     setLoading(true);
@@ -142,6 +167,11 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
   useEffect(() => {
     setDetail(null);
     setDraft(null);
+    setSelectedJobs([]);
+    setBulkJobId("");
+    setShowJobResults(false);
+    setJobRefreshError("");
+    automaticJobRefresh.current = null;
     void load();
     return () => {
       loadSequence.current++;
@@ -160,7 +190,7 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
   useEffect(() => {
     if (
       !detail ||
-      !["approved", "exporting"].includes(detail.status) ||
+      (!["approved", "exporting"].includes(detail.status) && !pendingExport) ||
       dirty ||
       correction ||
       action ||
@@ -172,7 +202,7 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
       void load();
     }, 4000);
     return () => clearTimeout(timer);
-  }, [detail, dirty, correction, action, busy, loading, load]);
+  }, [detail, dirty, correction, action, busy, loading, load, pendingExport]);
   useEffect(() => {
     if (action) {
       dialog.current?.showModal();
@@ -195,8 +225,10 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
   // biome-ignore lint/correctness/useExhaustiveDependencies: The explicit refresh version reloads the current search after a provider sync.
   useEffect(() => {
     const controller = new AbortController();
+    setSearchingJobs(true);
+    setJobError("");
+    const query = `${olderJobs}:${jobSearch.trim()}`;
     const timer = setTimeout(async () => {
-      setJobError("");
       try {
         const res = await fetch(
           `/api/manager/jobs?search=${encodeURIComponent(jobSearch)}&scope=${olderJobs ? "all" : "active"}`,
@@ -204,10 +236,23 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
         );
         if (!res.ok) throw new Error();
         const data = await res.json();
-        if (!controller.signal.aborted) setJobs(data.jobs);
+        if (!controller.signal.aborted) {
+          setJobs(data.jobs);
+          setJobResultsQuery(query);
+          setSelectedJobs((current) =>
+            current.map(
+              (selected) => data.jobs.find((job: ManagerJob) => job.id === selected.id) ?? selected,
+            ),
+          );
+        }
       } catch {
-        if (!controller.signal.aborted)
+        if (!controller.signal.aborted) {
+          setJobResultsQuery(query);
+          setJobs([]);
           setJobError("Job search is unavailable. Existing selections are preserved.");
+        }
+      } finally {
+        if (!controller.signal.aborted) setSearchingJobs(false);
       }
     }, 250);
     return () => {
@@ -243,32 +288,71 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
       setRefreshingCategories(false);
     }
   }
-  async function refreshJobs() {
-    if (refreshingJobs) return;
+  const refreshJobs = useCallback(async () => {
+    if (jobRefreshLock.current) return;
+    jobRefreshLock.current = true;
+    const sequence = loadSequence.current;
     setRefreshingJobs(true);
-    setJobError("");
+    setJobRefreshError("");
     try {
       const response = await fetch("/api/manager/jobs", { method: "POST" });
-      if (!response.ok) throw new Error();
-      const result = await response.json();
-      if (result.skipped) throw new Error();
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok)
+        throw new Error(
+          result.error?.message || "Housecall jobs could not be refreshed. Try again shortly.",
+        );
+      if (result.skipped)
+        throw new Error(
+          result.skipped === "sync_in_progress"
+            ? "Another Housecall refresh is in progress. Try again shortly."
+            : "Housecall job refresh is unavailable.",
+        );
+      const selectedIds = selectedJobIdsRef.current;
+      if (selectedIds.length) {
+        const selectedResponse = await fetch(
+          `/api/manager/jobs?ids=${encodeURIComponent(selectedIds.join(","))}`,
+          { cache: "no-store" },
+        );
+        if (!selectedResponse.ok)
+          throw new Error(
+            "Jobs refreshed, but selected job details could not be loaded. Try refreshing again.",
+          );
+        const selectedResult: { jobs: ManagerJob[] } = await selectedResponse.json();
+        if (sequence !== loadSequence.current) return;
+        setSelectedJobs((current) =>
+          current.map((job) => selectedResult.jobs.find((fresh) => fresh.id === job.id) ?? job),
+        );
+      }
       const detailsResponse = await fetch(`/api/manager/receipts/${id}`, { cache: "no-store" });
-      if (!detailsResponse.ok) throw new Error();
+      if (!detailsResponse.ok)
+        throw new Error(
+          "Jobs refreshed, but receipt job details could not be loaded. Try refreshing again.",
+        );
       const fresh: ReceiptDetail = await detailsResponse.json();
+      if (sequence !== loadSequence.current) return;
       setDetail((current) =>
         current
           ? { ...current, assignedJobs: fresh.assignedJobs, suggestions: fresh.suggestions }
           : current,
       );
       setJobRefreshVersion((value) => value + 1);
-    } catch {
-      setJobError(
-        "Jobs could not be refreshed. Your receipt edits are preserved; try again shortly.",
-      );
+    } catch (error) {
+      if (sequence === loadSequence.current)
+        setJobRefreshError(
+          `${error instanceof Error ? error.message : "Jobs could not be refreshed."} Your receipt edits are preserved.`,
+        );
     } finally {
+      jobRefreshLock.current = false;
       setRefreshingJobs(false);
     }
-  }
+  }, [id]);
+  useEffect(() => {
+    if (!detail?.editable || automaticJobRefresh.current === id || jobRefreshLock.current) return;
+    if (![...jobs, ...(detail.assignedJobs ?? []), ...detail.suggestions].some((job) => job.stale))
+      return;
+    automaticJobRefresh.current = id;
+    void refreshJobs();
+  }, [detail, jobs, id, refreshJobs]);
   async function intelligenceAction(path: string, payload?: Record<string, unknown>) {
     if (actionLock.current) return;
     actionLock.current = true;
@@ -324,7 +408,13 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
     const next = validateReview(draft, decision === "approve");
     if (decision === "approve")
       draft.lines.forEach((line, index) => {
-        if (allJobs.find((job) => job.id === line.jobId)?.unavailable)
+        if (decimalUnits(line.qty, 3) !== 0 && allJobs.find((job) => job.id === line.jobId)?.stale)
+          next[`lines.${index}.jobId`] =
+            "Refresh Housecall jobs before approving this destination.";
+        if (
+          decimalUnits(line.qty, 3) !== 0 &&
+          allJobs.find((job) => job.id === line.jobId)?.unavailable
+        )
           next[`lines.${index}.jobId`] =
             "This Housecall job is unavailable. Choose an available job.";
       });
@@ -369,12 +459,11 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
         headers: { "content-type": "application/json" },
         body: JSON.stringify(payload),
       });
-      const body = await res.json();
+      const body = await res.json().catch(() => ({}));
       if (!res.ok) {
         if (body.fields) setErrors(body.fields);
         throw new Error(
-          res.status === 409 &&
-            !["test_export_scope", "test_export_budget"].includes(body.error?.code)
+          res.status === 409 && (!body.error?.code || body.error.code === "conflict")
             ? "This receipt changed since you opened it. Your edits are preserved. Reload the latest receipt before saving again."
             : res.status === 401
               ? "Your session ended. Sign in again."
@@ -403,7 +492,7 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
     }
   }
   function applyJob(job: ManagerJob) {
-    if (!draft || job.unavailable || job.stale) return;
+    if (!draft || job.unavailable) return;
     if (
       draft.lines.some((l) => l.jobId && l.jobId !== job.id) &&
       !window.confirm("Replace the existing job assignments on every line?")
@@ -417,6 +506,39 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
         suggestionId: job.suggestionId,
       })),
     });
+    setBulkJobId(job.id);
+    setShowJobResults(false);
+    setSelectedJobs((current) => [job, ...current.filter((selected) => selected.id !== job.id)]);
+    setErrors((current) =>
+      Object.fromEntries(
+        Object.entries(current).filter(([key]) => !/^lines\.\d+\.jobId$/.test(key)),
+      ),
+    );
+    setMessage(
+      `Assigned ${jobLabel(job)} to all ${draft.lines.length} materials. Save or approve to keep these assignments.`,
+    );
+  }
+  async function continueExport() {
+    if (actionLock.current) return;
+    actionLock.current = true;
+    setBusy(true);
+    setError("");
+    setMessage("");
+    try {
+      const response = await fetch(`/api/manager/receipts/${id}/export-continue`, {
+        method: "POST",
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok)
+        throw new Error(body.error?.message || "Could not continue Housecall export. Try again.");
+      await load();
+      setMessage(body.message);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Could not continue Housecall export.");
+    } finally {
+      actionLock.current = false;
+      setBusy(false);
+    }
   }
   async function moreEvents() {
     if (!eventCursor || eventBusy) return;
@@ -439,15 +561,23 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
   const allJobs = [
     ...(detail?.suggestions ?? []).map((suggestion) => ({
       ...suggestion,
+      ...selectedJobs.find((job) => job.id === suggestion.id),
       ...detail?.assignedJobs?.find((job) => job.id === suggestion.id),
       ...jobs.find((job) => job.id === suggestion.id),
       suggestionId: suggestion.suggestionId,
     })),
     ...jobs,
     ...(detail?.assignedJobs ?? []),
+    ...selectedJobs,
   ].filter((j, i, rows) => rows.findIndex((x) => x.id === j.id) === i);
+  const matchingJobQuery = jobResultsQuery === `${olderJobs}:${jobSearch.trim()}`;
+  const jobResultsLoading = searchingJobs || !matchingJobQuery;
   return (
-    <ManagerShell actorRole={actorRole} active={detail?.editable ? "inbox" : "history"}>
+    <ManagerShell
+      actorRole={actorRole}
+      laborEnabled={laborEnabled}
+      active={detail?.editable ? "inbox" : "history"}
+    >
       <main id="main-content" className={styles.main}>
         <div className={styles.heading}>
           <div>
@@ -476,7 +606,7 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
             Reload latest receipt
           </button>
         </div>
-        {error && (
+        {error && !action && (
           <div role="alert" className={styles.error}>
             {error}
             {error.includes("session") && (
@@ -718,6 +848,38 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
                     {summary?.lineCount} lines · {summary?.jobCount} jobs
                   </span>
                 </div>
+                <div>
+                  <label htmlFor="receipt-type">Receipt type *</label>
+                  <select
+                    id="receipt-type"
+                    data-receipt-type={draft.receiptType ?? "debit"}
+                    value={draft.receiptType ?? "debit"}
+                    disabled={!editable || busy}
+                    aria-invalid={!!errors.receiptType}
+                    onChange={(event) =>
+                      setDraft({
+                        ...draft,
+                        receiptType: event.target.value as ReviewDraft["receiptType"],
+                      })
+                    }
+                  >
+                    <option value="">Choose Credit or Debit</option>
+                    <option value="debit">Debit — purchase / charge</option>
+                    <option value="credit">Credit — return / refund</option>
+                  </select>
+                  {errors.receiptType && (
+                    <p role="alert" className={styles.fieldError}>
+                      {errors.receiptType}
+                    </p>
+                  )}
+                  <p>
+                    {draft.receiptType === ""
+                      ? "Choose Credit or Debit before approving this receipt."
+                      : draft.receiptType === "credit"
+                        ? "Credit is the default for materials. Enter costs as positive amounts; Credit lines reduce Housecall job costs. You can override each material below."
+                        : "Debit is the default for materials. Debit lines add to Housecall job costs; individual materials can be changed to Credit below."}
+                  </p>
+                </div>
                 <p>
                   Job cost = quantity × unit cost. Tax is excluded. Receipt total is reference only.
                 </p>
@@ -734,8 +896,66 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
                       value={jobSearch}
                       maxLength={120}
                       placeholder="Job number, customer, or ID"
-                      onChange={(e) => setJobSearch(e.target.value)}
+                      aria-describedby="job-search-help"
+                      aria-controls={
+                        showJobResults && jobSearch.trim() ? "job-search-results" : undefined
+                      }
+                      onFocus={() => setShowJobResults(true)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Escape") setShowJobResults(false);
+                        if (event.key === "Enter") event.preventDefault();
+                      }}
+                      onChange={(e) => {
+                        setJobSearch(e.target.value);
+                        setShowJobResults(true);
+                      }}
                     />
+                    <p id="job-search-help" className={styles.meta}>
+                      Type a name, job number, or address. Choose a match to assign it to all
+                      materials.
+                    </p>
+                    {showJobResults && jobSearch.trim() && (
+                      <section
+                        id="job-search-results"
+                        aria-label="Housecall job search results"
+                        className={styles.jobResults}
+                        aria-busy={jobResultsLoading}
+                      >
+                        {jobResultsLoading ? (
+                          <p role="status">Searching Housecall jobs…</p>
+                        ) : jobError ? (
+                          <p role="alert">{jobError}</p>
+                        ) : !jobs.length ? (
+                          <p role="status">No matching Housecall jobs.</p>
+                        ) : (
+                          <>
+                            <p role="status" className={styles.meta}>
+                              {jobs.length === 50
+                                ? "First 50 matching jobs. Keep typing to narrow the results."
+                                : `${jobs.length} matching ${jobs.length === 1 ? "job" : "jobs"}.`}
+                            </p>
+                            <ul>
+                              {jobs.map((job) => (
+                                <li key={job.id}>
+                                  <button
+                                    type="button"
+                                    disabled={busy || job.unavailable || !draft.lines.length}
+                                    onClick={() => applyJob(job)}
+                                  >
+                                    {jobLabel(job)}
+                                  </button>
+                                  {job.unavailable ? (
+                                    <small>Unavailable</small>
+                                  ) : job.stale ? (
+                                    <small>Details need refreshing before approval</small>
+                                  ) : null}
+                                </li>
+                              ))}
+                            </ul>
+                          </>
+                        )}
+                      </section>
+                    )}
                     <label>
                       <input
                         type="checkbox"
@@ -751,17 +971,32 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
                     >
                       {refreshingJobs ? "Refreshing jobs…" : "Refresh Housecall jobs"}
                     </button>
-                    {jobError && <p role="alert">{jobError}</p>}
+                    {jobError && !(showJobResults && jobSearch.trim()) && (
+                      <p role="alert">{jobError}</p>
+                    )}
+                    {jobRefreshError && <p role="alert">{jobRefreshError}</p>}
+                    {refreshingJobs ? (
+                      <p role="status">Checking the latest Housecall jobs. You can keep editing.</p>
+                    ) : allJobs.some((job) => job.stale && !job.unavailable) ? (
+                      <p className={styles.meta}>
+                        You can select and save jobs now. Refresh Housecall jobs before approving to
+                        verify their latest details.
+                      </p>
+                    ) : null}
                     <label htmlFor="bulk-housecall-job">Job for all materials</label>
                     <select
                       id="bulk-housecall-job"
                       value={bulkJobId}
                       disabled={busy}
-                      onChange={(event) => setBulkJobId(event.target.value)}
+                      onChange={(event) => {
+                        const selected = allJobs.find((job) => job.id === event.target.value);
+                        if (selected) applyJob(selected);
+                        else setBulkJobId("");
+                      }}
                     >
                       <option value="">Choose a job</option>
                       {allJobs.map((job) => (
-                        <option key={job.id} value={job.id} disabled={job.unavailable || job.stale}>
+                        <option key={job.id} value={job.id} disabled={job.unavailable}>
                           {jobLabel(job)}
                           {job.unavailable
                             ? " · Unavailable"
@@ -776,9 +1011,7 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
                       disabled={
                         busy ||
                         !draft.lines.length ||
-                        !allJobs.some(
-                          (job) => job.id === bulkJobId && !job.unavailable && !job.stale,
-                        )
+                        !allJobs.some((job) => job.id === bulkJobId && !job.unavailable)
                       }
                       onClick={() => {
                         const selected = allJobs.find((job) => job.id === bulkJobId);
@@ -817,8 +1050,7 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
                                 disabled={
                                   busy ||
                                   !draft.lines.length ||
-                                  allJobs.find((current) => current.id === job.id)?.unavailable ||
-                                  allJobs.find((current) => current.id === job.id)?.stale
+                                  allJobs.find((current) => current.id === job.id)?.unavailable
                                 }
                                 onClick={() => applyJob(job)}
                               >
@@ -858,7 +1090,7 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
                             {allJobs.find((current) => current.id === job.id)?.unavailable ? (
                               <p>This job is unavailable.</p>
                             ) : allJobs.find((current) => current.id === job.id)?.stale ? (
-                              <p>Refresh job details before using this suggestion.</p>
+                              <p>Refresh job details before approving this destination.</p>
                             ) : null}
                             <ul>
                               {job.reasons?.map((reason) => (
@@ -875,8 +1107,7 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
                               disabled={
                                 !editable ||
                                 busy ||
-                                allJobs.find((current) => current.id === job.id)?.unavailable ||
-                                allJobs.find((current) => current.id === job.id)?.stale
+                                allJobs.find((current) => current.id === job.id)?.unavailable
                               }
                               onClick={() =>
                                 updateLine(index, { jobId: job.id, suggestionId: job.suggestionId })
@@ -887,6 +1118,35 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
                           </div>
                         ))}
                       <div className={styles.lineFields}>
+                        <div className={styles.full}>
+                          <label htmlFor={`line-${index}-type`}>Material type</label>
+                          <select
+                            id={`line-${index}-type`}
+                            data-receipt-type={line.receiptType ?? draft.receiptType ?? "debit"}
+                            value={line.receiptType ?? "inherit"}
+                            aria-invalid={!!errors[`lines.${index}.receiptType`]}
+                            onChange={(event) =>
+                              updateLine(index, {
+                                receiptType:
+                                  event.target.value === "inherit"
+                                    ? undefined
+                                    : (event.target.value as ReviewDraft["receiptType"]),
+                              })
+                            }
+                          >
+                            <option value="inherit">
+                              Use receipt type ({receiptTypeLabel(draft.receiptType)})
+                            </option>
+                            <option value="debit">Debit — purchase / charge</option>
+                            <option value="credit">Credit — return / refund</option>
+                            {line.receiptType === "" && <option value="">Choose a type</option>}
+                          </select>
+                          {errors[`lines.${index}.receiptType`] && (
+                            <small className={styles.fieldError}>
+                              {errors[`lines.${index}.receiptType`]}
+                            </small>
+                          )}
+                        </div>
                         {(Object.keys(lineLabels) as Array<keyof typeof lineLabels>).map((key) => (
                           <div key={key}>
                             <label htmlFor={`line-${index}-${key}`}>{lineLabels[key]}</label>
@@ -922,9 +1182,14 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
                         onChange={(e) => {
                           const chosen = allJobs.find((j) => j.id === e.target.value);
                           if (chosen?.unavailable) return;
+                          if (chosen)
+                            setSelectedJobs((current) => [
+                              chosen,
+                              ...current.filter((job) => job.id !== chosen.id),
+                            ]);
                           updateLine(index, {
                             jobId: e.target.value,
-                            suggestionId: chosen?.suggestionId ?? line.suggestionId,
+                            suggestionId: chosen?.suggestionId,
                           });
                         }}
                       >
@@ -979,27 +1244,25 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
                         ))}
                       {allJobs.find((j) => j.id === line.jobId) && (
                         <p className={styles.meta}>
-                          {allJobs.find((j) => j.id === line.jobId)?.status || "Status unavailable"}{" "}
-                          · {allJobs.find((j) => j.id === line.jobId)?.scheduledAt || "Unscheduled"}{" "}
-                          ·{" "}
-                          {allJobs.find((j) => j.id === line.jobId)?.technicians.join(", ") ||
-                            "Technicians unavailable"}{" "}
-                          {allJobs.find((j) => j.id === line.jobId)?.syncedAt && (
-                            <>
-                              {" "}
-                              · Last checked {allJobs.find((j) => j.id === line.jobId)?.syncedAt}
-                            </>
-                          )}
+                          {jobMetadata(allJobs.find((job) => job.id === line.jobId) ?? {})}
                           {allJobs.find((j) => j.id === line.jobId)?.unavailable
                             ? " · This job is unavailable. Choose another destination."
                             : allJobs.find((j) => j.id === line.jobId)?.stale
-                              ? " · Job details need refreshing. Ask an administrator to refresh Housecall jobs before export."
+                              ? " · Job details need refreshing. Refresh Housecall jobs above before approval."
                               : ""}
                         </p>
                       )}
                       <div className={styles.lineFooter}>
+                        {decimalUnits(line.qty, 3) === 0 && (
+                          <p>
+                            Zero quantity: kept in this review and excluded from Housecall materials
+                            and costs.
+                          </p>
+                        )}
                         <output aria-label={`Material ${index + 1} extended cost`}>
-                          {lineCostCents(line) === null ? "—" : money(lineCostCents(line))}
+                          {lineCostCents(line, draft.receiptType) === null
+                            ? "—"
+                            : money(lineCostCents(line, draft.receiptType))}
                         </output>
                         {editable && (
                           <button
@@ -1037,7 +1300,10 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
                     disabled={busy || draft.lines.length >= 100}
                     onClick={() => {
                       pendingLineFocus.current = true;
-                      setDraft({ ...draft, lines: [...draft.lines, emptyLine()] });
+                      setDraft({
+                        ...draft,
+                        lines: [...draft.lines, { ...emptyLine(), jobId: bulkJobId }],
+                      });
                     }}
                   >
                     + Add material
@@ -1048,7 +1314,8 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
                   <strong>{money(summary?.totalCents ?? 0)}</strong>
                 </div>
                 {draft.referenceTotal &&
-                  Number(draft.referenceTotal) * 100 !== summary?.totalCents && (
+                  Math.abs(Number(draft.referenceTotal) * 100) !==
+                    Math.abs(summary?.totalCents ?? 0) && (
                     <p className={styles.notice}>
                       Material costs differ from the receipt reference total. Check quantities and
                       unit costs; tax, fees, or non-material purchases may explain the difference.
@@ -1067,6 +1334,20 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
             />
             <section className={styles.section}>
               <h2>Housecall progress</h2>
+              {detail.automaticExport && pendingExport && !editable && (
+                <div>
+                  <p>
+                    Approval is saved. Delivery is complete when all steps below show succeeded.
+                  </p>
+                  <button
+                    type="button"
+                    disabled={busy || loading || detail.correctionPending}
+                    onClick={() => void continueExport()}
+                  >
+                    Continue approved Housecall export
+                  </button>
+                </div>
+              )}
               <p>
                 For the current frozen plan, the export preview above shows each receipt page and
                 material line separately.
@@ -1249,12 +1530,23 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
                     ? "Correction impact"
                     : nice(action ?? "")}
               </h2>
+              {error && (
+                <p role="alert" className={styles.error}>
+                  {error}
+                </p>
+              )}
               {(action === "approve" || action === "correction") && (
                 <>
                   <p>
-                    {summary?.lineCount} lines to {summary?.jobCount} jobs ·{" "}
+                    {summary?.exportLineCount} lines to {summary?.jobCount} jobs ·{" "}
                     {money(summary?.totalCents ?? 0)}
                   </p>
+                  {!!summary?.excludedLineCount && (
+                    <p>
+                      {summary.excludedLineCount} zero-quantity lines stay in the review history and
+                      will not be sent to Housecall.
+                    </p>
+                  )}
                   {action === "approve" && (
                     <p>
                       {detail?.automaticExport
@@ -1262,6 +1554,10 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
                         : "Approval freezes this receipt's export plan. Live Housecall writes require separate explicit approval before any data is sent."}
                     </p>
                   )}
+                  <p>
+                    Receipt default: {receiptTypeLabel(draft.receiptType)}. Each material's selected
+                    type determines whether its cost adds to or reduces Housecall job costs.
+                  </p>
                   <ul>
                     {summary?.jobs.map((job) => (
                       <li key={job.id}>
@@ -1335,11 +1631,6 @@ export function ReceiptReview({ id, actorRole }: { id: string; actorRole: "manag
                     onChange={(e) => setCanonical(e.target.value)}
                   />
                 </>
-              )}
-              {error && (
-                <p role="alert" className={styles.error}>
-                  {error}
-                </p>
               )}
               <div className={styles.dialogActions}>
                 <button type="button" disabled={busy} onClick={() => setAction(null)}>

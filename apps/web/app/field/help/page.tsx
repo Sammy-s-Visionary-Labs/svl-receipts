@@ -1,3 +1,4 @@
+import { MAX_RECEIPT_PAGES } from "@svl/domain";
 import Link from "next/link";
 import styles from "../field.module.css";
 import { Icon } from "../glyph";
@@ -42,8 +43,8 @@ export default function HelpPage() {
             check that the total and date are readable.
           </p>
           <p>
-            Add up to five photos for a long receipt. Keep pages in order, and submit separate
-            receipts one at a time.
+            Add up to {MAX_RECEIPT_PAGES} photos for a long receipt. Keep pages in order, and submit
+            separate receipts one at a time.
           </p>
           <Link className={styles.textLink} href="/field/new">
             Add a receipt

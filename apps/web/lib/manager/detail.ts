@@ -7,8 +7,10 @@ export const textValue = (v: unknown) => (typeof v === "string" ? v : "");
 const amount = (v: unknown) =>
   typeof v === "number" && Number.isFinite(v) ? (v / 100).toFixed(2) : "";
 export function extractionDraft(row: Row | null): ReviewDraft {
-  if (!row) return { ...EMPTY_REVIEW, lines: [] };
+  if (!row) return { ...EMPTY_REVIEW, receiptType: "", lines: [] };
+  const receiptType = (row.normalized as Row | undefined)?.receipt_type;
   return {
+    receiptType: receiptType === "credit" || receiptType === "debit" ? receiptType : "",
     vendor: textValue(row.vendor),
     purchaseDate: textValue(row.purchase_date),
     invoiceNumber: textValue(row.invoice_number),
@@ -159,6 +161,8 @@ export function legacyReviewDraft(
     if (source in edits && (typeof edits[source] === "string" || edits[source] === null))
       draft[target] = textValue(edits[source]);
   if ("receipt_total_cents" in edits) draft.referenceTotal = amount(edits.receipt_total_cents);
+  if (["credit", "debit", ""].includes(String(edits.receipt_type)))
+    draft.receiptType = edits.receipt_type as ReviewDraft["receiptType"];
   const evidence = lines.length ? lines : Array.isArray(edits.lines) ? edits.lines : null;
   if (evidence)
     draft.lines = evidence.map((line, index) => ({
@@ -166,7 +170,12 @@ export function legacyReviewDraft(
       description: textValue(line.description),
       qty: typeof line.qty === "number" ? String(line.qty) : "",
       uom: textValue(line.uom),
-      unitCost: amount(line.unit_cost_cents),
+      unitCost: amount(
+        typeof line.unit_cost_cents === "number" ? Math.abs(line.unit_cost_cents) : null,
+      ),
+      ...(line.receipt_type === "credit" || line.receipt_type === "debit"
+        ? { receiptType: line.receipt_type }
+        : {}),
       jobId: textValue(line.job_id),
     }));
   return draft;

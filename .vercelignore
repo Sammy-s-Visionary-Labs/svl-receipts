@@ -1,4 +1,5 @@
 .local
+**/.local
 .env*
 **/.env*
 **/node_modules
@@ -6,6 +7,7 @@
 **/.expo
 **/test-results
 **/playwright-report
+supabase/.temp
 apps/mobile/android
 apps/mobile/ios
 fixtures

@@ -1,6 +1,11 @@
 import { createServer } from "node:http";
 import { fieldQueueRows, handleFieldFixture } from "./field-fixture.mjs";
-import { fixtureSession, fixtureUser, profileFromAuthorization } from "./fixture-auth.mjs";
+import {
+  FIXTURE_USERS,
+  fixtureSession,
+  fixtureUser,
+  profileFromAuthorization,
+} from "./fixture-auth.mjs";
 
 const port = Number(process.env.RA27_E2E_AUTH_PORT ?? 54877);
 
@@ -31,16 +36,41 @@ const server = createServer(async (request, response) => {
     return send(400, { error_code: "invalid_credentials", msg: "Invalid test credentials" });
   }
   const profile = profileFromAuthorization(request.headers.authorization);
+  if (
+    url.pathname === "/rest/v1/rpc/receipt_type_classification_status" &&
+    request.headers.authorization === "Bearer sb_secret_ra27_browser_fixture_only"
+  )
+    return send(200, {
+      total: 0,
+      completed: 0,
+      credit: 0,
+      debit: 0,
+      unknown: 0,
+      remaining: 0,
+      failed: 0,
+    });
   if (await handleFieldFixture(request, response, url, profile, send)) return;
   if (!profile) return send(401, { code: "bad_jwt", message: "Fixture sign in required" });
+  if (url.pathname === "/rest/v1/receipt_type_classifications") return send(200, []);
   if (url.pathname === "/auth/v1/logout") return send(204, null);
 
   if (url.pathname === "/auth/v1/user") return send(200, fixtureUser(profile.id));
   if (url.pathname === "/rest/v1/profiles") {
     const selectedId = url.searchParams.get("id");
+    if (url.searchParams.get("select") === "id,full_name" && selectedId?.startsWith("in.(")) {
+      const ids = new Set(selectedId.slice(4, -1).split(","));
+      return send(
+        200,
+        Object.values(FIXTURE_USERS)
+          .filter((user) => ids.has(user.id))
+          .map((user) => ({ id: user.id, full_name: `Synthetic ${user.role}` })),
+      );
+    }
     if (selectedId && selectedId !== `eq.${profile.id}`) return send(200, null);
     return send(200, { ...profile, access_status: "approved" });
   }
+  if (url.pathname === "/rest/v1/email_receipt_documents" && request.method === "GET")
+    return send(200, []);
   if (url.pathname === "/rest/v1/email_importer_health" && request.method === "GET")
     return send(200, null);
   if (url.pathname === "/rest/v1/email_receipt_imports" && request.method === "GET")

@@ -1,4 +1,4 @@
-import type { ReceiptStatus } from "@svl/domain";
+import type { ReceiptStatus, ReceiptTypeSelection } from "@svl/domain";
 
 export const QUEUE_TABS = [
   "needs-review",
@@ -58,6 +58,7 @@ export const DEFAULT_QUEUE_FILTERS: QueueFilters = {
   limit: 25,
 };
 export type QueueReceipt = {
+  receiptType?: ReceiptTypeSelection;
   id: string;
   status: ReceiptStatus;
   submittedAt: string;

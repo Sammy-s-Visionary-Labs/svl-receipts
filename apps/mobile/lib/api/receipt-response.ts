@@ -2,6 +2,7 @@ import {
   isReadabilityReason,
   isReceiptStatus,
   isWorkerFacingStatus,
+  MAX_RECEIPT_PAGES,
   type ReadabilityReason,
   type ReceiptStatus,
   type WorkerFacingStatus,
@@ -160,7 +161,7 @@ export function parseRecentReceiptsResponse(value: unknown): RecentReceiptsPage 
       typeof candidate.pageCount !== "number" ||
       !Number.isInteger(candidate.pageCount) ||
       candidate.pageCount < 0 ||
-      candidate.pageCount > 5 ||
+      candidate.pageCount > MAX_RECEIPT_PAGES ||
       thumbnail === undefined ||
       (submittedAt !== null &&
         (typeof submittedAt !== "string" || Number.isNaN(Date.parse(submittedAt))))
@@ -203,7 +204,7 @@ export function parseWorkerReceiptDetail(value: unknown): WorkerReceiptDetail | 
       (typeof submittedAt !== "string" || Number.isNaN(Date.parse(submittedAt)))) ||
     !Array.isArray(candidate.pages) ||
     candidate.pages.length < 1 ||
-    candidate.pages.length > 5
+    candidate.pages.length > MAX_RECEIPT_PAGES
   ) {
     return null;
   }
@@ -214,7 +215,7 @@ export function parseWorkerReceiptDetail(value: unknown): WorkerReceiptDetail | 
     return typeof page.pageIndex === "number" &&
       Number.isInteger(page.pageIndex) &&
       page.pageIndex >= 0 &&
-      page.pageIndex < 5 &&
+      page.pageIndex < MAX_RECEIPT_PAGES &&
       image
       ? { pageIndex: page.pageIndex, image }
       : null;

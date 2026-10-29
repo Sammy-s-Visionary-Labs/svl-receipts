@@ -51,6 +51,23 @@ describe("duplicate evidence", () => {
       ),
     ).toEqual([]);
   });
+  it("distinguishes credits from debit purchases even when the original invoice matches", () => {
+    expect(
+      scoreDuplicateReceipts({ ...receipt, receiptType: "credit" }, [
+        { ...receipt, id: "b", receiptType: "debit", pageHashes: ["photo2"] },
+      ]),
+    ).toEqual([]);
+    expect(
+      scoreDuplicateReceipts({ ...receipt, receiptType: "credit" }, [
+        { ...receipt, id: "b", receiptType: "credit", pageHashes: ["photo2"] },
+      ]),
+    ).toHaveLength(1);
+    expect(
+      scoreDuplicateReceipts({ ...receipt, receiptType: "credit" }, [
+        { ...receipt, id: "b", receiptType: "debit" },
+      ])[0]?.score,
+    ).toBe(100);
+  });
   it("finds different photographs by ticket and makes separate transactions negative", () => {
     expect(
       scoreDuplicateReceipts(receipt, [

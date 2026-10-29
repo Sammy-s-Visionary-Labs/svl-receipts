@@ -19,8 +19,17 @@ const sqlFiles = [
   "ra6_resolution_applied.sql",
   "ra6_test_session_applied.sql",
   "ra6_role_exports_applied.sql",
+  "receipt_review_reliability_applied.sql",
+  "receipt_credit_debit_applied.sql",
+  "receipt_material_types_applied.sql",
   "worker_access_applied.sql",
   "email_import_applied.sql",
+  "labor_persistence_applied.sql",
+  "labor_approval_applied.sql",
+  "labor_approval_precision_applied.sql",
+  "labor_manual_corrections_applied.sql",
+  "labor_worker_aliases_applied.sql",
+  "receipt_ten_pages_applied.sql",
 ].map((name) => join(root, "supabase", "tests", name));
 const url = process.env.SVL_APPLIED_DATABASE_URL;
 

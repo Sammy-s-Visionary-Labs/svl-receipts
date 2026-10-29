@@ -1,3 +1,4 @@
+import { MAX_RECEIPT_PAGES } from "@svl/domain";
 import {
   AESEncryptionKey,
   AESSealedData,
@@ -208,7 +209,7 @@ const queueFileStore = {
     pageIndex: number,
   ): Promise<string> {
     assertSafeQueueId(queueId);
-    if (!Number.isInteger(pageIndex) || pageIndex < 0 || pageIndex >= 5) {
+    if (!Number.isInteger(pageIndex) || pageIndex < 0 || pageIndex >= MAX_RECEIPT_PAGES) {
       throw new Error("pending_queue_page_index_invalid");
     }
     const plaintext = await decryptBytes(await new File(durablePage.uri).bytes());

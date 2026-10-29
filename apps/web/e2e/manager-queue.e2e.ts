@@ -12,9 +12,10 @@ const AS_OF = "2026-09-07T12:00:00.000Z";
 const RECEIPTS: QueueReceipt[] = [
   {
     id: "b2700000-0000-4000-8000-000000000001",
+    receiptType: "debit",
     status: "needs_review",
     submittedAt: "2026-09-01T10:00:00.000Z",
-    submitter: { id: FIXTURE_USERS.worker.id, label: "Worker a2700000" },
+    submitter: { id: FIXTURE_USERS.worker.id, label: "Marcy Kuehnle" },
     vendor: "Copperfield Supply",
     reference: "INV-1042",
     referenceTotalCents: 12845,
@@ -30,9 +31,10 @@ const RECEIPTS: QueueReceipt[] = [
   },
   {
     id: "b2700000-0000-4000-8000-000000000002",
+    receiptType: "debit",
     status: "needs_review",
     submittedAt: "2026-09-02T13:00:00.000Z",
-    submitter: { id: "a2700000-0000-4000-8000-000000000005", label: "Worker b2800000" },
+    submitter: { id: "a2700000-0000-4000-8000-000000000005", label: "Email" },
     vendor: "Northgate Tools",
     reference: "TICKET-201",
     referenceTotalCents: 4599,
@@ -48,9 +50,10 @@ const RECEIPTS: QueueReceipt[] = [
   },
   {
     id: "b2700000-0000-4000-8000-000000000003",
+    receiptType: "debit",
     status: "needs_review",
     submittedAt: "2026-09-03T15:30:00.000Z",
-    submitter: { id: FIXTURE_USERS.worker.id, label: "Worker a2700000" },
+    submitter: { id: FIXTURE_USERS.worker.id, label: "Marcy Kuehnle" },
     vendor: null,
     reference: null,
     referenceTotalCents: null,
@@ -138,29 +141,37 @@ test("newest-first inbox exposes history and status views and required row evide
     "Copperfield Supply",
     "INV-1042",
     "$128.45",
-    "Worker a2700000",
+    "Marcy Kuehnle",
     "#14 · Orchard House",
-    "Low",
+    "Debit",
   ])
     await expect(rows.nth(0)).toContainText(evidence);
   await expect(rows.nth(1)).toContainText("Northgate Tools");
-  for (const evidence of [
-    "Vendor unavailable",
-    "Total unavailable",
-    "No suggestion yet",
-    "Unavailable",
-  ])
+  for (const evidence of ["Vendor unavailable", "Total unavailable", "No suggestion yet", "Debit"])
     await expect(rows.nth(2)).toContainText(evidence);
   await expect(rows.nth(0).getByRole("img", { name: "Receipt first page" })).toBeVisible();
-  await expect(rows.nth(0).locator("time")).toHaveAttribute("datetime", RECEIPTS[0].submittedAt);
+  await expect(rows.nth(0).locator("time").first()).toHaveAttribute(
+    "datetime",
+    RECEIPTS[0].submittedAt,
+  );
+  await expect(rows.nth(0).locator('td[data-label="Age"]')).toContainText("Sep 1, 2026");
+  await expect(rows.nth(0).getByText("Debit", { exact: true })).toHaveCSS(
+    "color",
+    "rgb(180, 35, 24)",
+  );
+  await expect(rows.nth(1).locator('td[data-label="Submitted by"]')).toContainText("Email");
+  await expect(page.getByRole("columnheader", { name: "Receipt type", exact: true })).toBeVisible();
   await expect(
-    rows.nth(0).getByRole("button", { name: /warnings for Copperfield Supply/ }),
-  ).toBeVisible();
+    page.getByRole("columnheader", { name: "Field confidence", exact: true }),
+  ).toHaveCount(0);
+  await expect(page.getByRole("columnheader", { name: "Signals", exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: /approve/i })).toHaveCount(0);
   await page.screenshot({ path: test.info().outputPath("manager-desktop.png"), fullPage: true });
 });
 
-test("all queue tabs navigate with their status and history navigation works", async ({ page }) => {
+test("all queue tabs navigate with their status and All history remains available", async ({
+  page,
+}) => {
   await routeQueue(page, (route) => fulfillQueue(route));
   await page.goto("/");
   const tabs = page.getByRole("navigation", { name: "Receipt status" });
@@ -180,12 +191,23 @@ test("all queue tabs navigate with their status and history navigation works", a
       "page",
     );
   }
-  await page
-    .getByRole("navigation", { name: "Main navigation" })
-    .getByRole("link", { name: "History" })
-    .click();
+  await expect(
+    page
+      .getByRole("navigation", { name: "Main navigation" })
+      .getByRole("link", { name: "History", exact: true }),
+  ).toHaveCount(0);
+  await tabs.getByRole("link", { name: "All history", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Receipt history" })).toBeVisible();
   await expect(page).toHaveURL(/tab=history/);
+  await expect(tabs.getByRole("link", { name: "All history", exact: true })).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
+  await expect(
+    page
+      .getByRole("navigation", { name: "Main navigation" })
+      .getByRole("link", { name: "Inbox", exact: true }),
+  ).toHaveAttribute("aria-current", "page");
 });
 
 test("filters, search, sort and page size are submitted and clear the cursor", async ({ page }) => {
@@ -482,7 +504,9 @@ test("receipt summaries open by keyboard, contain evidence, and remain read only
   await page.keyboard.press("Escape");
   await expect(dialog).not.toBeVisible();
   await expect(opener).toBeFocused();
-  await page.getByRole("button", { name: /warnings for Copperfield Supply/ }).click();
+  await page
+    .getByRole("button", { name: "Open receipt summary for Copperfield Supply", exact: true })
+    .click();
   await expect(dialog).toBeVisible();
   await dialog.getByRole("button", { name: "Back to queue" }).click();
   await expect(dialog).not.toBeVisible();
@@ -596,4 +620,34 @@ test("narrow screens keep navigation, filtering and receipt summary usable", asy
     true,
   );
   await page.getByRole("button", { name: "Close receipt summary" }).click();
+});
+
+test("queue shows Credit or Debit and keeps confidence and signals inside the receipt summary", async ({
+  page,
+}) => {
+  await routeQueue(page, (route) =>
+    fulfillQueue(route, [{ ...RECEIPTS[0], receiptType: "credit" }]),
+  );
+  await page.goto("/");
+  await expect(page.getByRole("columnheader", { name: "Receipt type", exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("columnheader", { name: "Field confidence", exact: true }),
+  ).toHaveCount(0);
+  await expect(page.getByRole("columnheader", { name: "Signals", exact: true })).toHaveCount(0);
+  await expect(page.locator("tbody tr").first()).toContainText("Credit");
+  await expect(page.locator("tbody tr").first().getByText("Credit", { exact: true })).toHaveCSS(
+    "color",
+    "rgb(24, 121, 78)",
+  );
+  await expect(page.locator("tbody tr").first()).toContainText("-$128.45");
+  await page.screenshot({
+    path: test.info().outputPath("credit-queue-desktop.png"),
+    fullPage: true,
+  });
+  await page
+    .getByRole("button", { name: "Open receipt summary for Copperfield Supply", exact: true })
+    .click();
+  await expect(page.getByRole("dialog")).toContainText("Field confidence");
+  await expect(page.getByRole("dialog")).toContainText("Low confidence");
+  await expect(page.getByRole("dialog")).toContainText("Low extraction confidence");
 });

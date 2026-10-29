@@ -1,0 +1,26 @@
+.main { max-width: 1180px; }
+.heading { margin-bottom: 36px; }
+.week + .week { margin-top: 36px; }
+.weekHeading { margin-bottom: 16px; color: #53664f; font-size: 14px; font-weight: 550; }
+.log { background: #fff; border: 1px solid #e2e5dc; border-radius: 10px; overflow: hidden; }
+.day { display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 24px; padding: 28px; }
+.day + .day { border-top: 1px solid #e6e8e0; }
+.date { padding-top: 3px; font-size: 14px; font-weight: 600; color: #315b49; }
+.changes { list-style: none; margin: 0; padding: 0; display: grid; gap: 18px; }
+.changes li { display: grid; grid-template-columns: 70px minmax(0, 1fr); gap: 14px; align-items: start; }
+.changes p { margin: 0; max-width: 72ch; font-size: 14px; line-height: 1.6; color: #253c35; }
+.kind { display: inline-block; width: fit-content; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; line-height: 1.6; }
+.kind[data-kind="Added"] { background: #eaf3e9; color: #315b38; }
+.kind[data-kind="Fixed"] { background: #eaf1f7; color: #315472; }
+.kind[data-kind="Updated"] { background: #f6f0df; color: #71571c; }
+.kind[data-kind="Removed"] { background: #f0efed; color: #615d55; }
+@media (max-width: 900px) {
+  .day { grid-template-columns: 1fr; gap: 18px; padding: 24px; }
+}
+@media (max-width: 640px) {
+  .heading { margin-bottom: 26px; }
+  .day { padding: 20px 16px; }
+  .changes { gap: 20px; }
+  .changes li { grid-template-columns: 64px minmax(0, 1fr); gap: 10px; }
+  .changes p { font-size: 13px; }
+}

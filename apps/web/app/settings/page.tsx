@@ -2,6 +2,7 @@ import { actorMayAccessAdminOps } from "@svl/domain";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getActorFromCookies } from "@/lib/auth/guards";
+import { laborFeatureEnabled } from "@/lib/labor/config";
 import { Icon } from "../manager/icons";
 import styles from "../manager/manager.module.css";
 import { ManagerShell } from "../manager/shell";
@@ -16,7 +17,7 @@ export default async function SettingsPage() {
   if (!actor) redirect("/login");
   if (!actorMayAccessAdminOps(actor)) redirect("/");
   return (
-    <ManagerShell actorRole="admin" active="settings">
+    <ManagerShell actorRole="admin" laborEnabled={laborFeatureEnabled()} active="settings">
       <main id="main-content" className={styles.main}>
         <p className={styles.eyebrow}>ADMINISTRATION</p>
         <h1 className={styles.heading}>Workspace settings</h1>

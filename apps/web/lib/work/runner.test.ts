@@ -71,7 +71,9 @@ describe("work runner batch bounds", () => {
 describe("receipt-scoped continuation", () => {
   afterEach(() => vi.restoreAllMocks());
 
-  function client(options: { accepted?: boolean; existingCheck?: boolean } = {}) {
+  function client(
+    options: { accepted?: boolean; existingCheck?: boolean; pageCount?: number } = {},
+  ) {
     const read = { id: "own-read", receipt_id: "own", kind: "readability" };
     const extract = { id: "own-extract", receipt_id: "own", kind: "extract" };
     const rpc = vi.fn(async (name: string, args?: Record<string, unknown>) => {
@@ -94,14 +96,12 @@ describe("receipt-scoped continuation", () => {
           error: null,
         }),
         order: async () => ({
-          data: [
-            {
-              page_index: 0,
-              storage_key: "own/page-0.jpg",
-              content_type: "image/jpeg",
-              confirmed_at: "2026-09-08",
-            },
-          ],
+          data: Array.from({ length: options.pageCount ?? 1 }, (_, page_index) => ({
+            page_index,
+            storage_key: `own/page-${page_index}.jpg`,
+            content_type: "image/jpeg",
+            confirmed_at: "2026-09-08",
+          })),
           error: null,
         }),
       };
@@ -191,6 +191,38 @@ describe("receipt-scoped continuation", () => {
       expect.objectContaining({ timeoutMs: 15_000 }),
     );
   });
+
+  it.each([10, 11])(
+    "checks the %i-page readability boundary before provider work",
+    async (pageCount) => {
+      const { rpc } = client({ existingCheck: false, accepted: false, pageCount });
+      const checkReadable = vi.fn().mockResolvedValue({
+        check: { schema_version: 1, readable: true },
+        provider: "google_gemini",
+        model: "test",
+        usage: {},
+      });
+      vi.mocked(createGeminiReadabilityAdapter).mockReturnValue({ checkReadable } as never);
+      vi.mocked(readReceiptObject).mockResolvedValue({
+        bytes: new Uint8Array([1]),
+        contentType: "image/jpeg",
+      } as never);
+      const result = await runReceiptWork("own", "readability");
+      if (pageCount === 10) {
+        expect(result).toEqual({ claimed: 1, completed: 1, failed: 0 });
+        expect(
+          checkReadable.mock.calls[0][0].map((page: { pageIndex: number }) => page.pageIndex),
+        ).toEqual(Array.from({ length: 10 }, (_, index) => index));
+      } else {
+        expect(result).toEqual({ claimed: 1, completed: 0, failed: 1 });
+        expect(checkReadable).not.toHaveBeenCalled();
+        expect(rpc).toHaveBeenCalledWith(
+          "fail_work",
+          expect.objectContaining({ p_reason: "invalid_page_set" }),
+        );
+      }
+    },
+  );
 
   it("starts each accepted continuation before unrelated slow initial work finishes", async () => {
     const { rpc, read, extract } = client();

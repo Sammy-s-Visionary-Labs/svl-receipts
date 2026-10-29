@@ -74,6 +74,7 @@ describe("extraction worker", () => {
       [],
       [{ page_index: 1, confirmed_at: "now" }],
       [{ page_index: 0, confirmed_at: null }],
+      Array.from({ length: 11 }, (_, page_index) => ({ page_index, confirmed_at: "now" })),
     ]) {
       await expect(run(database(pages))).rejects.toMatchObject({
         kind: "permanent",
@@ -96,7 +97,7 @@ describe("extraction worker", () => {
       usage: {},
     });
     const db = database(
-      [0, 1].map((index) => ({
+      Array.from({ length: 10 }, (_, index) => ({
         page_index: index,
         confirmed_at: "now",
         storage_key: `p${index}`,
@@ -104,10 +105,12 @@ describe("extraction worker", () => {
       })),
     );
     await run(db);
-    expect(mocks.readObject.mock.calls.map(([key]) => key)).toEqual(["p0", "p1"]);
+    expect(mocks.readObject.mock.calls.map(([key]) => key)).toEqual(
+      Array.from({ length: 10 }, (_, index) => `p${index}`),
+    );
     expect(
       mocks.parseReceipt.mock.calls[0][0].map((page: { pageIndex: number }) => page.pageIndex),
-    ).toEqual([0, 1]);
+    ).toEqual(Array.from({ length: 10 }, (_, index) => index));
     expect(db.rpc).toHaveBeenCalledWith(
       "record_extraction_result",
       expect.objectContaining({ p_generation: 2, p_model: "test-flash", p_prompt_version: "v1" }),

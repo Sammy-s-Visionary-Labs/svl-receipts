@@ -32,7 +32,7 @@ function prepared(pageIndex: number): PreparedUploadPage {
   return {
     pageIndex,
     bytes: new Uint8Array([pageIndex, 1, 2]),
-    checksum: String(pageIndex + 1).repeat(64),
+    checksum: (pageIndex + 1).toString(16).repeat(64),
     byteSize: 3,
     contentType: "image/jpeg",
     originalFilename: null,
@@ -79,6 +79,28 @@ function dependencies(order: string[]): ReceiptSubmissionDependencies {
 }
 
 describe("active receipt submission", () => {
+  it.each([10, 11])("submits %i pages only within the shared receipt limit", async (count) => {
+    const order: string[] = [];
+    const run = executeReceiptSubmission({
+      pages: Array.from({ length: count }, (_, index) => receiptPage(`file:///${index}.jpg`)),
+      location: null,
+      accessToken: "access",
+      existingAttempt: null,
+      signal: new AbortController().signal,
+      dependencies: dependencies(order),
+      onUpdate: () => undefined,
+    });
+    if (count === 10) {
+      await expect(run).resolves.toMatchObject({ status: "submitted" });
+      expect(order.filter((stage) => stage.startsWith("upload:"))).toHaveLength(10);
+      expect(order).toContain("upload:9");
+      expect(order.at(-1)).toBe("confirm");
+    } else {
+      await expect(run).rejects.toThrow("Choose between 1 and 10 receipt pages");
+      expect(order).toEqual([]);
+    }
+  });
+
   it("hashes every page, uploads the full set, and shows Sent only after acknowledgement", async () => {
     const order: string[] = [];
     const updates: string[] = [];

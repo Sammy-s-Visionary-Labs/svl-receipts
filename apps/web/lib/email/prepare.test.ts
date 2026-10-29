@@ -2,9 +2,9 @@ import sharp from "sharp";
 import { describe, expect, it } from "vitest";
 import { emailHtmlText, prepareEmail, renderEmailBody } from "./prepare";
 
-function email(body: string) {
+function email(body: string, from = "Vendor <vendor@example.invalid>") {
   return Buffer.from(
-    `From: Vendor <vendor@example.invalid>\r\nTo: recisvl@gmail.com\r\nSubject: TEST RECEIPT\r\nDate: Wed, 16 Sep 2026 09:00:00 -0400\r\nMIME-Version: 1.0\r\n${body}`,
+    `From: ${from}\r\nTo: recisvl@gmail.com\r\nSubject: TEST RECEIPT\r\nDate: Wed, 16 Sep 2026 09:00:00 -0400\r\nMIME-Version: 1.0\r\n${body}`,
   );
 }
 function attachment(type: string, name: string, bytes: Buffer) {
@@ -38,6 +38,24 @@ function pdf(pageCount = 1) {
   return Buffer.from(result);
 }
 describe("email document preparation", () => {
+  it.each([
+    [
+      "Vendor (x(y) <unexpected@example.invalid>) <vendor@example.invalid>",
+      '"Vendor" <vendor@example.invalid>',
+    ],
+    ["Vendor <vendor(comment)@example.invalid>", '"Vendor" <vendor@example.invalid>'],
+    [
+      'Vendor <"a@unexpected.invalid>"@example.invalid>',
+      '"Vendor" <"a@unexpected.invalid>"@example.invalid>',
+    ],
+  ])("preserves the actual sender mailbox in structured header %s", async (from, sender) => {
+    const result = await prepareEmail(
+      email("Content-Type: text/plain\r\n\r\nTEST RECEIPT\nTotal USD 80.00", from),
+    );
+    expect(result.sender).toBe(sender);
+    expect(result.documents).toHaveLength(1);
+  });
+
   it("renders a body receipt without inventing the purchase date from delivery time", async () => {
     const result = await prepareEmail(
       email(
@@ -55,9 +73,22 @@ describe("email document preparation", () => {
     expect(result.documents[0]?.pages).toHaveLength(2);
     expect((await sharp(result.documents[0]?.pages[0]).metadata()).format).toBe("jpeg");
   });
-  it("holds excessive PDFs instead of silently discarding pages", async () => {
-    await expect(prepareEmail(attachment("application/pdf", "long.pdf", pdf(6)))).rejects.toThrow(
+  it("accepts a ten-page PDF as one complete receipt", async () => {
+    const result = await prepareEmail(attachment("application/pdf", "test-ten-pages.pdf", pdf(10)));
+    expect(result.documents).toHaveLength(1);
+    expect(result.documents[0]?.pages).toHaveLength(10);
+    expect((await sharp(result.documents[0]?.pages[9]).metadata()).format).toBe("jpeg");
+  });
+  it("holds eleven-page PDFs instead of silently discarding pages", async () => {
+    await expect(prepareEmail(attachment("application/pdf", "long.pdf", pdf(11)))).rejects.toThrow(
       "pdf_page_limit",
+    );
+  });
+  it("renders ten body pages and holds a body requiring an eleventh page", async () => {
+    const lines = Array.from({ length: 500 }, (_, index) => `TEST RECEIPT line ${index + 1}`);
+    expect(await renderEmailBody(lines.join("\n"))).toHaveLength(10);
+    await expect(renderEmailBody([...lines, "TEST RECEIPT line 501"].join("\n"))).rejects.toThrow(
+      "email_body_limit",
     );
   });
   it("decodes image attachments and attached forwarded emails", async () => {

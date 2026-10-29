@@ -11,15 +11,30 @@ const sql = readFileSync(
   ),
   "utf8",
 );
+const currentLimitSql = readFileSync(
+  join(
+    dirname(fileURLToPath(import.meta.url)),
+    "../../../supabase/migrations/20261029180207_receipt_ten_page_limit.sql",
+  ),
+  "utf8",
+);
 
 describe("RA-23 multi-page upload schema", () => {
+  it("widens the current persisted page bound and both confirmation RPCs to the shared limit", () => {
+    expect(currentLimitSql).toContain(`page_index < ${MAX_RECEIPT_PAGES}`);
+    expect(currentLimitSql).toContain(`jsonb_array_length(p_pages) > ${MAX_RECEIPT_PAGES}`);
+    expect(currentLimitSql).toContain("public.create_upload_pending_receipt_set");
+    expect(currentLimitSql).toContain("public.submit_confirmed_receipt_set");
+  });
+
   it("persists an ordered 1-to-many page set with bounded metadata", () => {
     expect(sql).toContain("create table public.receipt_pages");
     expect(sql).toContain(
       "receipt_id uuid not null references public.receipts (id) on delete cascade",
     );
     expect(sql).toContain("unique (receipt_id, page_index)");
-    expect(sql).toContain(`page_index < ${MAX_RECEIPT_PAGES}`);
+    // This migration records the original five-page rollout; later migrations widen it.
+    expect(sql).toContain("page_index < 5");
     expect(sql).toContain(
       `byte_size is null or (byte_size > 0 and byte_size <= ${MAX_RECEIPT_BYTES})`,
     );

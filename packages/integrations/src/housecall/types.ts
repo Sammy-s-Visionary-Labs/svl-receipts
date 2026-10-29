@@ -60,6 +60,7 @@ export type HousecallMaterialBody = {
   }>;
 };
 export type PreparedMaterialWrite = {
+  receiptType?: "debit" | "credit";
   kind: "job_cost";
   jobId: string;
   method: "PUT";

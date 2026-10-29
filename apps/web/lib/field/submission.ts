@@ -48,7 +48,7 @@ export async function submitDraft(
       (p) => p.blob.type !== "image/jpeg" || p.blob.size < 1 || p.blob.size > MAX_RECEIPT_BYTES,
     )
   ) {
-    throw new Error("Add between 1 and 5 valid receipt photos before sending.");
+    throw new Error(`Add between 1 and ${MAX_RECEIPT_PAGES} valid receipt photos before sending.`);
   }
   // Persist the immutable page set before any remote side effect. Every retry uses this same ID.
   draft.started = true;

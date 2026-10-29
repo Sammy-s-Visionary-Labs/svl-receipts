@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import laborStyles from "../labor-hours/labor.module.css";
 import { SignOutButton } from "../sign-out-button";
 import { WorkspaceSwitcher } from "../workspace-switcher";
 import { Icon } from "./icons";
@@ -7,19 +8,21 @@ import styles from "./manager.module.css";
 
 export function ManagerShell({
   actorRole,
+  laborEnabled,
   active,
   reviewCount,
   children,
 }: {
   actorRole: "manager" | "admin";
-  active: "inbox" | "history" | "settings" | "team";
+  laborEnabled: boolean;
+  active: "inbox" | "history" | "settings" | "team" | "labor-hours" | "jobs" | "updates";
   reviewCount?: number;
   children: ReactNode;
 }) {
   return (
     <div className={styles.workspace}>
       <a className={styles.skipLink} href="#main-content">
-        Skip to receipts
+        Skip to main content
       </a>
       <aside className={styles.sidebar}>
         <WorkspaceSwitcher
@@ -37,23 +40,18 @@ export function ManagerShell({
           </span>
         </WorkspaceSwitcher>
         <div className={styles.navCaption}>WORKSPACE</div>
-        <nav className={styles.navigation} aria-label="Main navigation">
+        <nav
+          className={`${styles.navigation} ${laborEnabled ? laborStyles.developmentNavigation : ""}`}
+          aria-label="Main navigation"
+        >
           <Link
             href="/"
-            aria-current={active === "inbox" ? "page" : undefined}
-            className={active === "inbox" ? styles.navActive : undefined}
+            aria-current={active === "inbox" || active === "history" ? "page" : undefined}
+            className={active === "inbox" || active === "history" ? styles.navActive : undefined}
           >
             <Icon name="inbox" />
             <span>Inbox</span>
             {reviewCount !== undefined && <span className={styles.navCount}>{reviewCount}</span>}
-          </Link>
-          <Link
-            href="/?tab=history&sort=newest"
-            aria-current={active === "history" ? "page" : undefined}
-            className={active === "history" ? styles.navActive : undefined}
-          >
-            <Icon name="history" />
-            <span>History</span>
           </Link>
           <Link
             href="/team"
@@ -62,6 +60,34 @@ export function ManagerShell({
           >
             <Icon name="check" />
             <span>Team</span>
+          </Link>
+          {laborEnabled && (
+            <>
+              <Link
+                href="/labor-hours"
+                aria-current={active === "labor-hours" ? "page" : undefined}
+                className={active === "labor-hours" ? styles.navActive : undefined}
+              >
+                <Icon name="clock" />
+                <span>Labor Hours</span>
+              </Link>
+              <Link
+                href="/jobs"
+                aria-current={active === "jobs" ? "page" : undefined}
+                className={active === "jobs" ? styles.navActive : undefined}
+              >
+                <Icon name="receipt" />
+                <span>Jobs</span>
+              </Link>
+            </>
+          )}
+          <Link
+            href="/updates"
+            aria-current={active === "updates" ? "page" : undefined}
+            className={active === "updates" ? styles.navActive : undefined}
+          >
+            <Icon name="updates" />
+            <span>Updates</span>
           </Link>
           {actorRole === "admin" && (
             <Link
@@ -97,13 +123,19 @@ export function ManagerShell({
           <span>
             Workspace <span className={styles.breadcrumbSlash}>/</span>{" "}
             <strong>
-              {active === "team"
-                ? "Team"
-                : active === "history"
-                  ? "History"
-                  : active === "settings"
-                    ? "Settings"
-                    : "Inbox"}
+              {active === "updates"
+                ? "Updates"
+                : active === "team"
+                  ? "Team"
+                  : active === "labor-hours"
+                    ? "Labor Hours"
+                    : active === "jobs"
+                      ? "Jobs"
+                      : active === "history"
+                        ? "History"
+                        : active === "settings"
+                          ? "Settings"
+                          : "Inbox"}
             </strong>
           </span>
           <span className={styles.topbarCaption}>SVL RECEIPTS</span>

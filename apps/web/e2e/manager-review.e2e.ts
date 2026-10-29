@@ -273,7 +273,7 @@ test("checks decimal amounts, missing job and exact two-job approval", async ({ 
   await page.getByLabel("Quantity", { exact: true }).first().fill("-1");
   await page.getByRole("button", { name: "Approve receipt", exact: true }).click();
   await expect(
-    page.getByText("Use a positive quantity with up to three decimal places."),
+    page.getByText("Use a nonnegative quantity with up to three decimal places."),
   ).toBeVisible();
   expect(state.requests).toHaveLength(0);
   await page.getByLabel("Quantity", { exact: true }).first().fill("1.005");
@@ -409,7 +409,7 @@ test("job bulk assignment requires confirmation and adding/deleting keeps focus"
   await expect(page.getByLabel("Description", { exact: true })).toHaveCount(2);
   await expect(page.getByLabel("Description", { exact: true }).first()).toBeFocused();
 });
-test("keeps saved older jobs outside the search page and blocks unavailable or stale shortcuts", async ({
+test("keeps saved older jobs outside the search page and blocks unavailable destinations", async ({
   page,
 }) => {
   const state = await setup(page);
@@ -460,10 +460,14 @@ test("keeps saved older jobs outside the search page and blocks unavailable or s
     scopes.push(new URL(route.request().url()).searchParams.get("scope") ?? "");
     return route.fulfill({ json: { jobs: searchPage } });
   });
+  await page.route("**/api/manager/jobs", (route) =>
+    route.fulfill({ status: 503, json: { error: { message: "Fixture refresh unavailable" } } }),
+  );
   const mutations: string[] = [];
   page.on("request", (request) => {
     if (
       new URL(request.url()).pathname.startsWith("/api/") &&
+      new URL(request.url()).pathname !== "/api/manager/jobs" &&
       !["GET", "HEAD"].includes(request.method())
     )
       mutations.push(`${request.method()} ${new URL(request.url()).pathname}`);
@@ -479,12 +483,17 @@ test("keeps saved older jobs outside the search page and blocks unavailable or s
   await expect(
     secondJob.getByRole("option", { name: /Current unavailable destination.*Unavailable/ }),
   ).toBeDisabled();
-  await expect(page.getByRole("button", { name: "Apply to all", exact: true })).toBeDisabled();
+  await expect(
+    page
+      .getByRole("combobox", { name: "Job for all materials", exact: true })
+      .getByRole("option", { name: /Current unavailable destination.*Unavailable/ }),
+  ).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Apply to all", exact: true })).toBeEnabled();
   await expect(page.getByRole("button", { name: "Use for this line", exact: true })).toBeDisabled();
   await expect(page.getByText("This job is unavailable.", { exact: true })).toBeVisible();
   await expect(
     firstJob.getByRole("option", { name: /Stale extracted suggestion.*Refresh needed/ }),
-  ).toHaveCount(1);
+  ).toBeEnabled();
   await page.getByLabel("Include all older jobs", { exact: true }).check();
   await expect.poll(() => scopes.includes("all")).toBe(true);
   await expect(firstJob).toHaveValue(oldJob.id);
@@ -991,15 +1000,417 @@ test("bulk job selection has the same named destinations as materials and only u
   page,
 }) => {
   const state = await setup(page);
-  page.on("dialog", (dialog) => dialog.accept());
+  const acceptReplacement = (dialog: import("@playwright/test").Dialog) => dialog.accept();
+  page.on("dialog", acceptReplacement);
   const bulk = page.getByRole("combobox", { name: "Job for all materials", exact: true });
   await expect(
     bulk.getByRole("option", { name: "River family · Kitchen renovation #1043", exact: true }),
   ).toHaveCount(1);
   await bulk.selectOption("job-b");
-  await page.getByRole("button", { name: "Apply selected job to all", exact: true }).click();
   const fields = page.getByRole("combobox", { name: "Housecall job", exact: true });
   await expect(fields.nth(0)).toHaveValue("job-b");
   await expect(fields.nth(1)).toHaveValue("job-b");
+  page.off("dialog", acceptReplacement);
+  page.once("dialog", (dialog) => dialog.dismiss());
+  await bulk.selectOption("job-a");
+  await expect(bulk).toHaveValue("job-b");
+  await expect(fields.nth(0)).toHaveValue("job-b");
+  await page.route("**/api/manager/jobs?*", (route) => route.fulfill({ json: { jobs: [] } }));
+  const searchFinished = page.waitForResponse((response) =>
+    response.url().includes("search=no%20matching%20jobs"),
+  );
+  await page.getByLabel("Find a Housecall job", { exact: true }).fill("no matching jobs");
+  await searchFinished;
+  await expect(bulk.getByRole("option", { name: /1043/ })).toHaveCount(1);
+  await expect(fields.nth(0)).toHaveValue("job-b");
+  await page.getByRole("button", { name: "+ Add material", exact: true }).click();
+  await expect(fields.nth(2)).toHaveValue("job-b");
   expect(state.requests).toEqual([]);
+});
+
+test("typing letters or numbers opens live job results without Enter and preserves selected destinations", async ({
+  page,
+}) => {
+  const state = await setup(page);
+  state.detail.suggestions = [];
+  const letterJob = { ...job("live-letter-job", "River patio"), number: "2047", stale: true };
+  const numericJob = { ...job("live-number-job", "Walkway repair"), number: "2048" };
+  const unavailableJob = {
+    ...job("live-unavailable-job", "Unavailable River project"),
+    number: "9900",
+    unavailable: true,
+  };
+  let releaseLetters: () => void = () => undefined;
+  const letterGate = new Promise<void>((resolve) => {
+    releaseLetters = resolve;
+  });
+  const searches: string[] = [];
+  await page.route("**/api/manager/jobs?*", async (route) => {
+    const search = new URL(route.request().url()).searchParams.get("search") ?? "";
+    searches.push(search);
+    if (search === "River") await letterGate;
+    return route.fulfill({
+      json: {
+        jobs:
+          search === "River" ? [letterJob, unavailableJob] : search === "2048" ? [numericJob] : [],
+      },
+    });
+  });
+  await page.route("**/api/manager/jobs", (route) =>
+    route.fulfill({ status: 503, json: { error: { message: "Fixture refresh unavailable" } } }),
+  );
+  await page.reload();
+  const search = page.getByLabel("Find a Housecall job", { exact: true });
+  const results = page.getByRole("region", { name: "Housecall job search results", exact: true });
+  const fields = page.getByRole("combobox", { name: "Housecall job", exact: true });
+  const acceptReplacement = (dialog: import("@playwright/test").Dialog) => dialog.accept();
+  page.on("dialog", acceptReplacement);
+  try {
+    await search.fill("River");
+    await expect(results).toBeVisible();
+    await expect(results.getByRole("status")).toHaveText("Searching Housecall jobs…");
+    await expect.poll(() => searches.includes("River")).toBe(true);
+    releaseLetters();
+    const letterResult = results.getByRole("button", {
+      name: "River family · River patio #2047",
+      exact: true,
+    });
+    await expect(letterResult).toBeVisible();
+    await expect(letterResult).toBeEnabled();
+    await expect(
+      results.getByRole("button", {
+        name: "River family · Unavailable River project #9900",
+        exact: true,
+      }),
+    ).toBeDisabled();
+    await letterResult.click();
+    await expect(fields.first()).toHaveValue(letterJob.id);
+    await expect(fields.nth(1)).toHaveValue(letterJob.id);
+    await expect(results).not.toBeVisible();
+    expect(state.requests).toEqual([]);
+    await search.fill("2048");
+    const numericResult = results.getByRole("button", {
+      name: "River family · Walkway repair #2048",
+      exact: true,
+    });
+    await expect(numericResult).toBeVisible();
+    await expect.poll(() => searches.includes("2048")).toBe(true);
+    await expect(fields.first()).toHaveValue(letterJob.id);
+    await expect(fields.nth(1)).toHaveValue(letterJob.id);
+    await numericResult.click();
+    await expect(fields.first()).toHaveValue(numericJob.id);
+    await expect(fields.nth(1)).toHaveValue(numericJob.id);
+    await search.fill("no-match");
+    await expect(results.getByText("No matching Housecall jobs.", { exact: true })).toBeVisible();
+    await expect(results.getByRole("button")).toHaveCount(0);
+    await expect(fields.first()).toHaveValue(numericJob.id);
+    await expect(fields.nth(1)).toHaveValue(numericJob.id);
+    await page.getByRole("button", { name: "Save for later", exact: true }).click();
+    await expect(page.getByText("Draft saved.", { exact: true })).toBeVisible();
+    expect(state.requests).toHaveLength(1);
+    expect(state.requests[0]).toMatchObject({
+      decision: "save_draft",
+      draft: { lines: [{ jobId: numericJob.id }, { jobId: numericJob.id }] },
+    });
+  } finally {
+    releaseLetters();
+    page.off("dialog", acceptReplacement);
+  }
+});
+
+test("a slower earlier job search cannot replace the latest visible suggestions", async ({
+  page,
+}) => {
+  const state = await setup(page);
+  state.detail.suggestions = [];
+  const olderJob = { ...job("older-response-job", "Earlier River result"), number: "2047" };
+  const latestJob = { ...job("latest-response-job", "Latest numeric result"), number: "2048" };
+  let releaseOlder: () => void = () => undefined;
+  const olderGate = new Promise<void>((resolve) => {
+    releaseOlder = resolve;
+  });
+  let olderStarted = false;
+  let olderFinished = false;
+  await page.route("**/api/manager/jobs?*", async (route) => {
+    const search = new URL(route.request().url()).searchParams.get("search") ?? "";
+    if (search === "River") {
+      olderStarted = true;
+      await olderGate;
+      try {
+        await route.fulfill({ json: { jobs: [olderJob] } });
+      } finally {
+        olderFinished = true;
+      }
+      return;
+    }
+    return route.fulfill({ json: { jobs: search === "2048" ? [latestJob] : [] } });
+  });
+  await page.reload();
+  const search = page.getByLabel("Find a Housecall job", { exact: true });
+  const results = page.getByRole("region", { name: "Housecall job search results", exact: true });
+  try {
+    await search.fill("River");
+    await expect.poll(() => olderStarted).toBe(true);
+    await search.fill("2048");
+    const latestResult = results.getByRole("button", {
+      name: "River family · Latest numeric result #2048",
+      exact: true,
+    });
+    await expect(latestResult).toBeVisible();
+    releaseOlder();
+    await expect.poll(() => olderFinished).toBe(true);
+    await expect(latestResult).toBeVisible();
+    await expect(results.getByRole("button", { name: /Earlier River result/ })).toHaveCount(0);
+    await expect(search).toHaveValue("2048");
+    expect(state.requests).toEqual([]);
+  } finally {
+    releaseOlder();
+  }
+});
+
+test("stale cached jobs can be selected individually or in bulk and saved, while approval requires refresh", async ({
+  page,
+}) => {
+  const state = await setup(page);
+  const cachedJob: ManagerJob = {
+    ...job("cached-draft-job", "Cached customer project"),
+    source: "housecall",
+    syncedAt: "2020-01-01T00:00:00Z",
+    stale: true,
+    unavailable: false,
+  };
+  state.detail.draft.lines[0].qty = "1.01";
+  state.detail.suggestions = [
+    { ...cachedJob, suggestionId: "cached-receipt-suggestion" },
+    { ...cachedJob, sourceIndex: 1, suggestionId: "cached-line-suggestion" },
+  ];
+  let refreshed = false;
+  let allowRefresh = false;
+  let refreshAttempts = 0;
+  await page.route("**/api/manager/jobs?*", (route) =>
+    route.fulfill({ json: { jobs: [{ ...cachedJob, stale: !refreshed }, ...jobs] } }),
+  );
+  await page.route("**/api/manager/jobs", (route) => {
+    expect(route.request().method()).toBe("POST");
+    refreshAttempts++;
+    if (!allowRefresh)
+      return route.fulfill({
+        status: 503,
+        json: { error: { message: "Fixture refresh unavailable" } },
+      });
+    refreshed = true;
+    state.detail.suggestions = state.detail.suggestions.map((suggestion) => ({
+      ...suggestion,
+      stale: false,
+      syncedAt: "2026-10-29T12:00:00Z",
+    }));
+    return route.fulfill({ json: { count: 3, scanned: 3 } });
+  });
+  await page.reload();
+  await expect.poll(() => refreshAttempts).toBeGreaterThan(0);
+  const fields = page.getByRole("combobox", { name: "Housecall job", exact: true });
+  const bulk = page.getByRole("combobox", { name: "Job for all materials", exact: true });
+  await expect(
+    fields.first().getByRole("option", { name: /Cached customer project/ }),
+  ).toBeEnabled();
+  await fields.first().selectOption(cachedJob.id);
+  await expect(fields.first()).toHaveValue(cachedJob.id);
+  await expect(fields.nth(1)).toHaveValue("job-b");
+  const perLineSuggestion = page.getByRole("button", { name: "Use for this line", exact: true });
+  await expect(perLineSuggestion).toBeEnabled();
+  await perLineSuggestion.click();
+  await expect(fields.nth(1)).toHaveValue(cachedJob.id);
+  await page.getByRole("button", { name: "Save for later", exact: true }).click();
+  await expect(page.getByText("Draft saved.", { exact: true })).toBeVisible();
+  expect(state.requests).toHaveLength(1);
+  expect(state.requests[0]).toMatchObject({
+    decision: "save_draft",
+    draft: { lines: [{ jobId: cachedJob.id }, { jobId: cachedJob.id }] },
+  });
+  await page.getByRole("button", { name: "Approve receipt", exact: true }).click();
+  await expect(
+    page.getByText("Refresh Housecall jobs before approving this destination.").first(),
+  ).toBeVisible();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  expect(state.requests).toHaveLength(1);
+  const acceptReplacement = (dialog: import("@playwright/test").Dialog) => dialog.accept();
+  page.on("dialog", acceptReplacement);
+  await bulk.selectOption("job-b");
+  await expect(fields.first()).toHaveValue("job-b");
+  await expect(bulk.getByRole("option", { name: /Cached customer project/ })).toBeEnabled();
+  await bulk.selectOption(cachedJob.id);
+  await expect(fields.first()).toHaveValue(cachedJob.id);
+  await expect(fields.nth(1)).toHaveValue(cachedJob.id);
+  page.off("dialog", acceptReplacement);
+  await page.getByRole("button", { name: "Save for later", exact: true }).click();
+  await expect(page.getByText("Draft saved.", { exact: true })).toBeVisible();
+  expect(state.requests).toHaveLength(2);
+  expect(state.requests[1]).toMatchObject({
+    decision: "save_draft",
+    draft: { lines: [{ jobId: cachedJob.id }, { jobId: cachedJob.id }] },
+  });
+  await page.getByLabel("Vendor *", { exact: true }).fill("Manager edit kept during refresh");
+  allowRefresh = true;
+  await page.getByRole("button", { name: "Refresh Housecall jobs", exact: true }).click();
+  await expect.poll(() => refreshed).toBe(true);
+  await expect(
+    bulk.getByRole("option", { name: /Cached customer project.*Refresh needed/ }),
+  ).toHaveCount(0);
+  await expect(page.getByLabel("Vendor *", { exact: true })).toHaveValue(
+    "Manager edit kept during refresh",
+  );
+  await page.getByRole("button", { name: "Approve receipt", exact: true }).click();
+  await expect(page.getByRole("dialog")).toContainText("Cached customer project");
+  expect(state.requests).toHaveLength(2);
+});
+
+test("zero quantities and zero unit costs survive saving, and approval explains exclusions", async ({
+  page,
+}) => {
+  const state = await setup(page);
+  await page.getByLabel("Quantity", { exact: true }).first().fill("0");
+  await page.getByLabel("Unit cost", { exact: true }).first().fill("0");
+  await page.getByLabel("Housecall job", { exact: true }).first().selectOption("");
+  await page.getByLabel("Unit cost", { exact: true }).nth(1).fill("0.00");
+  await page.getByRole("button", { name: "Save for later", exact: true }).click();
+  await expect(page.getByText("Draft saved.", { exact: true })).toBeVisible();
+  await page.reload();
+  await expect(page.getByLabel("Quantity", { exact: true }).first()).toHaveValue("0");
+  await expect(page.getByLabel("Unit cost", { exact: true }).nth(1)).toHaveValue("0.00");
+  await page.getByRole("button", { name: "Approve receipt", exact: true }).click();
+  const modal = page.getByRole("dialog");
+  await expect(modal).toContainText("1 lines to 1 jobs");
+  await expect(modal).toContainText("1 zero-quantity lines stay in the review history");
+  expect(state.requests[0]).toMatchObject({
+    decision: "save_draft",
+    draft: { lines: [{ qty: "0", unitCost: "0" }, { unitCost: "0.00" }] },
+  });
+});
+
+test("approval failures are visible inside the confirmation dialog with their actual reason", async ({
+  page,
+}) => {
+  await setup(page);
+  await page.getByLabel("Quantity", { exact: true }).first().fill("1");
+  await page.route(`**/api/manager/receipts/${id}/review`, (route) =>
+    route.fulfill({
+      status: 409,
+      json: {
+        error: {
+          code: "duplicate_review_required",
+          message:
+            "Compare and resolve possible duplicates before approval. Your approval was not saved.",
+        },
+      },
+    }),
+  );
+  await page.getByRole("button", { name: "Approve receipt", exact: true }).click();
+  const modal = page.getByRole("dialog");
+  await modal.getByRole("checkbox").check();
+  await modal.getByRole("button", { name: "Approve receipt", exact: true }).click();
+  await expect(modal.getByRole("alert")).toContainText("Compare and resolve possible duplicates");
+  await expect(modal).not.toContainText("changed since you opened");
+  await expect(page.getByLabel("Quantity", { exact: true }).first()).toHaveValue("1");
+});
+
+test("continues pending approved steps while preserving successful Housecall work", async ({
+  page,
+}) => {
+  const state = await setup(page, { historical: true });
+  state.detail.automaticExport = true;
+  state.detail.steps[1].status = "ready";
+  state.detail.steps[1].error = null;
+  await page.reload();
+  const requests: string[] = [];
+  await page.route(`**/api/manager/receipts/${id}/export-continue`, (route) => {
+    requests.push(route.request().method());
+    state.detail.status = "exported";
+    state.detail.steps[1].status = "succeeded";
+    state.detail.steps[1].externalId = "material-43";
+    return route.fulfill({
+      status: 202,
+      json: {
+        message: "Housecall export continuation requested. Check progress for confirmation.",
+      },
+    });
+  });
+  await page
+    .getByRole("button", { name: "Continue approved Housecall export", exact: true })
+    .click();
+  await expect(page.getByText(`${id} · exported`, { exact: true })).toBeVisible();
+  await expect(page.getByText("attachment-42", { exact: true })).toBeVisible();
+  await expect(page.getByText("material-43", { exact: true })).toBeVisible();
+  expect(requests).toEqual(["POST"]);
+  expect(state.requests).toEqual([]);
+});
+
+test("credit type persists and approval clearly shows a negative Housecall total", async ({
+  page,
+}) => {
+  const state = await setup(page);
+  await page.getByLabel("Quantity", { exact: true }).first().fill("1.5");
+  await page.getByLabel("Unit cost", { exact: true }).first().fill("2.51");
+  await page.getByRole("combobox", { name: "Receipt type *", exact: true }).selectOption("credit");
+  await expect(page.getByRole("status", { name: "Material 1 extended cost" })).toHaveText("-$3.77");
+  await page.getByRole("button", { name: "Save for later", exact: true }).click();
+  await expect(page.getByText("Draft saved.", { exact: true })).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole("combobox", { name: "Receipt type *", exact: true })).toHaveValue(
+    "credit",
+  );
+  await page.getByRole("button", { name: "Approve receipt", exact: true }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toContainText("-$10.27");
+  await expect(dialog).toContainText("reduces Housecall job costs");
+  await page.screenshot({ path: test.info().outputPath("credit-approval.png"), fullPage: true });
+  await dialog.getByRole("checkbox").check();
+  await dialog.getByRole("button", { name: "Approve receipt", exact: true }).click();
+  await expect.poll(() => state.requests.length).toBe(2);
+  expect(state.requests[1]).toMatchObject({
+    decision: "approve",
+    draft: { receiptType: "credit", lines: [{ qty: "1.5", unitCost: "2.51" }, {}] },
+  });
+});
+
+test("uncertain receipt direction requires a manager choice before approval", async ({ page }) => {
+  const state = await setup(page);
+  state.detail.draft.receiptType = "";
+  state.detail.draft.lines[0].qty = "1";
+  await page.reload();
+  await page.getByRole("button", { name: "Approve receipt", exact: true }).click();
+  await expect(
+    page.getByText("Choose Credit or Debit before approval.", { exact: true }),
+  ).toBeVisible();
+  expect(state.requests).toEqual([]);
+});
+
+test("individual material Credit and Debit overrides persist and produce a mixed signed total", async ({
+  page,
+}) => {
+  const state = await setup(page);
+  await page.getByLabel("Quantity", { exact: true }).first().fill("1");
+  await page.getByLabel("Unit cost", { exact: true }).first().fill("10.00");
+  await page.getByRole("combobox", { name: "Receipt type *", exact: true }).selectOption("credit");
+  await page.getByLabel("Material type", { exact: true }).first().selectOption("debit");
+  await page.getByLabel("Material type", { exact: true }).nth(1).selectOption("credit");
+  await expect(page.getByRole("status", { name: "Material 1 extended cost" })).toHaveText("$10.00");
+  await expect(page.getByRole("status", { name: "Material 2 extended cost" })).toHaveText("-$6.50");
+  await page.getByRole("button", { name: "Save for later", exact: true }).click();
+  await expect(page.getByText("Draft saved.", { exact: true })).toBeVisible();
+  await page.reload();
+  await expect(page.getByLabel("Material type", { exact: true }).first()).toHaveValue("debit");
+  await expect(page.getByLabel("Material type", { exact: true }).nth(1)).toHaveValue("credit");
+  await page.screenshot({
+    path: test.info().outputPath("mixed-material-editor.png"),
+    fullPage: true,
+  });
+  await page.getByRole("button", { name: "Approve receipt", exact: true }).click();
+  await expect(page.getByRole("dialog")).toContainText("$3.50");
+  await page.screenshot({
+    path: test.info().outputPath("mixed-material-types.png"),
+    fullPage: true,
+  });
+  expect(state.requests[0]).toMatchObject({
+    draft: { receiptType: "credit", lines: [{ receiptType: "debit" }, { receiptType: "credit" }] },
+  });
 });

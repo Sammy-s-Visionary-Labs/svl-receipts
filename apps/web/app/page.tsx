@@ -2,6 +2,7 @@ import { actorMayAccessManagerOps } from "@svl/domain";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { getActorFromCookies } from "@/lib/auth/guards";
+import { laborFeatureEnabled } from "@/lib/labor/config";
 import { ManagerDashboard } from "./manager/dashboard";
 import styles from "./page.module.css";
 import { SignOutButton } from "./sign-out-button";
@@ -40,7 +41,7 @@ export default async function Home() {
         </div>
       }
     >
-      <ManagerDashboard actorRole={actor.role} />
+      <ManagerDashboard actorRole={actor.role} laborEnabled={laborFeatureEnabled()} />
     </Suspense>
   );
 }

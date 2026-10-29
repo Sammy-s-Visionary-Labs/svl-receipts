@@ -11,6 +11,17 @@ export * from "./audit";
 export * from "./authz";
 export * from "./extraction";
 export * from "./housecall";
+export * from "./labor";
+export * from "./labor-allocation";
+export * from "./labor-approval";
+export * from "./labor-job-cost";
+export * from "./labor-job-mapping";
+export * from "./labor-payroll";
+export {
+  canonicalLaborWorkerName,
+  createLaborWorkerIdentityResolver,
+  type LaborWorkerAlias,
+} from "./labor-worker-identity";
 export * from "./legacy-status";
 export * from "./money";
 export * from "./outbox";
@@ -20,6 +31,7 @@ export * from "./receipt-intelligence";
 export * from "./receipt-normalization";
 export * from "./receipt-parse";
 export * from "./receipt-status";
+export * from "./receipt-type";
 export * from "./retention";
 export * from "./review";
 export * from "./review-draft";

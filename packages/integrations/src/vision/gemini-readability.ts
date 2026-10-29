@@ -1,6 +1,7 @@
 import { Buffer } from "node:buffer";
 import {
   isReadabilityCheckV1,
+  MAX_RECEIPT_PAGES,
   READABILITY_REASONS,
   READABILITY_SCHEMA_VERSION,
   type ReadabilityAdapterError,
@@ -67,6 +68,7 @@ export function createGeminiReadabilityAdapter(input: {
       }
       if (
         pages.length === 0 ||
+        pages.length > MAX_RECEIPT_PAGES ||
         pages.some((page, index) => page.pageIndex !== index || page.bytes.byteLength === 0)
       ) {
         throw new GeminiReadabilityError("permanent", "invalid_page_set");
@@ -225,7 +227,7 @@ function buildGeminiRequest(mediaParts: GeminiMediaPart[]) {
           readable: { type: "boolean" },
           failed_page_indexes: {
             type: "array",
-            items: { type: "integer", minimum: 0 },
+            items: { type: "integer", minimum: 0, maximum: MAX_RECEIPT_PAGES - 1 },
           },
           reasons: {
             type: "array",

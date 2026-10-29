@@ -1,3 +1,4 @@
+import { MAX_RECEIPT_PAGES } from "@svl/domain";
 import { authErrorResponse, requireManager } from "@/lib/auth/guards";
 import { housecallConfiguration } from "@/lib/housecall/config";
 import { HttpError, httpErrorResponse } from "@/lib/http";
@@ -74,7 +75,7 @@ export async function GET(request: Request, context: Context) {
         .select("page_index")
         .eq("receipt_id", id)
         .not("confirmed_at", "is", null)
-        .limit(5),
+        .limit(MAX_RECEIPT_PAGES),
       supabase
         .from("housecall_outbox")
         .select("intent_id,status")
@@ -147,21 +148,36 @@ export async function GET(request: Request, context: Context) {
         frozenSteps = currentSteps ?? [];
       }
     }
+    const classificationResult = await supabase
+      .from("receipt_type_classifications")
+      .select("receipt_type,source_extraction_id,source_review_version")
+      .eq("receipt_id", id)
+      .eq("status", "completed")
+      .maybeSingle();
+    if (classificationResult.error) throw classificationResult.error;
+    const classification = classificationResult.data;
     const original = extractionDraft(extraction);
+    if (classification && classification.source_extraction_id === (extraction?.id ?? null))
+      original.receiptType =
+        classification.receipt_type === "unknown" ? "" : classification.receipt_type;
     if (Array.isArray(extraction?.lines) && extraction.lines.length > 100)
       throw new HttpError(
         422,
         "review_limit",
         "This receipt exceeds the 100-line review limit. Ask an administrator to split it before approval.",
       );
-    let savedDraft = review?.snapshot ?? original;
-    let pristineDraft = !review?.snapshot && receipt.review_version === 0;
+    let savedDraft = review?.snapshot
+      ? { ...review.snapshot, receiptType: review.snapshot.receiptType ?? original.receiptType }
+      : original;
+    // Automated classification/re-extraction can increment the version without
+    // creating a manager decision. Reviews and legacy patches establish edits.
+    let pristineDraft = !review;
     if (!review?.snapshot) {
       const [patches, legacyLines] = await Promise.all([
         supabase.rpc("manager_legacy_review_edits", { p_receipt_id: id }),
         supabase
           .from("receipt_lines")
-          .select("id,description,qty,uom,unit_cost_cents,job_id")
+          .select("id,description,qty,uom,unit_cost_cents,job_id,receipt_type")
           .eq("receipt_id", id)
           .order("sort_index", { ascending: true })
           .limit(101),

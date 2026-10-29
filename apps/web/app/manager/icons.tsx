@@ -3,6 +3,7 @@ import type { CSSProperties, ReactNode } from "react";
 export type IconName =
   | "inbox"
   | "history"
+  | "updates"
   | "settings"
   | "search"
   | "filter"
@@ -27,6 +28,12 @@ const paths: Record<IconName, ReactNode> = {
     <>
       <path d="M3 11a9 9 0 1 1 2 7M3 4v7h7" />
       <path d="M12 7v5l3 2" />
+    </>
+  ),
+  updates: (
+    <>
+      <rect x="4" y="3" width="16" height="18" rx="2" />
+      <path d="M8 7h8M8 12h2m3 0h3M8 16h2m3 0h3" />
     </>
   ),
   settings: (

@@ -1,4 +1,5 @@
 import {
+  MAX_RECEIPT_PAGES,
   type ReceiptContentType,
   type ReceiptNormalizationOptions,
   WORK_LEASE_SECONDS,
@@ -83,7 +84,7 @@ export async function runExtraction(
   const pages = (data ?? []) as ExtractionPage[];
   if (
     pages.length < 1 ||
-    pages.length > 5 ||
+    pages.length > MAX_RECEIPT_PAGES ||
     pages.some((page, index) => !page.confirmed_at || page.page_index !== index)
   ) {
     throw new GeminiReceiptError("permanent", "invalid_page_set");

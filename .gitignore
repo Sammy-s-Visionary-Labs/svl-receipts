@@ -8,6 +8,9 @@ node_modules/
 
 # Private RA-6 account observations; never a live-write authorization.
 .local/ra6/
+.local/labor/
+.local/labor-worker/
+.local/verification/
 
 # Builds / caches
 dist/
@@ -48,3 +51,5 @@ web-build/
 supabase/.branches/
 supabase/.temp/
 .vercel
+.local/
+**/.local/

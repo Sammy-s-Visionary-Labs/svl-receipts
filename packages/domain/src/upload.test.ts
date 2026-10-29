@@ -14,7 +14,7 @@ import {
 describe("receipt upload constraints", () => {
   it("caps images at 10 MiB and allows jpeg/png/webp only", () => {
     expect(MAX_RECEIPT_BYTES).toBe(10 * 1024 * 1024);
-    expect(MAX_RECEIPT_PAGES).toBe(5);
+    expect(MAX_RECEIPT_PAGES).toBe(10);
     expect(ALLOWED_RECEIPT_CONTENT_TYPES).toEqual(["image/jpeg", "image/png", "image/webp"]);
     expect(isReceiptContentType("image/jpeg")).toBe(true);
     expect(isReceiptContentType("application/pdf")).toBe(false);
@@ -58,6 +58,23 @@ describe("receipt upload constraints", () => {
     ).toBe(`0:${first}:100\n1:${second}:200`);
     expect(() =>
       receiptManifestDigestInput([{ pageIndex: 1, checksum: first, byteSize: 100 }]),
+    ).toThrow("invalid_receipt_page_manifest");
+  });
+
+  it("accepts ten complete pages through index nine and rejects an eleventh or oversized page", () => {
+    const sample = { pageIndex: 0, checksum: "a".repeat(64), byteSize: 100 };
+    const pages = Array.from({ length: MAX_RECEIPT_PAGES }, (_, pageIndex) => ({
+      pageIndex,
+      checksum: "a".repeat(64),
+      byteSize: 100,
+    }));
+    expect(receiptManifestDigestInput(pages).split("\n")).toHaveLength(10);
+    expect(receiptManifestDigestInput(pages).split("\n").at(-1)).toBe(`9:${"a".repeat(64)}:100`);
+    expect(() =>
+      receiptManifestDigestInput([...pages, { ...sample, pageIndex: MAX_RECEIPT_PAGES }]),
+    ).toThrow("invalid_receipt_page_manifest");
+    expect(() =>
+      receiptManifestDigestInput([{ ...sample, byteSize: MAX_RECEIPT_BYTES + 1 }]),
     ).toThrow("invalid_receipt_page_manifest");
   });
 });

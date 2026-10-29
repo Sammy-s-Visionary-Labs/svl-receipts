@@ -73,7 +73,12 @@ describe("private receipt page access", () => {
     expect(eq).toHaveBeenCalledWith("page_index", 1);
     expect(createReceiptReadUrl).toHaveBeenCalledWith("owner/second.jpg");
   });
-  it.each(["?page=-1", "?page=5", "?page=1.5", "?page=1&page=2"])(
+  it("signs the tenth page by its exact index", async () => {
+    expect((await run("?page=9")).status).toBe(200);
+    expect(eq).toHaveBeenCalledWith("page_index", 9);
+    expect(createReceiptReadUrl).toHaveBeenCalledWith("owner/second.jpg");
+  });
+  it.each(["?page=-1", "?page=10", "?page=1.5", "?page=01", "?page=1&page=2"])(
     "rejects invalid page selection %s",
     async (query) => {
       expect((await run(query)).status).toBe(400);
