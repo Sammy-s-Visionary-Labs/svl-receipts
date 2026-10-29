@@ -51,6 +51,7 @@ export function JobsDashboard() {
     data?.allocation.entries ?? [],
     data?.unassignedReceipts ?? [],
     { from, to, worker },
+    data?.workerAliases,
   );
   const query = search.trim().toLocaleLowerCase();
   const visibleJobs = activity.jobs.filter(
@@ -74,7 +75,7 @@ export function JobsDashboard() {
   const entries = activity.allocations.filter(
     (entry) => entry.status === "allocated" && entry.job?.key === selected?.key,
   );
-  const dailyGroups = allocatedWorkerDays(entries);
+  const dailyGroups = allocatedWorkerDays(entries, data?.workerAliases);
   const pending = activity.allocations.filter((entry) => entry.status === "pending");
   const receipts = activity.jobs.find((job) => job.key === selected?.key)?.receipts ?? [];
   const unassignedReceipts = activity.unassignedReceipts;

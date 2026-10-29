@@ -4,6 +4,7 @@ import path from "node:path";
 import {
   allocateLaborHours,
   collectLaborMappingSources,
+  createLaborWorkerIdentityResolver,
   estimateLaborPay,
   groupLaborEntries,
   type LaborAllocationRules,
@@ -38,6 +39,7 @@ import {
   type LaborPersistenceLeaseGuard,
   putSupabaseLaborOriginal,
   readSupabaseLaborState,
+  readSupabaseLaborWorkerControl,
 } from "./persistence";
 import {
   assertWorkerLease,
@@ -504,6 +506,7 @@ function allocationForState(
   );
   return allocateLaborHours({
     entries,
+    workerAliases: state.paySettings.workerAliases,
     notes: notesSnapshot.notes,
     notesCoverages: notesSnapshot.coverage,
     rules,
@@ -620,8 +623,29 @@ export async function loadLaborDashboard(): Promise<LaborDashboardData> {
     ? await loadLaborJobCatalog()
     : { jobs: [], complete: false, lastSuccessfulSyncAt: null, fingerprint: null, warnings: [] };
   const mappingSources = collectLaborMappingSources(rawAllocation, rules.locations, entries);
-  const allocation = linkLaborAllocation(rawAllocation, state.jobMappings, catalog.jobs);
+  const allocation = linkLaborAllocation(
+    rawAllocation,
+    state.jobMappings,
+    catalog.jobs,
+    state.paySettings.workerAliases,
+  );
   const paySettings = paySettingsForEntries(state, entries);
+  const canonicalWorker = createLaborWorkerIdentityResolver(paySettings.workerAliases);
+  const reviewedWorkers = new Set(
+    (paySettings.workerAliases ?? []).map((item) => normalizeLaborWorkerName(item.workerName)),
+  );
+  const workers = groupLaborEntries(
+    entries.map((entry) => {
+      const workerName = canonicalWorker(entry.workerName);
+      return {
+        ...entry,
+        workerName,
+        employeeId: reviewedWorkers.has(normalizeLaborWorkerName(workerName))
+          ? null
+          : entry.employeeId,
+      };
+    }),
+  ).workers;
   const paidDateCandidates = new Set<string>();
   for (const date of new Set(entries.map((entry) => entry.date)))
     for (let offset = -6; offset <= 6; offset++) {
@@ -700,11 +724,11 @@ export async function loadLaborDashboard(): Promise<LaborDashboardData> {
     entries,
     imports: state.imports.map(publicImport).reverse(),
     jobs,
-    workers: groups.workers,
+    workers,
     overview: {
       hours,
       travelHours,
-      workerCount: groups.workers.length,
+      workerCount: workers.length,
       jobCount: groups.jobs.length,
       entryCount: entries.length,
       reportedCostCents: entries.reduce((sum, row) => sum + row.laborCostCents, 0),
@@ -991,9 +1015,13 @@ export async function updateLaborRules(
 }
 
 function paySettingsForEntries(state: State, entries: LaborEntry[]): LaborPaySettings {
-  const workerRates = [...state.paySettings.workerRates];
+  const canonicalWorker = createLaborWorkerIdentityResolver(state.paySettings.workerAliases);
+  const workerRates = state.paySettings.workerRates.map((worker) => ({
+    ...worker,
+    workerName: canonicalWorker(worker.workerName),
+  }));
   const owners = new Set(workerRates.map((worker) => normalizeLaborWorkerName(worker.workerName)));
-  for (const workerName of new Set(entries.map((entry) => entry.workerName))) {
+  for (const workerName of new Set(entries.map((entry) => canonicalWorker(entry.workerName)))) {
     const owner = normalizeLaborWorkerName(workerName);
     if (!owners.has(owner)) {
       workerRates.push({ workerName, hourlyRateCents: null, active: true });
@@ -1013,13 +1041,44 @@ function validatePaySettings(value: unknown, state: State): LaborPaySettings {
     [
       ...state.imports.flatMap(({ report }) => report.entries.map((entry) => entry.workerName)),
       ...state.paySettings.workerRates.map((worker) => worker.workerName),
+      ...(state.paySettings.workerAliases ?? []).flatMap((item) => [item.alias, item.workerName]),
     ].map(normalizeLaborWorkerName),
   );
+  const aliasesValue =
+    settings.workerAliases === undefined
+      ? (state.paySettings.workerAliases ?? [])
+      : settings.workerAliases;
+  if (!Array.isArray(aliasesValue) || aliasesValue.length > 500)
+    throw new Error("Invalid worker identities");
+  const workerAliases = aliasesValue.map((value) => {
+    if (!value || typeof value !== "object" || Array.isArray(value))
+      throw new Error("Invalid worker identity");
+    const item = value as Record<string, unknown>;
+    const alias = shortText(item.alias, "identity source worker");
+    const workerName = shortText(item.workerName, "identity canonical worker");
+    if (
+      !recordedWorkers.has(normalizeLaborWorkerName(alias)) ||
+      !recordedWorkers.has(normalizeLaborWorkerName(workerName))
+    )
+      throw new Error("Worker identities must reference recorded source workers");
+    return { alias, workerName };
+  });
+  const canonicalWorker = createLaborWorkerIdentityResolver(workerAliases);
+  for (const saved of state.paySettings.workerAliases ?? []) {
+    if (
+      !workerAliases.some(
+        (item) => item.alias === saved.alias && item.workerName === saved.workerName,
+      )
+    )
+      throw new Error(
+        "Reviewed worker identities cannot be removed or reassigned; historical export identity must remain intact",
+      );
+  }
   const workerRates = settings.workerRates.map((value) => {
     if (!value || typeof value !== "object" || Array.isArray(value))
       throw new Error("Invalid worker rate");
     const worker = value as Record<string, unknown>;
-    const workerName = shortText(worker.workerName, "pay worker");
+    const workerName = canonicalWorker(shortText(worker.workerName, "pay worker"));
     if (!recordedWorkers.has(normalizeLaborWorkerName(workerName)))
       throw new Error("Pay worker is not recorded");
     if (
@@ -1067,7 +1126,11 @@ function validatePaySettings(value: unknown, state: State): LaborPaySettings {
     weekStartsOn > 6
   )
     throw new Error("Invalid weekly overtime threshold, multiplier or workweek");
-  return { workerRates, overtime: { thresholdHours, multiplier, weekStartsOn } };
+  return {
+    workerRates,
+    ...(workerAliases.length ? { workerAliases } : {}),
+    overtime: { thresholdHours, multiplier, weekStartsOn },
+  };
 }
 
 export async function updateLaborPaySettings(
@@ -1298,6 +1361,8 @@ export async function loadLaborStatus() {
 
 /** Dedicated worker poll: no catalog load, lease claim, audit event or database write. */
 export async function loadLaborWorkerPoll() {
-  const state = await readState();
+  const state = laborUsesSupabase()
+    ? ((await readSupabaseLaborWorkerControl()) ?? { sync: initialSync() })
+    : await readState();
   return { sync: state.sync, claimable: workerClaimAvailable(state, new Date()) };
 }

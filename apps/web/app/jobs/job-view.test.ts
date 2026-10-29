@@ -129,6 +129,33 @@ function activityFixture() {
 }
 
 describe("Jobs activity filters", () => {
+  it("includes every confirmed worker alias and counts one worker while preserving original entry names", () => {
+    const rows = [
+      entry("TEST-A", { sourceEntryId: "old", workerName: "TEST old name" }),
+      entry("TEST-A", { sourceEntryId: "new", workerName: "TEST Canonical" }),
+      entry("TEST-A", { sourceEntryId: "other", workerName: "TEST Other" }),
+    ];
+    const original = structuredClone(rows);
+    const result = filterJobActivity(
+      [job("TEST-A")],
+      rows,
+      [],
+      {
+        from: "",
+        to: "",
+        worker: "TEST Canonical",
+      },
+      [{ alias: "TEST old name", workerName: "TEST Canonical" }],
+    );
+    expect(result.allocations.map((row) => row.sourceEntryId)).toEqual(["old", "new"]);
+    expect(result.jobs[0]).toMatchObject({ hours: 2, entryCount: 2, workerCount: 1 });
+    expect(result.allocations.map((row) => row.workerName)).toEqual([
+      "TEST old name",
+      "TEST Canonical",
+    ]);
+    expect(rows).toEqual(original);
+  });
+
   it("recomputes all summary cards and per-job activity from inclusive dates without changing sources", () => {
     const source = activityFixture();
     const original = structuredClone(source);

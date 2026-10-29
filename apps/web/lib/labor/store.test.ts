@@ -451,6 +451,108 @@ describe("labor notes and reviewed rules", () => {
 });
 
 describe("reviewed hourly rates and weekly overtime", () => {
+  it("persists reviewed identities and canonical rates without altering original source rows or files", async () => {
+    const first = {
+      ...row("2026-09-24", 3),
+      workerName: "TEST Alex",
+      employeeId: "TEST-OLD-ID",
+      clockIn: "08:00",
+      clockOut: "11:00",
+    };
+    const second = {
+      ...row("2026-09-24", 5),
+      workerName: "Rivera, TEST Alex",
+      employeeId: "TEST-NEW-ID",
+      clockIn: "11:00",
+      clockOut: "16:00",
+    };
+    const original = bytes(report([first, second]));
+    const imported = await ingestLaborFile(original, "TEST-identities.xlsx", "upload");
+    const before = await loadLaborDashboard();
+    const workerAliases = [{ alias: "TEST Alex", workerName: "TEST Alex Rivera" }];
+    const settings = {
+      workerRates: [{ workerName: "TEST Alex Rivera", hourlyRateCents: 2000, active: true }],
+      workerAliases,
+      overtime: before.paySettings.overtime,
+    };
+    const saved = await updateLaborPaySettings(settings, before.payRevision);
+    const after = await loadLaborDashboard();
+    expect(after.paySettings).toEqual(settings);
+    expect(after.dataRevision).not.toBe(before.dataRevision);
+    expect(after.entries).toEqual(before.entries);
+    expect(
+      Object.fromEntries(
+        after.allocation.entries.map((entry) => [entry.sourceEntryId, entry.workerName]),
+      ),
+    ).toEqual(
+      Object.fromEntries(
+        before.allocation.entries.map((entry) => [entry.sourceEntryId, entry.workerName]),
+      ),
+    );
+    expect(after.allocation.workerDays).toHaveLength(1);
+    expect(after.payroll.workerWeeks[0]).toMatchObject({
+      workerName: "TEST Alex Rivera",
+      lunchAdjustmentHours: -0.5,
+      paidHours: 7.5,
+      estimatedPayCents: 15000,
+    });
+    expect(after.workers).toHaveLength(1);
+    expect(after.overview.workerCount).toBe(1);
+    const retained = await originalLaborFile(imported.import.id);
+    expect(retained && new Uint8Array(retained.bytes)).toEqual(original);
+    const legacy = { workerRates: settings.workerRates, overtime: settings.overtime };
+    await updateLaborPaySettings(legacy, saved.payRevision);
+    expect((await loadLaborDashboard()).paySettings.workerAliases).toEqual(workerAliases);
+    for (const aliases of [[], [{ alias: "TEST Alex", workerName: "TEST Other" }]]) {
+      await expect(
+        updateLaborPaySettings({ ...settings, workerAliases: aliases }, saved.payRevision + 1),
+      ).rejects.toThrow();
+    }
+    expect((await loadLaborDashboard()).payRevision).toBe(saved.payRevision + 1);
+  });
+
+  it("rejects unrecorded, repeated, chained identities and conflicting rates without saving", async () => {
+    await ingestLaborFile(
+      bytes(
+        report([
+          { ...row("2026-09-24", 1), workerName: "TEST Alex" },
+          { ...row("2026-09-25", 1), workerName: "Rivera, TEST Alex" },
+          { ...row("2026-09-26", 1), workerName: "TEST Other" },
+        ]),
+      ),
+      "TEST-identity-validation.xlsx",
+      "upload",
+    );
+    const before = await loadLaborDashboard();
+    const alias = { alias: "TEST Alex", workerName: "TEST Alex Rivera" };
+    const settings = {
+      ...before.paySettings,
+      workerRates: [{ workerName: "TEST Alex Rivera", hourlyRateCents: 2000, active: true }],
+    };
+    for (const workerAliases of [
+      null,
+      [{ ...alias, alias: "Unrecorded" }],
+      [alias, alias],
+      [alias, { alias: "TEST Alex Rivera", workerName: "TEST Other" }],
+    ]) {
+      await expect(updateLaborPaySettings({ ...settings, workerAliases }, 0)).rejects.toThrow();
+    }
+    await expect(
+      updateLaborPaySettings(
+        {
+          ...settings,
+          workerAliases: [alias],
+          workerRates: [
+            ...settings.workerRates,
+            { workerName: "TEST Alex", hourlyRateCents: 2100, active: true },
+          ],
+        },
+        0,
+      ),
+    ).rejects.toThrow("Repeated pay worker");
+    expect((await loadLaborDashboard()).payRevision).toBe(0);
+  });
+
   it("saves estimates without changing source costs or excluding inactive history", async () => {
     const original = bytes(report([row("2026-09-24", 8)]));
     const imported = await ingestLaborFile(original, "TEST.xlsx", "upload");

@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import {
   buildLaborApprovalSnapshot,
   canonicalLaborApprovalSnapshot,
+  canonicalLaborWorkerName,
   type LaborApprovalSnapshot,
   laborCatalogJobDisplayName,
   laborCatalogJobIsStale,
@@ -87,6 +88,8 @@ export function laborApprovalPreview(
   scope: LaborApprovalScope,
 ): { preview: LaborApprovalPreview; snapshot: LaborApprovalSnapshot | null } {
   const { dashboard } = context;
+  const aliases = dashboard.paySettings.workerAliases ?? [];
+  const canonicalName = (name: string) => canonicalLaborWorkerName(name, aliases);
   const target = dashboard.jobCatalog.jobs.find((job) => job.id === scope.housecallJobId);
   const allJobRows = dashboard.allocation.entries.filter(
     (entry) =>
@@ -96,7 +99,7 @@ export function laborApprovalPreview(
       entry.date >= scope.fromDate &&
       entry.date <= scope.toDate,
   );
-  const availableNames = new Set(allJobRows.map((entry) => entry.workerName));
+  const availableNames = new Set(allJobRows.map((entry) => canonicalName(entry.workerName)));
   if (scope.workerNames?.some((name) => !availableNames.has(name)))
     throw new AuthHttpError(
       409,
@@ -106,7 +109,7 @@ export function laborApprovalPreview(
   const rows =
     scope.workerNames === undefined
       ? allJobRows
-      : allJobRows.filter((entry) => scope.workerNames?.includes(entry.workerName));
+      : allJobRows.filter((entry) => scope.workerNames?.includes(canonicalName(entry.workerName)));
   const sourceById = new Map(context.sourceEntries.map((entry) => [entry.id, entry]));
   const blockers: string[] = [];
   if (context.storageRevision === null)
@@ -135,10 +138,11 @@ export function laborApprovalPreview(
               entry.date < scope.fromDate ||
               entry.date > scope.toDate ||
               scope.workerNames === undefined ||
-              scope.workerNames.includes(entry.workerName),
+              scope.workerNames.includes(canonicalName(entry.workerName)),
           ),
         },
         sourceEntries: context.sourceEntries,
+        workerAliases: aliases,
       });
   } catch (error) {
     blockers.push(error instanceof Error ? error.message : "The selected hours cannot be frozen.");
@@ -147,7 +151,8 @@ export function laborApprovalPreview(
     const source = sourceById.get(entry.sourceEntryId);
     return {
       sourceEntryId: entry.sourceEntryId,
-      workerName: entry.workerName,
+      workerName: canonicalName(entry.workerName),
+      sourceWorkerName: entry.workerName,
       date: entry.date,
       sourceJobName: source?.jobName ?? "Unavailable",
       clockIn: source?.clockIn ?? "",
@@ -164,7 +169,7 @@ export function laborApprovalPreview(
   const workers = [...new Set(entries.map((entry) => entry.workerName))]
     .sort()
     .map((workerName) => {
-      const workerRows = rows.filter((entry) => entry.workerName === workerName);
+      const workerRows = rows.filter((entry) => canonicalName(entry.workerName) === workerName);
       return {
         workerName,
         hours: sum(workerRows.map((entry) => entry.allocatedHours)),
@@ -206,7 +211,7 @@ export function laborApprovalPreview(
         workerName,
         hours: sum(
           allJobRows
-            .filter((entry) => entry.workerName === workerName)
+            .filter((entry) => canonicalName(entry.workerName) === workerName)
             .map((entry) => entry.allocatedHours),
         ),
       })),

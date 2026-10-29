@@ -148,6 +148,7 @@ export type LaborDashboardData = {
 
 export type JobsDashboardData = {
   development: boolean;
+  workerAliases?: LaborPaySettings["workerAliases"];
   allocation: LaborAllocationReport;
   imports: LaborImportSummary[];
   jobs: JobActivity[];

@@ -1,4 +1,8 @@
-import type { LaborEntryAllocation } from "@svl/domain";
+import {
+  createLaborWorkerIdentityResolver,
+  type LaborEntryAllocation,
+  type LaborWorkerAlias,
+} from "@svl/domain";
 import type { JobActivity, JobReceiptActivity } from "@/lib/labor/contract";
 
 type JobActivityFilters = { from: string; to: string; worker: string };
@@ -26,10 +30,13 @@ export function filterJobActivity(
   entries: readonly LaborEntryAllocation[],
   unassignedReceipts: readonly JobReceiptActivity[],
   filters: JobActivityFilters,
+  workerAliases: readonly LaborWorkerAlias[] = [],
 ) {
+  const canonicalWorker = createLaborWorkerIdentityResolver(workerAliases);
   const allocations = entries.filter(
     (entry) =>
-      (!filters.worker || entry.workerName === filters.worker) && inDateRange(entry.date, filters),
+      (!filters.worker || canonicalWorker(entry.workerName) === canonicalWorker(filters.worker)) &&
+      inDateRange(entry.date, filters),
   );
   const entriesByJob = new Map<string, LaborEntryAllocation[]>();
   for (const entry of allocations) {
@@ -47,7 +54,7 @@ export function filterJobActivity(
         hours: sumHours(rows),
         travelHours: sumHours(rows.filter((entry) => entry.sourceKind === "travel")),
         entryCount: rows.length,
-        workerCount: new Set(rows.map((entry) => entry.workerName)).size,
+        workerCount: new Set(rows.map((entry) => canonicalWorker(entry.workerName))).size,
         receipts,
         receiptCount: receipts.length,
         receiptTotalCents:

@@ -136,6 +136,50 @@ function append(value: LaborApprovalSnapshotInput, source: LaborApprovalSourceEn
 }
 
 describe("frozen job-hour approvals", () => {
+  it("rolls reviewed aliases into one owner while preserving raw source names and IDs", () => {
+    const value = input();
+    value.workerAliases = [{ alias: "TEST Alias", workerName: "TEST Canonical Worker" }];
+    value.sourceEntries = value.sourceEntries.map((entry, index) => ({
+      ...entry,
+      workerName: index % 2 ? "TEST Alias" : "Worker, TEST Canonical",
+      employeeId: `TEST-RAW-EMPLOYEE-${index % 2}`,
+    }));
+    value.allocation = {
+      ...value.allocation,
+      entries: value.allocation.entries.map((entry) => ({
+        ...entry,
+        workerName: value.sourceEntries.find((source) => source.id === entry.sourceEntryId)
+          ?.workerName as string,
+      })),
+      workerDays: value.allocation.workerDays.map((day) => ({
+        ...day,
+        workerName: "TEST Canonical Worker",
+      })),
+    };
+    const result = buildLaborApprovalSnapshot(value);
+    expect(result.workerAliases).toEqual(value.workerAliases);
+    expect(result.entries.map((entry) => entry.workerName)).toEqual([
+      "TEST Alias",
+      "Worker, TEST Canonical",
+    ]);
+    expect(result.entries.map((entry) => entry.canonicalWorkerName)).toEqual([
+      "TEST Canonical Worker",
+      "TEST Canonical Worker",
+    ]);
+    expect(result.entries.map((entry) => entry.normalizedWorkerName)).toEqual([
+      "test alias",
+      "test canonical worker",
+    ]);
+    expect(result.entries.map((entry) => entry.employeeId)).toEqual([
+      "TEST-RAW-EMPLOYEE-1",
+      "TEST-RAW-EMPLOYEE-0",
+    ]);
+    expect(result.workerDays).toHaveLength(1);
+    const changed = structuredClone(value);
+    const source = changed.sourceEntries.find((entry) => entry.id === "row3");
+    if (source) source.clockIn = "07:45";
+    expect(() => buildLaborApprovalSnapshot(changed)).toThrow("overlapping");
+  });
   it("freezes linked source hours before lunch while retaining complete day/payroll evidence", () => {
     const snapshot = buildLaborApprovalSnapshot(input());
     expect(snapshot.totalHourHundredths).toBe(700);

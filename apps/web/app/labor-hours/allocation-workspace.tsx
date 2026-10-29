@@ -1,6 +1,5 @@
 "use client";
 
-import { normalizeLaborWorkerName } from "@svl/domain";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import type { LaborDashboardData } from "@/lib/labor/contract";
@@ -11,6 +10,7 @@ import {
   EMPTY_ALLOCATION_FILTERS,
   filterAllocationEntries,
   filterWorkerDays,
+  laborNoteMatchesWorker,
 } from "./allocation-view";
 import styles from "./labor.module.css";
 import { hours, localTime, readApi, shortDate, sourceMoney } from "./labor-view";
@@ -44,10 +44,12 @@ export function AllocationWorkspace({
     }
   }, []);
   const report = data.allocation;
-  const decisions = filterAllocationEntries(report.entries, filters);
+  const workerAliases = data.paySettings.workerAliases;
+  const decisions = filterAllocationEntries(report.entries, filters, workerAliases);
   const days = filterWorkerDays(report.workerDays, filters);
   const jobs = allocatedJobRows(
-    filterAllocationEntries(report.entries, { ...filters, status: "" }),
+    filterAllocationEntries(report.entries, { ...filters, status: "" }, workerAliases),
+    workerAliases,
   );
   const source = new Map(data.entries.map((entry) => [entry.id, entry]));
   const imports = new Map(data.imports.map((item) => [item.id, item]));
@@ -55,13 +57,12 @@ export function AllocationWorkspace({
   const notes = data.notes.filter(
     (note) =>
       note.kind === "daily_candidate" &&
-      (!filters.worker ||
-        normalizeLaborWorkerName(note.workerName) === normalizeLaborWorkerName(filters.worker) ||
-        data.rules.workerAliases?.some(
-          (alias) =>
-            normalizeLaborWorkerName(alias.alias) === normalizeLaborWorkerName(note.workerName) &&
-            normalizeLaborWorkerName(alias.workerName) === normalizeLaborWorkerName(filters.worker),
-        )) &&
+      laborNoteMatchesWorker(
+        note.workerName,
+        filters.worker,
+        data.rules.workerAliases,
+        workerAliases,
+      ) &&
       (!filters.from || (note.date !== null && note.date >= filters.from)) &&
       (!filters.to || (note.date !== null && note.date <= filters.to)),
   );

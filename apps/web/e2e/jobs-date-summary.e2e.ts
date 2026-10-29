@@ -235,3 +235,52 @@ test("Jobs date filters update all four summaries and activity groups, including
   await expectSummary(page, 2, "2.50", 3, 2);
   expect(mutations).toEqual([]);
 });
+
+test("Jobs canonical worker filter retains both source names and preserves original detail", async ({
+  page,
+}) => {
+  await page.context().addCookies([fixtureCookie("manager")]);
+  const canonicalName = "TEST Confirmed Worker";
+  const data = structuredClone(dashboard);
+  data.workerAliases = [
+    { alias: "TEST Worker A", workerName: canonicalName },
+    { alias: "TEST Worker B", workerName: canonicalName },
+  ];
+  data.allocation = {
+    ...data.allocation,
+    workerDays: data.allocation.workerDays.map((day) => ({ ...day, workerName: canonicalName })),
+  };
+  const mutations: string[] = [];
+  await page.route("**/api/**", (route) => {
+    const request = route.request();
+    if (
+      request.method() === "GET" &&
+      new URL(request.url()).pathname === "/api/manager/jobs/activity"
+    )
+      return route.fulfill({ json: data });
+    if (request.method() !== "GET") mutations.push(request.url());
+    return route.abort();
+  });
+  await page.goto(`/jobs?job=${alpha.key}`);
+  await page
+    .getByRole("combobox", { name: "Worker hours", exact: true })
+    .selectOption(canonicalName);
+  await expectSummary(page, 3, "7.50", 3, 2);
+  const groups = page.getByRole("region", { name: "Jobs and their activity", exact: true });
+  await expect(groups.getByRole("button", { name: /^TEST Alpha/ })).toContainText(
+    "3.75 h · 1 workers · 2 receipts",
+  );
+  const dailyTable = groups
+    .getByRole("table")
+    .filter({ has: page.getByRole("columnheader", { name: "Work date", exact: true }) });
+  await expect(dailyTable.getByRole("cell", { name: canonicalName, exact: true })).toHaveCount(2);
+  await groups
+    .getByText("Original source and allocation decisions · 2 entries", { exact: true })
+    .click();
+  const sourceTable = groups
+    .getByRole("table")
+    .filter({ has: page.getByRole("columnheader", { name: "Recorded source", exact: true }) });
+  await expect(sourceTable).toContainText("TEST Worker A");
+  await expect(sourceTable).toContainText("TEST Worker B");
+  expect(mutations).toEqual([]);
+});

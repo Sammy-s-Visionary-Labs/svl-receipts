@@ -1,5 +1,6 @@
 "use client";
 
+import { normalizeLaborWorkerName } from "@svl/domain";
 import { type FormEvent, useEffect, useState } from "react";
 import type { LaborDashboardData } from "@/lib/labor/contract";
 import styles from "./labor.module.css";
@@ -15,6 +16,23 @@ const rateDrafts = (settings: PaySettings): RateDraft[] =>
     rate: worker.hourlyRateCents === null ? "" : (worker.hourlyRateCents / 100).toFixed(2),
     active: worker.active,
   }));
+
+function WorkerIdentityNames({
+  workerName,
+  settings,
+}: {
+  workerName: string;
+  settings: PaySettings;
+}) {
+  const aliases = (settings.workerAliases ?? [])
+    .filter(
+      (item) => normalizeLaborWorkerName(item.workerName) === normalizeLaborWorkerName(workerName),
+    )
+    .map((item) => item.alias);
+  return aliases.length ? (
+    <small>Also recorded as {aliases.join(", ")}. Combined for pay and weekly overtime.</small>
+  ) : null;
+}
 
 export function LaborPayWorkspace({
   settings,
@@ -45,13 +63,16 @@ export function LaborPayWorkspace({
   const weekEndsOn = (settings.overtime.weekStartsOn + 6) % 7;
 
   useEffect(() => {
-    // Imports can add workers without changing the saved pay revision.
-    // Preserve draft edits while making newly imported workers editable.
+    // Preserve edits for unchanged identities while dropping source aliases
+    // that now belong to a confirmed canonical worker.
     setRates((current) => {
-      const added = rateDrafts(settings).filter(
-        (worker) => !current.some((draft) => draft.workerName === worker.workerName),
+      const reconciled = rateDrafts(settings).map(
+        (worker) => current.find((draft) => draft.workerName === worker.workerName) ?? worker,
       );
-      return added.length ? [...current, ...added] : current;
+      return reconciled.length === current.length &&
+        reconciled.every((worker, index) => worker === current[index])
+        ? current
+        : reconciled;
     });
   }, [settings]);
 
@@ -102,6 +123,7 @@ export function LaborPayWorkspace({
         throw new Error("Enter an overtime multiplier from 1 to 10.");
       const payload: PaySettings = {
         workerRates,
+        ...(settings.workerAliases ? { workerAliases: settings.workerAliases } : {}),
         overtime: { thresholdHours, multiplier: overtimeMultiplier, weekStartsOn },
       };
       const result = await readApi<{ settings: PaySettings; payRevision: number }>(
@@ -263,6 +285,7 @@ export function LaborPayWorkspace({
                     <tr key={worker.workerName}>
                       <td>
                         <strong>{worker.workerName}</strong>
+                        <WorkerIdentityNames workerName={worker.workerName} settings={settings} />
                       </td>
                       <td>
                         <input
@@ -353,6 +376,7 @@ export function LaborPayWorkspace({
                 <tr key={`${week.workerName}:${week.weekStart}`}>
                   <td>
                     <strong>{week.workerName}</strong>
+                    <WorkerIdentityNames workerName={week.workerName} settings={settings} />
                     <small>
                       {shortDate(week.weekStart)} – {shortDate(week.weekEnd)}
                     </small>

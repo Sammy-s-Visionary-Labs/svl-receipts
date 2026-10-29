@@ -89,25 +89,25 @@ describe("hosted worker leases and calendar scheduling", () => {
     expect(claimWorker(value, "github:124:1", now, ids)).toBeNull();
   });
 
-  it("computes the next hourly gate through daylight-saving changes", () => {
+  it("computes the exact scheduled hour through daylight-saving changes", () => {
     const value = state({ hour: 2 });
-    expect(nextWorkerRun(value, new Date("2026-11-01T04:30:00Z"))).toBe("2026-11-01T07:17:00.000Z");
+    expect(nextWorkerRun(value, new Date("2026-11-01T04:30:00Z"))).toBe("2026-11-01T07:00:00.000Z");
     expect(workerCalendar(new Date("2026-11-01T04:00:00Z"), value.sync.timeZone)).toEqual({
       date: "2026-11-01",
       hour: 0,
     });
     value.lastScheduledDate = "2026-11-01";
-    expect(nextWorkerRun(value, new Date("2026-11-01T04:30:00Z"))).toBe("2026-11-02T07:17:00.000Z");
+    expect(nextWorkerRun(value, new Date("2026-11-01T04:30:00Z"))).toBe("2026-11-02T07:00:00.000Z");
     expect(nextWorkerRun(state({ enabled: false }), now)).toBeNull();
     expect(nextWorkerRun(state({ status: "needs_login" }), now)).toBeNull();
   });
 
   it.each([
-    [undefined, "2026-10-14T13:17:00.000Z"],
-    [7, "2026-10-20T13:17:00.000Z"],
-    [14, "2026-10-27T13:17:00.000Z"],
-    [45, "2026-11-27T14:17:00.000Z"],
-    [365, "2027-10-13T13:17:00.000Z"],
+    [undefined, "2026-10-14T13:00:00.000Z"],
+    [7, "2026-10-20T13:00:00.000Z"],
+    [14, "2026-10-27T13:00:00.000Z"],
+    [45, "2026-11-27T14:00:00.000Z"],
+    [365, "2027-10-13T13:00:00.000Z"],
   ])("uses a %s-day calendar interval from the latest attempt", (intervalDays, expected) => {
     const value = state({ intervalDays, lastSuccessAt: "2026-10-12T13:17:00Z" });
     value.lastScheduledDate = "2026-10-13";
@@ -119,7 +119,7 @@ describe("hosted worker leases and calendar scheduling", () => {
   it("retains overdue gates and catches up before today's configured hour", () => {
     const value = state({ intervalDays: 7 });
     value.lastScheduledDate = "2026-10-01";
-    expect(nextWorkerRun(value, now)).toBe("2026-10-08T13:17:00.000Z");
+    expect(nextWorkerRun(value, now)).toBe("2026-10-08T13:00:00.000Z");
     expect(workerClaimAvailable(value, new Date("2026-10-13T04:00:00Z"))).toBe(true);
     value.sync.enabled = false;
     expect(workerClaimAvailable(value, now)).toBe(false);
@@ -133,7 +133,7 @@ describe("hosted worker leases and calendar scheduling", () => {
     });
     value.lastScheduledDate = "2026-10-29";
     const restarted = new Date("2026-11-15T07:00:00Z");
-    expect(nextWorkerRun(value, restarted)).toBe("2026-11-05T14:17:00.000Z");
+    expect(nextWorkerRun(value, restarted)).toBe("2026-11-05T14:00:00.000Z");
     const claim = claimWorker(
       JSON.parse(JSON.stringify(value)),
       "mac:after-power-off",
@@ -150,18 +150,36 @@ describe("hosted worker leases and calendar scheduling", () => {
 
   it("uses the first repeated fall gate and the next real spring gate", () => {
     expect(nextWorkerRun(state({ hour: 1 }), new Date("2026-11-01T04:00:00Z"))).toBe(
-      "2026-11-01T05:17:00.000Z",
+      "2026-11-01T05:00:00.000Z",
     );
     expect(nextWorkerRun(state({ hour: 2 }), new Date("2026-03-08T05:00:00Z"))).toBe(
-      "2026-03-08T07:17:00.000Z",
+      "2026-03-08T07:00:00.000Z",
     );
+  });
+
+  it("shows weekly 6 AM Eastern exactly and supports fractional timezone offsets", () => {
+    const eastern = state({ hour: 6, intervalDays: 7, lastSuccessAt: "2026-10-29T10:00:00Z" });
+    expect(nextWorkerRun(eastern, new Date("2026-10-29T22:00:00Z"))).toBe(
+      "2026-11-05T11:00:00.000Z",
+    );
+    expect(workerClaimAvailable(eastern, new Date("2026-11-05T10:59:59Z"))).toBe(false);
+    expect(workerClaimAvailable(eastern, new Date("2026-11-05T11:00:00Z"))).toBe(true);
+    expect(
+      nextWorkerRun(
+        state({ hour: 6, timeZone: "Asia/Kathmandu" }),
+        new Date("2026-10-29T00:00:00Z"),
+      ),
+    ).toBe("2026-10-29T00:15:00.000Z");
+    expect(
+      nextWorkerRun(state({ hour: 6, timeZone: "Asia/Kolkata" }), new Date("2026-10-29T00:00:00Z")),
+    ).toBe("2026-10-29T00:30:00.000Z");
   });
 
   it("consumes the whole interval on failure and resets it after a later manual success", () => {
     const value = state({ intervalDays: 7 });
     claimWorker(value, "github:failed", now, ids);
     finishWorker(value, ids.leaseToken, "failed", "Source unavailable", now);
-    expect(value.sync.nextRunAt).toBe("2026-10-20T13:17:00.000Z");
+    expect(value.sync.nextRunAt).toBe("2026-10-20T13:00:00.000Z");
     expect(claimWorker(value, "github:retry", new Date("2026-10-14T13:17:00Z"), ids)).toBeNull();
     value.sync.command = "run";
     value.sync.commandId = ids.commandId;
@@ -169,11 +187,11 @@ describe("hosted worker leases and calendar scheduling", () => {
     claimWorker(value, "github:manual", manual, ids);
     assertWorkerLease(value, ids.leaseToken, manual).imported = true;
     finishWorker(value, ids.leaseToken, "idle", null, manual);
-    expect(value.sync.nextRunAt).toBe("2026-10-22T13:17:00.000Z");
+    expect(value.sync.nextRunAt).toBe("2026-10-22T13:00:00.000Z");
     value.sync.intervalDays = 14;
-    expect(nextWorkerRun(value, manual)).toBe("2026-10-29T13:17:00.000Z");
+    expect(nextWorkerRun(value, manual)).toBe("2026-10-29T13:00:00.000Z");
     value.sync.intervalDays = 1;
-    expect(nextWorkerRun(value, manual)).toBe("2026-10-16T13:17:00.000Z");
+    expect(nextWorkerRun(value, manual)).toBe("2026-10-16T13:00:00.000Z");
   });
 
   it.each([0, 366, 1.5, Number.NaN])("rejects invalid interval %s", (intervalDays) => {
@@ -208,7 +226,7 @@ describe("hosted worker leases and calendar scheduling", () => {
     ]);
     expect(value.sync.coverageThrough).toBe("2026-10-12");
     expect(value.workerCatchup).toBeNull();
-    expect(value.sync.nextRunAt).toBe("2027-01-11T14:17:00.000Z");
+    expect(value.sync.nextRunAt).toBe("2027-01-11T14:00:00.000Z");
   });
 
   it("keeps pending dates when paused or failed and advances only committed chunks", () => {
@@ -230,7 +248,7 @@ describe("hosted worker leases and calendar scheduling", () => {
     expect(value.workerCatchup?.nextFrom).toBe(claim?.period.from);
     expect(value.workerCatchup?.nextClaimAt).toBeNull();
     expect(workerClaimAvailable(value, new Date(nextHour.getTime() + 3600000))).toBe(false);
-    expect(value.sync.nextRunAt).toBe("2026-10-20T13:17:00.000Z");
+    expect(value.sync.nextRunAt).toBe("2026-10-20T13:00:00.000Z");
   });
 
   it("does not re-download a chunk already committed when its worker lease expires", () => {
@@ -320,14 +338,14 @@ describe("hosted worker leases and calendar scheduling", () => {
     expect(value.workerLease).toBeNull();
     expect(value.sync.commandId).toBeNull();
     expect(value.sync.lastSuccessAt).toBe(now.toISOString());
-    expect(value.sync.nextRunAt).toBe("2026-10-14T13:17:00.000Z");
+    expect(value.sync.nextRunAt).toBe("2026-10-14T13:00:00.000Z");
     expect(() => finishWorker(value, ids.leaseToken, "idle", null, now)).toThrow(
       "Stale worker lease",
     );
   });
 
   it("records a failed or disconnected run without falsely updating last success", () => {
-    const prior = "2026-10-12T13:17:00.000Z";
+    const prior = "2026-10-12T13:00:00.000Z";
     const value = state({ lastSuccessAt: prior });
     claimWorker(value, "github:123:1", now, ids);
     finishWorker(value, ids.leaseToken, "needs_login", "Reconnect Supercrew", now);

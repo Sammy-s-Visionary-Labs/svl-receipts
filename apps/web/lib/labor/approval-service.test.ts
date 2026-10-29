@@ -1,8 +1,10 @@
 import {
   allocateLaborHours,
+  canonicalLaborWorkerName,
   estimateLaborPay,
   type LaborEntry,
   type LaborMappingCatalogJob,
+  type LaborWorkerAlias,
   linkLaborAllocation,
   sourceJobKey,
 } from "@svl/domain";
@@ -56,8 +58,14 @@ const catalog: LaborMappingCatalogJob = {
   scheduledAt: null,
 };
 const completeDates = Array.from({ length: 7 }, (_, i) => `2026-09-${17 + i}`);
-function context(rate = 2400, complete = true, extras: (typeof source)[] = []) {
-  const entries = [structuredClone(source), ...structuredClone(extras)];
+function context(
+  rate = 2400,
+  complete = true,
+  extras: (typeof source)[] = [],
+  aliases: readonly LaborWorkerAlias[] = [],
+  first = source,
+) {
+  const entries = [structuredClone(first), ...structuredClone(extras)];
   const rules = {
     locations: [
       {
@@ -69,7 +77,7 @@ function context(rate = 2400, complete = true, extras: (typeof source)[] = []) {
     jobAliases: [],
   };
   const allocation = linkLaborAllocation(
-    allocateLaborHours({ entries, rules, completeDates }),
+    allocateLaborHours({ entries, rules, completeDates, workerAliases: aliases }),
     [
       {
         sourceKey: key,
@@ -82,9 +90,17 @@ function context(rate = 2400, complete = true, extras: (typeof source)[] = []) {
       },
     ],
     [catalog],
+    aliases,
   );
   const paySettings = {
-    workerRates: [{ workerName: source.workerName, hourlyRateCents: rate, active: true }],
+    workerRates: [
+      {
+        workerName: canonicalLaborWorkerName(first.workerName, aliases),
+        hourlyRateCents: rate,
+        active: true,
+      },
+    ],
+    ...(aliases.length ? { workerAliases: aliases } : {}),
     overtime: { thresholdHours: 40, multiplier: 1.5, weekStartsOn: 4 },
   };
   const payroll = estimateLaborPay({
@@ -198,6 +214,56 @@ function send(record = records[0]) {
 }
 
 describe("manager approval and explicit labor send", () => {
+  it("reviews an explicit identity as one worker with one lunch deduction without changing source names", async () => {
+    const aliases = [{ alias: "TEST Alias", workerName: "TEST Canonical Worker" }];
+    loadContext.mockResolvedValue(
+      context(
+        2500,
+        true,
+        [
+          {
+            ...source,
+            id: "TEST-SECOND-ALIAS",
+            sourceRow: 14,
+            workerName: "Worker, TEST Canonical",
+            employeeId: "TEST-OTHER-RAW-ID",
+            hours: 4,
+            clockIn: "12:00",
+            clockOut: "16:00",
+          },
+        ],
+        aliases,
+        { ...source, workerName: "TEST Alias", hours: 4, clockOut: "12:00" },
+      ),
+    );
+    const workspace = await loadLaborApprovalWorkspace(scope, deps);
+    expect(workspace.preview.availableWorkers).toEqual([
+      { workerName: "TEST Canonical Worker", hours: 8 },
+    ]);
+    expect(workspace.preview.entries.map((entry) => entry.workerName)).toEqual([
+      "TEST Canonical Worker",
+      "TEST Canonical Worker",
+    ]);
+    expect(workspace.preview.entries.map((entry) => entry.sourceWorkerName)).toEqual([
+      "TEST Alias",
+      "Worker, TEST Canonical",
+    ]);
+    expect(workspace.preview.costEstimate).toMatchObject({ paidHours: 7.5, totalCostCents: 18750 });
+    expect(workspace.preview.blockers).toEqual([]);
+    await expect(
+      loadLaborApprovalWorkspace({ ...scope, workerNames: ["TEST Alias"] }, deps),
+    ).rejects.toMatchObject({ code: "stale_review" });
+    const approved = await approve();
+    expect(approved.snapshot.approvedWorkerNames).toEqual(["TEST Canonical Worker"]);
+    expect(approved.snapshot.workerAliases).toEqual(aliases);
+    expect(approved.snapshot.entries.map((entry) => entry.workerName)).toEqual([
+      "TEST Alias",
+      "Worker, TEST Canonical",
+    ]);
+    expect(
+      approved.snapshot.providerIntent?.preparedWrite.body.job_input_materials[0].description,
+    ).toContain("TEST Canonical Worker:");
+  });
   it("previews exact paid hours/cents and approval stores the immutable provider intent without provider calls", async () => {
     const workspace = await loadLaborApprovalWorkspace(scope, deps);
     expect(workspace.preview.totalHours).toBe(8);

@@ -130,7 +130,7 @@ function nextHourlyGate(now: Date) {
   return next.toISOString();
 }
 
-/** The hosted gate runs at minute 17 UTC. Retain overdue dates for catch-up visibility. */
+/** Calendar due time is independent of how often the selected worker checks. */
 export function nextWorkerRun(state: LaborWorkerControlState, now: Date) {
   const sync = state.sync;
   if (!sync.enabled || !["idle", "failed"].includes(sync.status)) return null;
@@ -140,16 +140,31 @@ export function nextWorkerRun(state: LaborWorkerControlState, now: Date) {
     return state.workerCatchup.nextClaimAt;
   }
   const date = nextScheduledDate(state, now);
-  // Search the due civil date, including offset changes. This chooses the first
-  // repeated fall hour and the first real hour after a skipped spring hour.
-  const candidate = new Date(`${date}T00:17:00Z`);
-  candidate.setUTCHours(candidate.getUTCHours() - 14);
-  for (let hour = 0; hour < 53; hour++) {
-    const local = workerCalendar(candidate, sync.timeZone);
-    if (local.date === date && local.hour >= sync.hour) return candidate.toISOString();
-    candidate.setUTCHours(candidate.getUTCHours() + 1);
+  const anchor = Date.parse(`${date}T${String(sync.hour).padStart(2, "0")}:00:00Z`);
+  const formatter = new Intl.DateTimeFormat("en-US", {
+    timeZone: sync.timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  });
+  let skippedHour: string | null = null;
+  // Civil-time matching supports fractional UTC offsets, the first repeated
+  // fall hour, and the first actual full hour after a skipped spring hour.
+  for (let offset = -14 * 60; offset <= 14 * 60; offset += 15) {
+    const candidate = new Date(anchor + offset * 60000);
+    const parts = Object.fromEntries(
+      formatter.formatToParts(candidate).map((part) => [part.type, part.value]),
+    );
+    if (`${parts.year}-${parts.month}-${parts.day}` !== date || Number(parts.minute) !== 0)
+      continue;
+    if (Number(parts.hour) === sync.hour) return candidate.toISOString();
+    if (Number(parts.hour) > sync.hour && !skippedHour) skippedHour = candidate.toISOString();
   }
-  throw new Error("Could not determine the next Supercrew worker gate");
+  if (skippedHour) return skippedHour;
+  throw new Error("Could not determine the next Supercrew schedule time");
 }
 
 export function recoverExpiredLaborLease(state: LaborWorkerControlState, now: Date) {

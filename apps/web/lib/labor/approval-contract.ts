@@ -19,6 +19,7 @@ export type LaborApprovalPreview = {
   entries: {
     sourceEntryId: string;
     workerName: string;
+    sourceWorkerName?: string;
     date: string;
     sourceJobName: string;
     clockIn: string;

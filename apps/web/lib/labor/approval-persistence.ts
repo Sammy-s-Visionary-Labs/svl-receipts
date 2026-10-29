@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import {
   canonicalLaborApprovalSnapshot,
+  canonicalLaborWorkerName,
   type LaborApprovalSnapshot,
   normalizeLaborWorkerName,
 } from "@svl/domain";
@@ -255,8 +256,14 @@ export async function createSupabaseLaborApproval(
     ) ||
     snapshot.entries.some(
       (entry) =>
+        normalizeLaborWorkerName(entry.canonicalWorkerName ?? entry.workerName) !==
+          normalizeLaborWorkerName(
+            canonicalLaborWorkerName(entry.workerName, snapshot.workerAliases ?? []),
+          ) ||
         !approvedNames.some(
-          (name) => normalizeLaborWorkerName(name) === entry.normalizedWorkerName,
+          (name) =>
+            normalizeLaborWorkerName(name) ===
+            normalizeLaborWorkerName(entry.canonicalWorkerName ?? entry.workerName),
         ),
     ) ||
     sum("sourceHourHundredths") !== snapshot.totalHourHundredths ||

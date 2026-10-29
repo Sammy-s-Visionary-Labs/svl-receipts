@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { createServiceRoleClient } from "@/lib/supabase/service";
+import type { LaborWorkerControlState } from "./worker-control";
 
 export const LABOR_ORIGINALS_BUCKET = "labor-originals";
 export const LABOR_WORKER_SESSIONS_BUCKET = "labor-worker-sessions";
@@ -116,6 +117,23 @@ function splitState(input: JsonObject) {
     });
   }
   return { state, control, records };
+}
+
+/** Always-on polling reads only operational fields, even in a cold server instance. */
+export async function readSupabaseLaborWorkerControl(): Promise<LaborWorkerControlState | null> {
+  target();
+  const { data, error } = await createServiceRoleClient()
+    .from("labor_state")
+    .select(
+      "sync:control->sync,workerLease:control->workerLease,lastScheduledDate:control->lastScheduledDate,workerCatchup:control->workerCatchup",
+    )
+    .eq("singleton", true)
+    .maybeSingle();
+  if (error) throw new Error("Labor worker state could not be loaded");
+  if (data === null || (object(data) && data.sync === null)) return null;
+  if (!object(data) || !object(data.sync))
+    throw new Error("Invalid labor worker persistence response");
+  return data as unknown as LaborWorkerControlState;
 }
 
 /** Consistent shared snapshot, or null before the first successful CAS initialization. */

@@ -5,6 +5,7 @@ import {
   normalizeLaborWorkerName,
 } from "./labor-allocation";
 import type { LaborJobMapping, LaborMappingCatalogJob } from "./labor-job-mapping";
+import { canonicalLaborWorkerName, type LaborWorkerAlias } from "./labor-worker-identity";
 
 export type LaborApprovalSourceEntry = LaborEntry & { importId: string; importHash: string };
 export type LaborApprovalCostEstimate = {
@@ -52,6 +53,8 @@ export type LaborApprovalInterval = {
   sourceRow: number;
   workerName: string;
   normalizedWorkerName: string;
+  /** Reviewed identity for rollups; workerName remains the immutable source spelling. */
+  canonicalWorkerName?: string;
   employeeId: string | null;
   date: string;
   clockIn: string;
@@ -93,6 +96,7 @@ export type LaborApprovalSnapshot = {
   providerIntent?: LaborApprovalProviderIntent;
   costEstimate?: LaborApprovalCostEstimate;
   approvedWorkerNames?: string[];
+  workerAliases?: readonly LaborWorkerAlias[];
 };
 export type LaborApprovalSnapshotInput = {
   housecallJobId: string;
@@ -101,6 +105,7 @@ export type LaborApprovalSnapshotInput = {
   catalogJob: LaborMappingCatalogJob;
   allocation: LaborAllocationReport;
   sourceEntries: readonly LaborApprovalSourceEntry[];
+  workerAliases?: readonly LaborWorkerAlias[];
 };
 
 const identifier = (value: unknown): value is string =>
@@ -129,6 +134,9 @@ export function buildLaborApprovalSnapshot(
   input: LaborApprovalSnapshotInput,
 ): LaborApprovalSnapshot {
   const { housecallJobId, fromDate, toDate, catalogJob, allocation } = input;
+  const aliases = input.workerAliases ?? [];
+  const identity = (name: string) =>
+    normalizeLaborWorkerName(canonicalLaborWorkerName(name, aliases));
   if (!dateValid(fromDate) || !dateValid(toDate) || fromDate > toDate)
     throw new Error("Approval requires an explicit valid work-date range");
   if (
@@ -193,6 +201,9 @@ export function buildLaborApprovalSnapshot(
       sourceRow: source.sourceRow,
       workerName: source.workerName,
       normalizedWorkerName: normalizeLaborWorkerName(source.workerName),
+      ...(aliases.length
+        ? { canonicalWorkerName: canonicalLaborWorkerName(source.workerName, aliases) }
+        : {}),
       employeeId: source.employeeId,
       date: source.date,
       clockIn: source.clockIn,
@@ -228,7 +239,7 @@ export function buildLaborApprovalSnapshot(
       entries.slice(0, position).some(
         (previous) =>
           previous.date === row.date &&
-          (previous.normalizedWorkerName === row.normalizedWorkerName ||
+          (identity(previous.workerName) === identity(row.workerName) ||
             (!!previous.employeeId && previous.employeeId === row.employeeId)) &&
           // Distinct sub-minute source rows can share one exported minute.
           // A point only intersects a positive span strictly inside its bounds.
@@ -241,9 +252,9 @@ export function buildLaborApprovalSnapshot(
     )
       throw new Error("Approval contains overlapping source intervals for one worker");
   }
-  const wantedDays = new Set(entries.map((entry) => `${entry.normalizedWorkerName}:${entry.date}`));
+  const wantedDays = new Set(entries.map((entry) => `${identity(entry.workerName)}:${entry.date}`));
   const workerDays = allocation.workerDays
-    .filter((day) => wantedDays.has(`${normalizeLaborWorkerName(day.workerName)}:${day.date}`))
+    .filter((day) => wantedDays.has(`${identity(day.workerName)}:${day.date}`))
     .map((day) => ({ ...day, reviewReasons: [...day.reviewReasons].sort() }))
     .sort((a, b) => a.date.localeCompare(b.date) || a.workerName.localeCompare(b.workerName));
   if (workerDays.length !== wantedDays.size)
@@ -275,6 +286,7 @@ export function buildLaborApprovalSnapshot(
   };
   return structuredClone({
     version: 1,
+    ...(aliases.length ? { workerAliases: aliases.map((alias) => ({ ...alias })) } : {}),
     housecallJobId,
     customerId: catalogJob.customerId,
     jobName: catalogJob.label,

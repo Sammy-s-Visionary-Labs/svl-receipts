@@ -53,6 +53,40 @@ beforeEach(async () => {
 });
 
 describe("shared labor state", () => {
+  it("polls fresh operational fields without fetching reports, pay settings or the ledger RPC", async () => {
+    const first = {
+      sync: { enabled: false, status: "idle" },
+      workerLease: null,
+      lastScheduledDate: null,
+      workerCatchup: null,
+    };
+    const second = { ...first, sync: { ...first.sync, command: "run" } };
+    mocks.maybeSingle
+      .mockResolvedValueOnce({ data: first, error: null })
+      .mockResolvedValueOnce({ data: second, error: null });
+    expect(await persistence.readSupabaseLaborWorkerControl()).toEqual(first);
+    expect(await persistence.readSupabaseLaborWorkerControl()).toEqual(second);
+    expect(mocks.tableFrom).toHaveBeenCalledWith("labor_state");
+    expect(mocks.tableFrom.mock.results[0].value.select).toHaveBeenCalledWith(
+      "sync:control->sync,workerLease:control->workerLease,lastScheduledDate:control->lastScheduledDate,workerCatchup:control->workerCatchup",
+    );
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    expect(mocks.storageFrom).not.toHaveBeenCalled();
+  });
+
+  it("fails closed on worker state read errors and handles an uninitialized ledger", async () => {
+    mocks.maybeSingle.mockResolvedValueOnce({ data: { sync: null }, error: null });
+    expect(await persistence.readSupabaseLaborWorkerControl()).toBeNull();
+    mocks.maybeSingle.mockResolvedValueOnce({ data: null, error: { message: "private" } });
+    await expect(persistence.readSupabaseLaborWorkerControl()).rejects.toThrow(
+      "Labor worker state could not be loaded",
+    );
+    mocks.maybeSingle.mockResolvedValueOnce({ data: { sync: "bad" }, error: null });
+    await expect(persistence.readSupabaseLaborWorkerControl()).rejects.toThrow(
+      "Invalid labor worker persistence response",
+    );
+  });
+
   it("uses the locked worker import RPC only with an explicit valid lease guard", async () => {
     const guard = {
       leaseToken: id,

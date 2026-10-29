@@ -11,6 +11,7 @@ import {
   type LaborPaySettings,
   type LaborWorkerWeekPay,
 } from "./labor-payroll";
+import { createLaborWorkerIdentityResolver } from "./labor-worker-identity";
 
 export const LABOR_JOB_COST_POLICY_VERSION =
   "proportional-day-lunch-chronological-week-overtime-v2";
@@ -101,10 +102,6 @@ function addDays(value: string, days: number) {
 }
 const startOfWeek = (date: string, startsOn: number) =>
   addDays(date, -((calendar(date).getUTCDay() - startsOn + 7) % 7));
-const dayKey = (name: string, date: string) =>
-  JSON.stringify([normalizeLaborWorkerName(name), date]);
-const weekKey = (name: string, date: string) =>
-  JSON.stringify([normalizeLaborWorkerName(name), date]);
 function minutes(clock: string) {
   const match = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(clock);
   return match ? Number(match[1]) * 60 + Number(match[2]) : null;
@@ -186,6 +183,13 @@ type Group = {
 
 /** Redistribute estimates only. The original quantities, costs, allocation and payroll stay intact. */
 export function estimateLaborJobCosts(input: LaborJobCostInput): LaborJobCostReport {
+  const canonicalWorker = createLaborWorkerIdentityResolver(input.settings.workerAliases);
+  const workerKey = (name: string) => normalizeLaborWorkerName(canonicalWorker(name));
+  const dayKey = (name: string, date: string) => JSON.stringify([workerKey(name), date]);
+  const weekKey = dayKey;
+  const reviewedOwners = new Set(
+    (input.settings.workerAliases ?? []).map((item) => workerKey(item.workerName)),
+  );
   const expected = estimateLaborPay({
     workerDays: input.allocation.workerDays,
     settings: input.settings,
@@ -198,7 +202,7 @@ export function estimateLaborJobCosts(input: LaborJobCostInput): LaborJobCostRep
     if (!group) {
       group = {
         key,
-        owner: normalizeLaborWorkerName(name),
+        owner: workerKey(name),
         start,
         sources: [],
         days: [],
@@ -280,7 +284,7 @@ export function estimateLaborJobCosts(input: LaborJobCostInput): LaborJobCostRep
     if (control?.hourlyRateCents === null || !control) group.blockers.add("missing_hourly_rate");
     const employeeIds = new Set(group.sources.map((source) => source.employeeId).filter(Boolean));
     if (
-      employeeIds.size > 1 ||
+      (employeeIds.size > 1 && !reviewedOwners.has(group.owner)) ||
       group.sources.some(
         (source) => !!source.employeeId && (employeeOwners.get(source.employeeId)?.size ?? 0) > 1,
       )
@@ -299,7 +303,8 @@ export function estimateLaborJobCosts(input: LaborJobCostInput): LaborJobCostRep
       if (
         !decision ||
         decision.date !== source.date ||
-        normalizeLaborWorkerName(decision.workerName) !== group.owner ||
+        workerKey(decision.workerName) !== group.owner ||
+        decision.workerName !== source.workerName ||
         decision.sourceHours !== source.hours ||
         decision.sourceRow !== source.sourceRow ||
         decision.sourceKind !== source.kind
@@ -307,7 +312,7 @@ export function estimateLaborJobCosts(input: LaborJobCostInput): LaborJobCostRep
         blockControls("source_allocation_mismatch");
       return {
         sourceEntryId: source.id,
-        workerName: control?.workerName ?? source.workerName,
+        workerName: canonicalWorker(control?.workerName ?? source.workerName),
         date: source.date,
         workerWeekKey: group.key,
         sourceHours: source.hours,
@@ -432,9 +437,7 @@ export function estimateLaborJobCosts(input: LaborJobCostInput): LaborJobCostRep
       record.blockers = [...blockers];
     }
     const rate =
-      input.settings.workerRates.find(
-        (row) => normalizeLaborWorkerName(row.workerName) === group.owner,
-      ) ?? null;
+      input.settings.workerRates.find((row) => workerKey(row.workerName) === group.owner) ?? null;
     workerWeeks.push({
       key: group.key,
       workerName:
@@ -462,6 +465,7 @@ export function estimateLaborJobCosts(input: LaborJobCostInput): LaborJobCostRep
         allocationRulesVersion: input.allocation.rulesVersion,
         workerWeekKey: group.key,
         overtime: input.settings.overtime,
+        workerAliases: input.settings.workerAliases ?? [],
         rate,
         payroll: control ?? null,
         sources: [...group.sources].sort((a, b) => a.id.localeCompare(b.id)),

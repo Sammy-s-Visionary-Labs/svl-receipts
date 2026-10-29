@@ -112,6 +112,29 @@ beforeEach(() => {
   rpc.mockResolvedValue({ data: row(), error: null });
 });
 describe("labor approval service-role persistence", () => {
+  it("accepts reviewed canonical worker rollups while retaining original interval identity", async () => {
+    const value = snapshot();
+    value.workerAliases = [{ alias: "TEST Alias", workerName: "TEST Worker" }];
+    value.entries = [
+      {
+        workerName: "TEST Alias",
+        normalizedWorkerName: "test alias",
+        canonicalWorkerName: "TEST Worker",
+      } as LaborApprovalSnapshot["entries"][number],
+    ];
+    await createSupabaseLaborApproval(value, 7, actor);
+    expect(rpc.mock.calls[0][1].p_snapshot.entries[0]).toMatchObject({
+      workerName: "TEST Alias",
+      normalizedWorkerName: "test alias",
+      canonicalWorkerName: "TEST Worker",
+    });
+    rpc.mockClear();
+    value.entries[0].canonicalWorkerName = "TEST Other Worker";
+    await expect(createSupabaseLaborApproval(value, 7, actor)).rejects.toMatchObject({
+      code: "labor_approval_invalid_snapshot",
+    });
+    expect(rpc).not.toHaveBeenCalled();
+  });
   it("saves canonical exact approval bytes and a SHA256 with an active-actor/revision contract", async () => {
     const value = snapshot();
     const result = await createSupabaseLaborApproval(value, 7, actor);

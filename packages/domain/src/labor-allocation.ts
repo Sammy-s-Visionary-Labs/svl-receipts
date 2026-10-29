@@ -1,6 +1,11 @@
 import { type LaborEntry, sourceJobKey } from "./labor";
 import { parseLaborJobComment } from "./labor-comment";
 import type { LaborJobMapping } from "./labor-job-mapping";
+import {
+  createLaborWorkerIdentityResolver,
+  type LaborWorkerAlias,
+  normalizeLaborWorkerName,
+} from "./labor-worker-identity";
 
 export interface LaborNote {
   id: string;
@@ -101,6 +106,7 @@ export interface LaborJobAllocationSummary {
 
 export interface LaborAllocationInput {
   entries: readonly LaborEntry[];
+  workerAliases?: readonly LaborWorkerAlias[];
   notes?: readonly LaborNote[];
   notesCoverage?: LaborNotesCoverage | null;
   notesCoverages?: readonly LaborNotesCoverage[];
@@ -140,11 +146,7 @@ export function normalizeLaborJobAlias(value: string): string {
   return value.normalize("NFKC").trim().replace(/\s+/g, " ").toLowerCase();
 }
 
-/** Deliberately handles the export's Last, First and notes' First Last formats. */
-export function normalizeLaborWorkerName(value: string): string {
-  const parts = value.normalize("NFKC").trim().split(",");
-  return normalizeLaborJobAlias(parts.length === 2 ? `${parts[1]} ${parts[0]}` : value);
-}
+export { normalizeLaborWorkerName } from "./labor-worker-identity";
 
 type Row = {
   entry: LaborEntry;
@@ -383,7 +385,20 @@ function result(
 /** Pure development calculation. Source facts and reported costs are never changed. */
 export function allocateLaborHours(input: LaborAllocationInput): LaborAllocationReport {
   const index = jobAliasIndex(input.rules);
-  const workerToken = workerAliases(input.rules);
+  const canonicalWorker = createLaborWorkerIdentityResolver(input.workerAliases);
+  const noteWorkerToken = workerAliases(input.rules);
+  const reviewedIdentities = new Set(
+    (input.workerAliases ?? []).flatMap((item) => [
+      normalizeLaborWorkerName(item.alias),
+      normalizeLaborWorkerName(item.workerName),
+    ]),
+  );
+  const workerToken = (name: string) =>
+    normalizeLaborWorkerName(
+      canonicalWorker(
+        reviewedIdentities.has(normalizeLaborWorkerName(name)) ? name : noteWorkerToken(name),
+      ),
+    );
   const coverages = [
     ...(input.notesCoverages ?? []),
     ...(input.notesCoverage ? [input.notesCoverage] : []),
@@ -408,9 +423,10 @@ export function allocateLaborHours(input: LaborAllocationInput): LaborAllocation
       throw new Error("Source entry identifiers must be unique within the allocation snapshot.");
     ids.add(entry.id);
     const worker = workerToken(entry.workerName);
-    const workerKey = entry.employeeId
-      ? JSON.stringify(["employee", entry.employeeId])
-      : JSON.stringify(["name", worker]);
+    const workerKey =
+      entry.employeeId && !reviewedIdentities.has(normalizeLaborWorkerName(entry.workerName))
+        ? JSON.stringify(["employee", entry.employeeId])
+        : JSON.stringify(["name", worker]);
     const key = JSON.stringify([workerKey, entry.date]);
     const group = days.get(key) ?? { workerKey, worker, date: entry.date, entries: [] };
     group.entries.push(entry);
@@ -793,7 +809,7 @@ export function allocateLaborHours(input: LaborAllocationInput): LaborAllocation
       Object.freeze({
         key,
         date: day.date,
-        workerName: day.entries[0]?.workerName ?? day.worker,
+        workerName: canonicalWorker(day.entries[0]?.workerName ?? day.worker),
         grossHours: gross / 100,
         sourceBreakHours: sourceBreak / 100,
         sourceNetHours: (gross + sourceBreak) / 100,

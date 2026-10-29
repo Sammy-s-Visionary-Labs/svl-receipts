@@ -5,6 +5,7 @@ import {
   normalizeLaborWorkerName,
   type ReviewedLaborLocation,
 } from "./labor-allocation";
+import { createLaborWorkerIdentityResolver, type LaborWorkerAlias } from "./labor-worker-identity";
 
 export const LABOR_JOB_CATALOG_STALE_MS = 26 * 60 * 60 * 1000;
 
@@ -323,7 +324,9 @@ export function linkLaborAllocation(
   report: LaborAllocationReport,
   mappings: readonly LaborJobMapping[],
   catalog: readonly LaborMappingCatalogJob[],
+  workerAliases: readonly LaborWorkerAlias[] = [],
 ): LaborAllocationReport {
+  const canonicalWorker = createLaborWorkerIdentityResolver(workerAliases);
   const indexed = new Map<string, LaborJobMapping[]>();
   for (const mapping of mappings) {
     if (
@@ -409,7 +412,7 @@ export function linkLaborAllocation(
     };
     if (!group.ids.has(entry.sourceEntryId)) group.hours += Math.round(entry.allocatedHours * 100);
     group.ids.add(entry.sourceEntryId);
-    group.workers.add(normalizeLaborWorkerName(entry.workerName));
+    group.workers.add(normalizeLaborWorkerName(canonicalWorker(entry.workerName)));
     grouped.set(entry.job.key, group);
   }
   return {

@@ -1,6 +1,8 @@
 import { type LaborWorkerDayAllocation, normalizeLaborWorkerName } from "./labor-allocation";
+import { createLaborWorkerIdentityResolver, type LaborWorkerAlias } from "./labor-worker-identity";
 
 export interface LaborPaySettings {
+  readonly workerAliases?: readonly LaborWorkerAlias[];
   readonly workerRates: readonly {
     readonly workerName: string;
     readonly hourlyRateCents: number | null;
@@ -123,6 +125,8 @@ export function estimateLaborPay(input: LaborPayInput): LaborPayReport {
   if (!Number.isInteger(startsOn) || startsOn < 0 || startsOn > 6)
     throw new Error("Payroll week start must be an integer from zero to six.");
   const multiplier = multiplierRatio(settings.overtime.multiplier);
+  const canonicalWorker = createLaborWorkerIdentityResolver(settings.workerAliases);
+  const workerKey = (name: string) => normalizeLaborWorkerName(canonicalWorker(name));
   const rates = new Map<string, LaborPaySettings["workerRates"][number]>();
   for (const rate of settings.workerRates) {
     if (
@@ -136,7 +140,7 @@ export function estimateLaborPay(input: LaborPayInput): LaborPayReport {
       throw new Error(
         "Worker pay settings require an exact name, active status and integer cents or null.",
       );
-    const owner = normalizeLaborWorkerName(rate.workerName);
+    const owner = workerKey(rate.workerName);
     if (rates.has(owner))
       throw new Error("Repeated normalized worker pay settings require review.");
     rates.set(owner, rate);
@@ -151,7 +155,7 @@ export function estimateLaborPay(input: LaborPayInput): LaborPayReport {
   for (const day of input.workerDays) {
     if (typeof day.workerName !== "string" || !day.workerName.trim())
       throw new Error("Payroll worker days require an exact worker name.");
-    const owner = normalizeLaborWorkerName(day.workerName);
+    const owner = workerKey(day.workerName);
     const dateKey = JSON.stringify([owner, day.date]);
     if (days.has(dateKey))
       throw new Error("Repeated worker-day owners require payroll identity review.");
@@ -167,7 +171,7 @@ export function estimateLaborPay(input: LaborPayInput): LaborPayReport {
     const key = JSON.stringify([owner, start]);
     const week = weeks.get(key) ?? {
       owner,
-      workerName: rates.get(owner)?.workerName ?? day.workerName,
+      workerName: canonicalWorker(rates.get(owner)?.workerName ?? day.workerName),
       start,
       gross: 0,
       lunch: 0,

@@ -17,6 +17,11 @@ export * from "./labor-approval";
 export * from "./labor-job-cost";
 export * from "./labor-job-mapping";
 export * from "./labor-payroll";
+export {
+  canonicalLaborWorkerName,
+  createLaborWorkerIdentityResolver,
+  type LaborWorkerAlias,
+} from "./labor-worker-identity";
 export * from "./legacy-status";
 export * from "./money";
 export * from "./outbox";

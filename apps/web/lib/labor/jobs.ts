@@ -218,6 +218,7 @@ export async function loadJobsDashboard(db: SupabaseClient | null): Promise<Jobs
     return {
       development: labor.development,
       allocation: labor.allocation,
+      workerAliases: labor.paySettings?.workerAliases,
       imports: labor.imports,
       ...activities,
       entries: labor.entries,
@@ -261,6 +262,7 @@ export async function loadJobsDashboard(db: SupabaseClient | null): Promise<Jobs
   return {
     development: labor.development,
     allocation: labor.allocation,
+    workerAliases: labor.paySettings?.workerAliases,
     imports: labor.imports,
     ...activities,
     entries: labor.entries,

@@ -5,6 +5,7 @@ const cloud = vi.hoisted(() => ({
   snapshot: null as { state: Record<string, unknown>; revision: number } | null,
   originals: new Map<string, Uint8Array>(),
   read: vi.fn(),
+  readWorker: vi.fn(),
   cas: vi.fn(),
   put: vi.fn(),
   get: vi.fn(),
@@ -12,6 +13,7 @@ const cloud = vi.hoisted(() => ({
 }));
 vi.mock("./persistence", () => ({
   readSupabaseLaborState: cloud.read,
+  readSupabaseLaborWorkerControl: cloud.readWorker,
   compareAndSwapSupabaseLaborState: cloud.cas,
   putSupabaseLaborOriginal: cloud.put,
   getSupabaseLaborOriginal: cloud.get,
@@ -123,6 +125,11 @@ beforeEach(() => {
   cloud.originals.clear();
   vi.clearAllMocks();
   cloud.read.mockImplementation(async () => structuredClone(cloud.snapshot));
+  cloud.readWorker.mockImplementation(async () => {
+    if (!cloud.snapshot) return null;
+    const { sync, workerLease, lastScheduledDate, workerCatchup } = cloud.snapshot.state;
+    return structuredClone({ sync, workerLease, lastScheduledDate, workerCatchup });
+  });
   cloud.cas.mockImplementation(async (state: Record<string, unknown>, revision: number) => {
     if (revision !== (cloud.snapshot?.revision ?? 0)) return null;
     cloud.snapshot = { state: structuredClone(state), revision: revision + 1 };
@@ -179,11 +186,11 @@ describe("shared recurrence and source coverage", () => {
   });
 
   it.each([
-    [1, "2026-10-14T13:17:00.000Z"],
-    [7, "2026-10-20T13:17:00.000Z"],
-    [14, "2026-10-27T13:17:00.000Z"],
-    [45, "2026-11-27T14:17:00.000Z"],
-    [365, "2027-10-13T13:17:00.000Z"],
+    [1, "2026-10-14T13:00:00.000Z"],
+    [7, "2026-10-20T13:00:00.000Z"],
+    [14, "2026-10-27T13:00:00.000Z"],
+    [45, "2026-11-27T14:00:00.000Z"],
+    [365, "2027-10-13T13:00:00.000Z"],
   ])(
     "persists %s-day settings and recalculates the public next gate",
     async (intervalDays, nextRunAt) => {
@@ -275,9 +282,12 @@ describe("shared labor transactions", () => {
     await queueLaborSync("pause", {}, actorId);
     const before = structuredClone(cloud.snapshot);
     cloud.cas.mockClear();
+    cloud.read.mockClear();
     for (let index = 0; index < 3; index++)
       expect((await loadLaborWorkerPoll()).claimable).toBe(false);
     expect(cloud.cas).not.toHaveBeenCalled();
+    expect(cloud.read).not.toHaveBeenCalled();
+    expect(cloud.readWorker).toHaveBeenCalledTimes(3);
     expect(cloud.snapshot).toEqual(before);
   });
 
