@@ -1,3 +1,4 @@
+import { MAX_RECEIPT_PAGES } from "@svl/domain";
 import { describe, expect, it, vi } from "vitest";
 import {
   createGeminiReadabilityAdapter,
@@ -94,6 +95,96 @@ describe("Gemini readability adapter", () => {
       readable: false,
       failed_page_indexes: [0, 1],
       reasons: ["cropped", "blurry"],
+    });
+  });
+
+  it("checks all ten pages in order and accepts the final page as unreadable", async () => {
+    const pages = Array.from({ length: 10 }, (_, pageIndex) => ({
+      ...page,
+      pageIndex,
+      bytes: new TextEncoder().encode(`synthetic page ${pageIndex}`),
+    }));
+    const request = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body));
+      expect(
+        body.contents[0].parts
+          .slice(1)
+          .map((part: { inlineData: { data: string } }) => atob(part.inlineData.data)),
+      ).toEqual(pages.map((page) => new TextDecoder().decode(page.bytes)));
+      expect(
+        body.generationConfig.responseJsonSchema.properties.failed_page_indexes.items.maximum,
+      ).toBe(MAX_RECEIPT_PAGES - 1);
+      return Response.json({
+        candidates: [
+          {
+            content: {
+              parts: [
+                {
+                  text: JSON.stringify({
+                    schema_version: 1,
+                    readable: false,
+                    failed_page_indexes: [9],
+                    reasons: ["cropped"],
+                  }),
+                },
+              ],
+            },
+          },
+        ],
+      });
+    });
+    const result = await createGeminiReadabilityAdapter({
+      apiKey: "key",
+      fetch: request,
+    }).checkReadable(pages);
+    expect(result.check).toEqual({
+      schema_version: 1,
+      readable: false,
+      failed_page_indexes: [9],
+      reasons: ["cropped"],
+    });
+    expect(request).toHaveBeenCalledOnce();
+  });
+
+  it("rejects eleven pages before uploading or calling the provider", async () => {
+    const request = vi.fn(async () => Response.json({}));
+    await expect(
+      createGeminiReadabilityAdapter({
+        apiKey: "key",
+        inlineByteLimit: 1,
+        fetch: request,
+      }).checkReadable(Array.from({ length: 11 }, (_, pageIndex) => ({ ...page, pageIndex }))),
+    ).rejects.toMatchObject({ kind: "permanent", code: "invalid_page_set" });
+    expect(request).not.toHaveBeenCalled();
+  });
+
+  it("rejects a provider result referring to an eleventh page", async () => {
+    await expect(
+      createGeminiReadabilityAdapter({
+        apiKey: "key",
+        fetch: async () =>
+          Response.json({
+            candidates: [
+              {
+                content: {
+                  parts: [
+                    {
+                      text: JSON.stringify({
+                        schema_version: 1,
+                        readable: false,
+                        failed_page_indexes: [10],
+                        reasons: ["cropped"],
+                      }),
+                    },
+                  ],
+                },
+              },
+            ],
+          }),
+      }).checkReadable(Array.from({ length: 10 }, (_, pageIndex) => ({ ...page, pageIndex }))),
+    ).rejects.toMatchObject({
+      kind: "retryable",
+      code: "provider_invalid_response",
     });
   });
 

@@ -1,3 +1,4 @@
+import { MAX_RECEIPT_PAGES } from "@svl/domain";
 import { describe, expect, it, vi } from "vitest";
 import {
   createGeminiReceiptAdapter,
@@ -11,6 +12,7 @@ const page = {
   bytes: new TextEncoder().encode("abc"),
 };
 const observation = {
+  receipt_type: "debit",
   schema_version: 1,
   document_kind: "receipt",
   vendor: "Select",
@@ -94,6 +96,43 @@ describe("Gemini receipt parsing", () => {
     });
     expect(result.receipt.original_observation.lines[0]?.qty).toBe("2.500");
   });
+  it("distinguishes item-table customer notes from charges while keeping real unpriced materials", async () => {
+    const request = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+      const prompt = JSON.parse(String(init?.body)).systemInstruction.parts[0].text;
+      expect(prompt).toContain('"Customer Pick Up - Job Tricia" is a customer/job note');
+      expect(prompt).toContain("in the item table or have a printed Qty of 1");
+      expect(prompt).toContain(
+        "Never borrow or copy quantities, units or prices from a neighboring row",
+      );
+      expect(prompt).toContain("missing prices as an incomplete line for review");
+      expect(prompt).toContain("Actual pickup/delivery fees remain charge lines");
+      return response({
+        ...observation,
+        lines: [
+          {
+            page_index: 0,
+            description: "Crushed limestone",
+            qty: null,
+            uom: "ton",
+            unit_cost: null,
+            extended_cost: null,
+            job_hint: "Tricia",
+          },
+        ],
+        job_hints: [{ text: "Tricia", page_index: 0 }],
+        raw_text: "SYNTHETIC TEST FIXTURE Customer Pick Up - Job Tricia; Crushed limestone",
+      });
+    });
+    const result = await createGeminiReceiptAdapter({
+      apiKey: "test-key",
+      fetch: request,
+    }).parseReceipt([page]);
+    expect(result.promptVersion).toBe("ra6-receipt-v1.7");
+    expect(result.receipt.lines).toMatchObject([
+      { description: "Crushed limestone", qty: null, unit_cost_cents: null, job_hint: "Tricia" },
+    ]);
+    expect(result.receipt.job_hints).toEqual([{ text: "Tricia", page_index: 0 }]);
+  });
   it("sends all ordered pages in one request and validates page-specific evidence", async () => {
     const request = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
       expect(JSON.parse(String(init?.body)).contents[0].parts).toHaveLength(3);
@@ -107,6 +146,50 @@ describe("Gemini receipt parsing", () => {
       fetch: request,
     }).parseReceipt([page, { ...page, pageIndex: 1 }]);
     expect(result.receipt.lines.map((line) => line.page_index)).toEqual([0, 1]);
+  });
+  it("accepts ten ordered pages with lines, job hints and evidence on the final page", async () => {
+    const pages = Array.from({ length: 10 }, (_, pageIndex) => ({
+      ...page,
+      pageIndex,
+      bytes: new TextEncoder().encode(`synthetic page ${pageIndex}`),
+    }));
+    const request = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body));
+      expect(body.contents[0].parts[0].text).toContain("10-page");
+      expect(
+        body.contents[0].parts
+          .slice(1)
+          .map((part: { inlineData: { data: string } }) => atob(part.inlineData.data)),
+      ).toEqual(pages.map((page) => new TextDecoder().decode(page.bytes)));
+      const schema = body.generationConfig.responseJsonSchema.properties;
+      expect(schema.lines.items.properties.page_index.maximum).toBe(MAX_RECEIPT_PAGES - 1);
+      expect(schema.job_hints.items.properties.page_index.maximum).toBe(MAX_RECEIPT_PAGES - 1);
+      expect(schema.evidence.items.properties.page_index.maximum).toBe(MAX_RECEIPT_PAGES - 1);
+      return response({
+        ...observation,
+        lines: [{ ...observation.lines[0], page_index: 9 }],
+        job_hints: [{ ...observation.job_hints[0], page_index: 9 }],
+        evidence: [{ ...observation.evidence[0], page_index: 9 }],
+      });
+    });
+    const result = await createGeminiReceiptAdapter({ apiKey: "key", fetch: request }).parseReceipt(
+      pages,
+    );
+    expect(result.receipt.lines[0]?.page_index).toBe(9);
+    expect(result.receipt.job_hints[0]?.page_index).toBe(9);
+    expect(result.receipt.evidence[0]?.page_index).toBe(9);
+    expect(request).toHaveBeenCalledOnce();
+  });
+  it("rejects eleven pages before uploading or calling the provider", async () => {
+    const request = vi.fn(async () => response());
+    await expect(
+      createGeminiReceiptAdapter({
+        apiKey: "key",
+        inlineByteLimit: 1,
+        fetch: request,
+      }).parseReceipt(Array.from({ length: 11 }, (_, pageIndex) => ({ ...page, pageIndex }))),
+    ).rejects.toMatchObject({ kind: "permanent", code: "invalid_page_set" });
+    expect(request).not.toHaveBeenCalled();
   });
   it.each([
     [408, "retryable", "provider_timeout"],
@@ -205,7 +288,7 @@ describe("Gemini receipt parsing", () => {
     expect(result.receipt.lines[0]).toMatchObject({ qty: null, unit_cost_cents: null });
     expect(result.receipt.warnings.some((warning) => warning.code === "missing_field")).toBe(true);
   });
-  it("uploads large batches using Files API, retains page order and deletes uploaded evidence after parsing", async () => {
+  it("uploads ten pages using Files API, retains page order and deletes uploaded evidence after parsing", async () => {
     const calls: Array<{ url: string; method?: string }> = [];
     let uploadIndex = 0;
     const request: typeof fetch = async (url, init) => {
@@ -229,16 +312,25 @@ describe("Gemini receipt parsing", () => {
       }
       if (init?.method === "DELETE") return new Response(null, { status: 204 });
       const body = JSON.parse(String(init?.body));
-      expect(body.contents[0].parts[1].fileData.fileUri).toContain("page0");
-      expect(body.contents[0].parts[2].fileData.fileUri).toContain("page1");
+      expect(
+        body.contents[0].parts
+          .slice(1)
+          .map((part: { fileData: { fileUri: string } }) => part.fileData.fileUri),
+      ).toEqual(
+        Array.from(
+          { length: 10 },
+          (_, pageIndex) =>
+            `https://generativelanguage.googleapis.com/v1beta/files/page${pageIndex}`,
+        ),
+      );
       return response();
     };
     await createGeminiReceiptAdapter({
       apiKey: "key",
       inlineByteLimit: 1,
       fetch: request,
-    }).parseReceipt([page, { ...page, pageIndex: 1 }]);
-    expect(calls.filter((call) => call.method === "DELETE")).toHaveLength(2);
+    }).parseReceipt(Array.from({ length: 10 }, (_, pageIndex) => ({ ...page, pageIndex })));
+    expect(calls.filter((call) => call.method === "DELETE")).toHaveLength(10);
   });
   it("cleans successful files when another upload fails", async () => {
     let starts = 0;

@@ -60,6 +60,34 @@ beforeEach(() => {
   } as never);
 });
 describe("manager receipt detail API", () => {
+  it("counts all ten confirmed pages for receipt navigation", async () => {
+    rows.receipt_pages = Array.from({ length: 10 }, (_, page_index) => ({ page_index }));
+    const body = await (await run()).json();
+    expect(body.pageCount).toBe(10);
+    const pageQueryIndex = from.mock.calls.findIndex(([table]) => table === "receipt_pages");
+    expect(from.mock.results[pageQueryIndex]?.value.limit).toHaveBeenCalledWith(10);
+  });
+
+  it("uses a backfilled type without replacing saved manager edits or explicit choices", async () => {
+    rows.receipt_type_classifications = { receipt_type: "credit", source_extraction_id: "e" };
+    rows.reviews = [
+      {
+        snapshot: { vendor: "Manager edit", lines: [], managerNotes: "Keep this note" },
+        extraction_id: "e",
+      },
+    ];
+    let body = await (await run()).json();
+    expect(body.draft).toMatchObject({
+      vendor: "Manager edit",
+      managerNotes: "Keep this note",
+      receiptType: "credit",
+    });
+    rows.reviews = [
+      { snapshot: { vendor: "Manager edit", lines: [], receiptType: "debit" }, extraction_id: "e" },
+    ];
+    body = await (await run()).json();
+    expect(body.draft.receiptType).toBe("debit");
+  });
   function freshMatchedExtraction() {
     rows.extractions = [
       {
@@ -109,6 +137,13 @@ describe("manager receipt detail API", () => {
       "manager_legacy_review_edits",
       "manager_receipt_timeline",
     ]);
+  });
+  it("retains document-based job autofill after automated classification and re-extraction", async () => {
+    freshMatchedExtraction();
+    rows.receipts = { ...(rows.receipts as object), review_version: 2 };
+    const body = await (await run()).json();
+    expect(body.draft.lines[0].jobId).toBe("singh");
+    expect(body.automaticJobAssignments[0].jobId).toBe("singh");
   });
   it.each(["saved", "legacy", "historical"])(
     "does not autofill over %s manager decisions",

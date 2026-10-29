@@ -1,6 +1,8 @@
 "use client";
+import { MAX_RECEIPT_PAGES } from "@svl/domain";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+import { isUnresolvedEmailImportStatus } from "@/lib/email/status";
 import styles from "./email.module.css";
 
 type Item = {
@@ -17,12 +19,10 @@ const labels: Record<string, string> = {
   awaiting_upload: "Awaiting upload",
   queued: "Queued",
   processing: "Preparing",
-  imported: "Sent to receipt workflow",
   needs_attention: "Needs attention",
 };
 const errors: Record<string, string> = {
-  pdf_page_limit:
-    "This PDF exceeds the five-page receipt limit. Split it into separate receipts and send it again.",
+  pdf_page_limit: `This PDF exceeds the ${MAX_RECEIPT_PAGES}-page receipt limit. Split it into separate receipts and send it again.`,
   invalid_or_locked_pdf: "The PDF is damaged or password-protected. Send an unlocked copy.",
   email_body_limit: "The email body is too long. Send the receipt as a PDF or image.",
   unsupported_attachment:
@@ -50,7 +50,7 @@ export function EmailSettings() {
       const response = await fetch("/api/manager/email-imports", { cache: "no-store" });
       if (!response.ok) throw new Error("Email intake status could not be loaded.");
       const data = await response.json();
-      setItems(data.imports);
+      setItems(data.imports.filter((item: Item) => isUnresolvedEmailImportStatus(item.status)));
       setConfigured(data.configured);
       setLastContactAt(data.lastContactAt ?? null);
     } catch (e) {
@@ -96,9 +96,13 @@ export function EmailSettings() {
         PDFs, images, forwarded emails, and email-body receipts enter the same review inbox.
         Housecall receives data only after manager approval.
       </p>
+      <p className={styles.note}>
+        Pending and failed email imports appear here. Successfully imported receipts are available
+        in the receipt queue and history.
+      </p>
       {error && <p role="alert">{error}</p>}
       {!busy && !items.length && (
-        <div className={styles.empty}>No emails received by the importer yet.</div>
+        <div className={styles.empty}>No pending or failed email imports.</div>
       )}
       <ul className={styles.list}>
         {items.map((item) => (
@@ -137,9 +141,7 @@ export function EmailSettings() {
         ))}
       </ul>
       {items.length === 50 && (
-        <p className={styles.note}>
-          Showing the latest 50 emails. Imported receipts remain available in receipt history.
-        </p>
+        <p className={styles.note}>Showing the latest 50 pending or failed email imports.</p>
       )}
     </section>
   );

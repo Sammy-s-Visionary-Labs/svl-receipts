@@ -1,6 +1,6 @@
 "use client";
 
-import { WORKER_FACING_LABELS, type WorkerFacingStatus } from "@svl/domain";
+import { MAX_RECEIPT_PAGES, WORKER_FACING_LABELS, type WorkerFacingStatus } from "@svl/domain";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { FieldApiError, fieldApi } from "@/lib/field/api";
@@ -142,7 +142,7 @@ export function ReceiptHistory({ overview = false }: { overview?: boolean }) {
               Add a receipt
               <Icon name="arrow" size={18} />
             </Link>
-            <small>One receipt at a time · Up to 5 pages</small>
+            <small>One receipt at a time · Up to {MAX_RECEIPT_PAGES} pages</small>
           </div>
           <div className={styles.heroArt} aria-hidden="true">
             <div className={styles.artCircle} />

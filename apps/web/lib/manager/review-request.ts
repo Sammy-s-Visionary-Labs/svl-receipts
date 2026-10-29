@@ -14,6 +14,10 @@ export function parseDraft(value: unknown): ReviewDraft {
     typeof v === "string" && v.length <= max ? v.trim() : fail();
   if (!Array.isArray(d.lines) || d.lines.length > 100) return fail();
   const draft: ReviewDraft = {
+    receiptType:
+      d.receiptType === undefined
+        ? "debit"
+        : (string(d.receiptType, 6) as ReviewDraft["receiptType"]),
     vendor: string(d.vendor, 200),
     purchaseDate: string(d.purchaseDate, 10),
     invoiceNumber: string(d.invoiceNumber, 120),
@@ -27,6 +31,9 @@ export function parseDraft(value: unknown): ReviewDraft {
       const suggestionId = l.suggestionId === undefined ? undefined : string(l.suggestionId, 36);
       if (suggestionId && !UUID.test(suggestionId)) return fail();
       return {
+        ...(l.receiptType !== undefined
+          ? { receiptType: string(l.receiptType, 6) as ReviewDraft["receiptType"] }
+          : {}),
         ...(typeof l.id === "string" && l.id.length <= 80 ? { id: l.id } : {}),
         ...(Number.isInteger(l.sourceIndex) &&
         Number(l.sourceIndex) >= 0 &&

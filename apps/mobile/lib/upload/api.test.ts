@@ -29,6 +29,20 @@ function session(uploadUrl: string) {
 }
 
 describe("receipt upload URL policy", () => {
+  it("accepts ten ordered signed targets through index nine and rejects an eleventh", () => {
+    const value = session("https://storage.invalid/signed/path");
+    const target = value.targets[0];
+    if (!target) throw new Error("Missing synthetic target");
+    value.targets = Array.from({ length: 10 }, (_, pageIndex) => ({
+      ...target,
+      pageIndex,
+      storageKey: `owner/receipt/${pageIndex}.jpg`,
+    }));
+    expect(parseReceiptUploadSession(value, "production").targets.at(-1)?.pageIndex).toBe(9);
+    value.targets.push({ ...target, pageIndex: 10 });
+    expect(() => parseReceiptUploadSession(value, "production")).toThrow();
+  });
+
   it("accepts HTTPS in both production and development", () => {
     for (const policy of ["production", "development"] satisfies ReceiptUploadUrlPolicy[]) {
       expect(isAllowedReceiptUploadUrl("https://storage.invalid/signed/path", policy)).toBe(true);

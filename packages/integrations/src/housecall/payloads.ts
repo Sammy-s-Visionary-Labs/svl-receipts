@@ -1,3 +1,4 @@
+import { extendedCostCents } from "@svl/domain";
 import type {
   PreparedAttachmentWrite,
   PreparedHousecallWrite,
@@ -52,16 +53,17 @@ export async function prepareMaterialWrite(input: {
   receiptLineId: string;
   description: string;
   approvedReference?: string;
-  formatVersion?: 2;
+  formatVersion?: 2 | 3;
+  receiptType?: "debit" | "credit";
   quantity: number;
   unitCostCents: number;
 }): Promise<PreparedMaterialWrite> {
   const jobId = validateHousecallId(input.jobId);
   const legacyReference = `SVL:${referencePart(input.intentId)}:${referencePart(input.receiptLineId)}`;
-  if (input.formatVersion !== undefined && input.formatVersion !== 2)
+  if (input.formatVersion !== undefined && ![2, 3].includes(input.formatVersion))
     throw new Error("Unsupported material format");
   const reference =
-    input.formatVersion === 2
+    input.formatVersion === 2 || input.formatVersion === 3
       ? `SVL-${(await housecallSha256(new TextEncoder().encode(legacyReference))).slice(0, 24)}`
       : legacyReference;
   referencePart(input.receiptId);
@@ -82,16 +84,15 @@ export async function prepareMaterialWrite(input: {
     throw new Error("Invalid material quantity");
   if (
     !Number.isSafeInteger(input.unitCostCents) ||
-    input.unitCostCents < 0 ||
-    input.unitCostCents > MAX_CENTS
+    Math.abs(input.unitCostCents) > MAX_CENTS ||
+    (input.receiptType === "credit" ? input.unitCostCents > 0 : input.unitCostCents < 0) ||
+    (input.receiptType !== undefined && !["debit", "credit"].includes(input.receiptType))
   )
     throw new Error("Invalid material unit cost");
-  const extendedCents =
-    (BigInt(Math.round(input.quantity * 1000)) * BigInt(input.unitCostCents) + BigInt(500)) /
-    BigInt(1000);
-  if (extendedCents > BigInt(MAX_CENTS)) throw new Error("Material extended cost exceeds limit");
+  extendedCostCents(input.quantity, input.unitCostCents);
   const request = {
     kind: "job_cost" as const,
+    ...(input.receiptType ? { receiptType: input.receiptType } : {}),
     jobId,
     method: "PUT" as const,
     path: `/jobs/${jobId}/job_input_materials/bulk_update`,
@@ -101,7 +102,7 @@ export async function prepareMaterialWrite(input: {
         {
           name: description,
           description:
-            input.formatVersion === 2
+            input.formatVersion === 2 || input.formatVersion === 3
               ? approvedReference || "Receipt material"
               : `${approvedReference ? `${approvedReference}; ` : ""}Receipt ${input.receiptId}; ${reference}`,
           part_number: reference,
@@ -188,9 +189,10 @@ export async function verifyPreparedHousecallWrite(
     line.quantity <= MAX_CENTS &&
     Math.abs(line.quantity * 1000 - Math.round(line.quantity * 1000)) <= 1e-6 &&
     Number.isSafeInteger(line.unit_cost) &&
-    line.unit_cost >= 0 &&
-    line.unit_cost <= MAX_CENTS &&
-    (BigInt(Math.round(line.quantity * 1000)) * BigInt(line.unit_cost) + BigInt(500)) /
+    Math.abs(line.unit_cost) <= MAX_CENTS &&
+    (write.receiptType === undefined || ["credit", "debit"].includes(write.receiptType)) &&
+    (write.receiptType === "credit" ? line.unit_cost <= 0 : line.unit_cost >= 0) &&
+    (BigInt(Math.round(line.quantity * 1000)) * BigInt(Math.abs(line.unit_cost)) + BigInt(500)) /
       BigInt(1000) <=
       BigInt(MAX_CENTS) &&
     requestHash === (await housecallRequestHash(request))

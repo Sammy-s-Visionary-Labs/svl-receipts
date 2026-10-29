@@ -47,6 +47,20 @@ const input = () => ({
   liveWritesEnabled: false,
 });
 describe("frozen Housecall export preview", () => {
+  it("retains all ten ordered receipt attachments and rejects an eleventh page index", () => {
+    const tenPages = Array.from({ length: 10 }, (_, page) => attachment(`a${page}`, "job-a", page));
+    const preview = buildHousecallExportPreview({ ...input(), steps: tenPages });
+    expect(
+      preview.jobs.find((job) => job.id === "job-a")?.images.map((image) => image.pageIndex),
+    ).toEqual(Array.from({ length: 10 }, (_, page) => page));
+    expect(() =>
+      buildHousecallExportPreview({
+        ...input(),
+        steps: [...tenPages, attachment("a10", "job-a", 10)],
+      }),
+    ).toThrow("invalid_export_preview");
+  });
+
   it("keeps distinct job IDs and page states, exact half-up costs, and the write restriction", () => {
     const preview = buildHousecallExportPreview(input());
     expect(preview).toMatchObject({

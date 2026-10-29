@@ -11,6 +11,7 @@ import {
   isHousecallQuantitySupported,
   prepareAttachmentWrite,
   prepareMaterialWrite,
+  verifyPreparedHousecallWrite,
 } from "./payloads";
 import type { HousecallWritePermit, PreparedHousecallWrite } from "./types";
 
@@ -96,6 +97,22 @@ function client(transport: ReturnType<typeof vi.fn>, allowedWriteJobIds: string[
 }
 
 describe("Housecall documented material payload", () => {
+  it("sends an explicitly typed credit with negative integer cents and positive quantity", async () => {
+    const write = await material({
+      receiptType: "credit",
+      formatVersion: 3,
+      quantity: 1.5,
+      unitCostCents: -251,
+    });
+    expect(write.body.job_input_materials[0]).toMatchObject({ quantity: 1.5, unit_cost: -251 });
+    expect(await verifyPreparedHousecallWrite(write)).toBe(true);
+    await expect(material({ receiptType: "debit", unitCostCents: -251 })).rejects.toThrow();
+    await expect(material({ receiptType: "credit", unitCostCents: 251 })).rejects.toThrow();
+    const transport = vi.fn().mockResolvedValueOnce(json(job())).mockResolvedValueOnce(json({}));
+    await client(transport, [write.jobId]).executePreparedWrite(write, permit(write));
+    const sent = JSON.parse(transport.mock.calls[1]?.[1]?.body);
+    expect(sent.job_input_materials[0].unit_cost).toBe(-251);
+  });
   it("uses internal Job Input Materials PUT with integer cents, original quantity, no tax or invoice items", async () => {
     const write = await material();
     expect(write.path).toBe("/jobs/job_test_2/job_input_materials/bulk_update");

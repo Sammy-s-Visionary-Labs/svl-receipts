@@ -26,6 +26,7 @@ export * from "./receipt-intelligence";
 export * from "./receipt-normalization";
 export * from "./receipt-parse";
 export * from "./receipt-status";
+export * from "./receipt-type";
 export * from "./retention";
 export * from "./review";
 export * from "./review-draft";

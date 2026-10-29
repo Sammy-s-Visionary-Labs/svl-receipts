@@ -25,6 +25,40 @@ const draft: ReviewDraft = {
   lines: [line],
 };
 describe("review money and validation", () => {
+  it("saves individual material directions, including positive lines on a credit receipt", () => {
+    const mixed: ReviewDraft = {
+      ...draft,
+      receiptType: "credit",
+      lines: [
+        { ...line, receiptType: "debit", qty: "2", unitCost: "5.00" },
+        { ...line, qty: "1", unitCost: "2.50" },
+      ],
+    };
+    expect(validateReview(mixed, true)).toEqual({});
+    expect(reviewSummary(mixed).totalCents).toBe(750);
+    expect(lineCostCents(mixed.lines[0] as ReviewLine, mixed.receiptType)).toBe(1000);
+    expect(lineCostCents(mixed.lines[1] as ReviewLine, mixed.receiptType)).toBe(-250);
+    expect(reviewSummary({ ...mixed, receiptType: "debit" }).totalCents).toBe(1250);
+    expect(
+      validateReview(
+        { ...mixed, lines: [{ ...(mixed.lines[0] as ReviewLine), receiptType: "" }] },
+        true,
+      )["lines.0.receiptType"],
+    ).toBeTruthy();
+  });
+  it("applies credit direction once while keeping entered values and quantities unchanged", () => {
+    const credit = {
+      ...draft,
+      receiptType: "credit" as const,
+      lines: [{ ...line, qty: "1.5", unitCost: "2.51" }],
+    };
+    expect(validateReview(credit, true)).toEqual({});
+    expect(reviewSummary(credit).totalCents).toBe(-377);
+    expect(lineCostCents({ ...line, qty: "1.5", unitCost: "2.51" }, "credit")).toBe(-377);
+    expect(credit.lines[0]?.unitCost).toBe("2.51");
+    expect(reviewSummary({ ...credit, receiptType: "debit" }).totalCents).toBe(377);
+    expect(validateReview({ ...credit, receiptType: "" }, true).receiptType).toBeTruthy();
+  });
   it("retains three-decimal evidence in a draft but blocks approval without rounding", () => {
     expect(validateReview(draft)).toEqual({});
     expect(validateReview(draft, true)["lines.0.qty"]).toContain("will not be rounded");
@@ -37,15 +71,35 @@ describe("review money and validation", () => {
     ["2.5", "19.99", 4998],
     ["3", "0.00", 0],
     ["0.001", "0.01", 0],
+    ["0", "19.99", 0],
   ])("rounds %s × %s deterministically", (qty, unitCost, expected) =>
     expect(lineCostCents({ ...line, qty, unitCost })).toBe(expected),
   );
-  it.each(["-1", "1e3", "1,000", "NaN", "Infinity", "1.0001", " 1", "0"])(
+  it.each(["-1", "1e3", "1,000", "NaN", "Infinity", "1.0001", " 1"])(
     "rejects invalid quantity %s",
     (qty) =>
       expect(
         validateReview({ ...draft, lines: [{ ...line, qty }] }, true)["lines.0.qty"],
       ).toBeTruthy(),
+  );
+  it.each(["0", "0.0", "0.00", "0.000"])(
+    "saves zero quantity %s, excludes its destination, and exports zero-cost materials",
+    (qty) => {
+      const zero = { ...line, qty, unitCost: "0", jobId: "" };
+      const free = { ...line, qty: "2", unitCost: "0.00" };
+      const reviewed = { ...draft, lines: [zero, free] };
+      expect(validateReview(reviewed)).toEqual({});
+      expect(validateReview(reviewed, true)).toEqual({});
+      expect(reviewSummary(reviewed)).toMatchObject({
+        lineCount: 2,
+        exportLineCount: 1,
+        excludedLineCount: 1,
+        jobCount: 1,
+        totalCents: 0,
+        jobs: [{ id: "job-a", lines: 1, totalCents: 0 }],
+      });
+      expect(validateReview({ ...draft, lines: [zero] }, true).lines).toContain("above zero");
+    },
   );
   it.each(["-1", "1.001", "1e2", "Infinity", "21474836.48"])(
     "rejects invalid unit cost %s",

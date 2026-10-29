@@ -1,4 +1,4 @@
-import { SIGNED_READ_TTL_SECONDS } from "@svl/domain";
+import { MAX_RECEIPT_PAGES, SIGNED_READ_TTL_SECONDS } from "@svl/domain";
 import { authErrorResponse, requireReceiptAccess } from "@/lib/auth/guards";
 import { HttpError, httpErrorResponse } from "@/lib/http";
 import { createReceiptReadUrl } from "@/lib/storage/receipts";
@@ -25,7 +25,7 @@ export async function GET(request: Request, context: RouteContext) {
       throw new HttpError(400, "invalid_request", "Invalid image request");
     const pageParams = new URL(request.url).searchParams.getAll("page");
     const page = pageParams[0] ?? "0";
-    if (pageParams.length > 1 || !/^[0-4]$/.test(page))
+    if (pageParams.length > 1 || !/^(0|[1-9]\d*)$/.test(page) || Number(page) >= MAX_RECEIPT_PAGES)
       throw new HttpError(400, "invalid_request", "Choose a valid receipt page");
 
     const { data, error } = await supabase

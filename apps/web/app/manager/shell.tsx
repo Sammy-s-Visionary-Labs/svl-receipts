@@ -15,7 +15,7 @@ export function ManagerShell({
 }: {
   actorRole: "manager" | "admin";
   laborEnabled: boolean;
-  active: "inbox" | "history" | "settings" | "team" | "labor-hours" | "jobs";
+  active: "inbox" | "history" | "settings" | "team" | "labor-hours" | "jobs" | "updates";
   reviewCount?: number;
   children: ReactNode;
 }) {
@@ -46,20 +46,12 @@ export function ManagerShell({
         >
           <Link
             href="/"
-            aria-current={active === "inbox" ? "page" : undefined}
-            className={active === "inbox" ? styles.navActive : undefined}
+            aria-current={active === "inbox" || active === "history" ? "page" : undefined}
+            className={active === "inbox" || active === "history" ? styles.navActive : undefined}
           >
             <Icon name="inbox" />
             <span>Inbox</span>
             {reviewCount !== undefined && <span className={styles.navCount}>{reviewCount}</span>}
-          </Link>
-          <Link
-            href="/?tab=history&sort=newest"
-            aria-current={active === "history" ? "page" : undefined}
-            className={active === "history" ? styles.navActive : undefined}
-          >
-            <Icon name="history" />
-            <span>History</span>
           </Link>
           <Link
             href="/team"
@@ -89,6 +81,14 @@ export function ManagerShell({
               </Link>
             </>
           )}
+          <Link
+            href="/updates"
+            aria-current={active === "updates" ? "page" : undefined}
+            className={active === "updates" ? styles.navActive : undefined}
+          >
+            <Icon name="updates" />
+            <span>Updates</span>
+          </Link>
           {actorRole === "admin" && (
             <Link
               href="/settings"
@@ -123,17 +123,19 @@ export function ManagerShell({
           <span>
             Workspace <span className={styles.breadcrumbSlash}>/</span>{" "}
             <strong>
-              {active === "team"
-                ? "Team"
-                : active === "labor-hours"
-                  ? "Labor Hours"
-                  : active === "jobs"
-                    ? "Jobs"
-                    : active === "history"
-                      ? "History"
-                      : active === "settings"
-                        ? "Settings"
-                        : "Inbox"}
+              {active === "updates"
+                ? "Updates"
+                : active === "team"
+                  ? "Team"
+                  : active === "labor-hours"
+                    ? "Labor Hours"
+                    : active === "jobs"
+                      ? "Jobs"
+                      : active === "history"
+                        ? "History"
+                        : active === "settings"
+                          ? "Settings"
+                          : "Inbox"}
             </strong>
           </span>
           <span className={styles.topbarCaption}>SVL RECEIPTS</span>

@@ -24,7 +24,8 @@ export type ExportStepRow = {
   status: string;
   payload: {
     approved_reference?: string;
-    material_format_version?: 2;
+    material_format_version?: 2 | 3;
+    receipt_type?: "debit" | "credit";
     image?: {
       page_id: string;
       storage_key: string;
@@ -63,6 +64,7 @@ export async function prepareExportStep(
       unitCostCents: line.unit_cost_cents,
       approvedReference: step.payload.approved_reference,
       formatVersion: step.payload.material_format_version,
+      receiptType: step.payload.receipt_type,
     });
   }
   const image = step.payload?.image;

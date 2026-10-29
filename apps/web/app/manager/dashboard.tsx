@@ -1,6 +1,6 @@
 "use client";
 
-import { RECEIPT_STATUSES } from "@svl/domain";
+import { RECEIPT_STATUSES, receiptDirection, receiptTypeLabel } from "@svl/domain";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { type FormEvent, useEffect, useRef, useState } from "react";
@@ -364,8 +364,7 @@ export function ManagerDashboard({
                           <th scope="col">Submitted by</th>
                           <th scope="col">Age</th>
                           <th scope="col">Top job suggestion</th>
-                          <th scope="col">Field confidence</th>
-                          <th scope="col">Signals</th>
+                          <th scope="col">Receipt type</th>
                           <th scope="col">
                             <span className={styles.srOnly}>Open summary</span>
                           </th>
@@ -554,7 +553,7 @@ function QueueFiltersPanel({
     receipts.map((receipt) => [receipt.submitter.id, receipt.submitter.label]),
   );
   if (draft.submitter && !submitters.has(draft.submitter))
-    submitters.set(draft.submitter, `Worker ${draft.submitter.slice(0, 8)}`);
+    submitters.set(draft.submitter, "Selected submitter");
   const field = <K extends keyof QueueFilters>(key: K, value: QueueFilters[K]) =>
     setDraft((previous) => ({ ...previous, [key]: value }));
   return (
@@ -730,7 +729,6 @@ function ReceiptRow({
   onSubmitter: () => void;
 }) {
   const vendor = receipt.vendor || "Vendor unavailable";
-  const confidence = confidenceLabel(receipt.confidence);
   const old = asOf - new Date(receipt.submittedAt).getTime() > 7 * 86_400_000;
   return (
     <tr>
@@ -744,7 +742,13 @@ function ReceiptRow({
             <div className={styles.receiptReference}>
               {receipt.reference ? receipt.reference : `Receipt ${receipt.id.slice(0, 8)}`}
             </div>
-            <strong className={styles.receiptTotal}>{money(receipt.referenceTotalCents)}</strong>
+            <strong className={styles.receiptTotal}>
+              {money(
+                receipt.referenceTotalCents === null
+                  ? null
+                  : receiptDirection(receipt.receiptType) * receipt.referenceTotalCents,
+              )}
+            </strong>
           </div>
         </div>
       </td>
@@ -767,6 +771,13 @@ function ReceiptRow({
         >
           {receiptAge(receipt.submittedAt, asOf)}
         </time>
+        <time className={styles.submittedDate} dateTime={receipt.submittedAt}>
+          {new Date(receipt.submittedAt).toLocaleDateString("en-US", {
+            month: "short",
+            day: "numeric",
+            year: "numeric",
+          })}
+        </time>
       </td>
       <td data-label="Job assignment / suggestion">
         <span className={receipt.suggestedJob ? styles.jobLabel : styles.unavailable}>
@@ -784,43 +795,18 @@ function ReceiptRow({
               : "Job match unavailable"}
         </span>
       </td>
-      <td data-label="Field confidence">
-        <span
-          className={`${styles.confidenceBadge} ${confidence === "Low confidence" ? styles.confidenceLow : confidence === "High confidence" ? styles.confidenceHigh : styles.confidenceUnknown}`}
+      <td data-label="Receipt type">
+        <strong
+          className={
+            receipt.receiptType === "credit"
+              ? styles.creditType
+              : receipt.receiptType === ""
+                ? undefined
+                : styles.debitType
+          }
         >
-          <span />
-          {confidence === "Low confidence"
-            ? "Low"
-            : confidence === "High confidence"
-              ? "High"
-              : "Unavailable"}
-          {receipt.confidence !== null &&
-            Number.isFinite(receipt.confidence) &&
-            receipt.confidence >= 0 &&
-            receipt.confidence <= 1 && (
-              <span className={styles.confidenceValue}>
-                {Math.round(receipt.confidence * 100)}%
-              </span>
-            )}
-        </span>
-      </td>
-      <td data-label="Signals">
-        {receipt.warnings.length > 0 ? (
-          <button
-            type="button"
-            className={styles.signalButton}
-            onClick={onOpen}
-            aria-label={`${receipt.warnings.length} warnings for ${vendor}: ${receipt.warnings.map(warningLabel).join(", ")}`}
-          >
-            <Icon name="warning" size={16} />
-            <span>{receipt.warnings.length}</span>
-          </button>
-        ) : (
-          <span className={styles.unavailable}>
-            <span aria-hidden="true">—</span>
-            <span className={styles.srOnly}>No warnings recorded</span>
-          </span>
-        )}
+          {receiptTypeLabel(receipt.receiptType)}
+        </strong>
       </td>
       <td className={styles.openCell}>
         <button
@@ -899,7 +885,13 @@ function ReceiptSummary({
               <ReceiptThumbnail key={receipt.id} receipt={receipt} large />
               <div>
                 <span className={styles.summaryStatus}>{STATUS_LABELS[receipt.status]}</span>
-                <p className={styles.summaryTotal}>{money(receipt.referenceTotalCents)}</p>
+                <p className={styles.summaryTotal}>
+                  {money(
+                    receipt.referenceTotalCents === null
+                      ? null
+                      : receiptDirection(receipt.receiptType) * receipt.referenceTotalCents,
+                  )}
+                </p>
                 <p className={styles.secondaryText}>
                   Reference total · {receipt.pageCount} {receipt.pageCount === 1 ? "page" : "pages"}
                 </p>

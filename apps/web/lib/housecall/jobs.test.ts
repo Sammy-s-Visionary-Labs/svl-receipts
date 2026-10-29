@@ -135,8 +135,8 @@ describe("Housecall catalog read synchronization", () => {
       });
     expect(await run(db, listJobs)).toMatchObject({ count: 2, scanned: 2, full: true });
     expect(listJobs.mock.calls).toEqual([
-      [{ page: 1, pageSize: 100, sortBy: "updated_at", sortDirection: "desc" }],
-      [{ page: 2, pageSize: 100, sortBy: "updated_at", sortDirection: "desc" }],
+      [{ page: 1, pageSize: 100, sortBy: "id", sortDirection: "asc" }],
+      [{ page: 2, pageSize: 100, sortBy: "id", sortDirection: "asc" }],
     ]);
     expect(finishCall(db)).toMatchObject({
       p_lease_token: "lease_test",
@@ -147,6 +147,22 @@ describe("Housecall catalog read synchronization", () => {
       ],
     });
     expect(fetch).not.toHaveBeenCalled();
+  });
+  it("avoids a repeated third-page job when updated-time ordering shifts between page reads", async () => {
+    const db = database();
+    const ids = ["job_a", "job_b", "job_c"];
+    const listJobs = vi.fn(
+      async (query: Parameters<NonNullable<SyncInput["client"]>["listJobs"]>[0]) => {
+        const index = (query?.page ?? 1) - 1;
+        const stable = query?.sortBy === "id" && query?.sortDirection === "asc";
+        const id = ids[!stable && index === 2 ? 1 : index];
+        if (!id) throw new Error("Unexpected synthetic page");
+        return page([job(id)], { page: index + 1, totalPages: 3, totalItems: 3 });
+      },
+    );
+    await expect(run(db, listJobs)).resolves.toMatchObject({ count: 3, scanned: 3, full: true });
+    expect(finishCall(db)?.p_observed_job_ids).toEqual(ids);
+    expect(db.rpc).not.toHaveBeenCalledWith("fail_housecall_job_sync", expect.anything());
   });
   it("incremental sync includes the five-minute overlap and unknown provider timestamps", async () => {
     const success = -3600000;
@@ -259,6 +275,32 @@ describe("Housecall catalog read synchronization", () => {
       run(db, vi.fn().mockResolvedValue(page([job()], { totalItems: 3 }))),
     ).rejects.toThrow("sync_unstable_pages");
     expectFailedWithoutCommit(db);
+  });
+  it("reports only pagination aggregates when a duplicate crosses page boundaries", async () => {
+    const db = database();
+    const diagnostics = vi.spyOn(console, "error").mockImplementation(() => {});
+    const privateJob = job("private_job_identifier", { customerName: "Private customer name" });
+    const listJobs = vi
+      .fn()
+      .mockResolvedValueOnce(page([privateJob], { totalPages: 2, totalItems: 2 }))
+      .mockResolvedValueOnce(page([privateJob], { page: 2, totalPages: 2, totalItems: 2 }));
+    await expect(run(db, listJobs)).rejects.toThrow("sync_unstable_pages");
+    expect(diagnostics).toHaveBeenCalledWith("[housecall-job-sync] incomplete_scan", {
+      reason: "duplicate_job",
+      requestedPage: 2,
+      returnedPage: 2,
+      totalItems: 2,
+      totalPages: 2,
+      pageSize: 100,
+      jobsOnPage: 1,
+      observedJobs: 1,
+      expectedTotalItems: 2,
+      expectedTotalPages: 2,
+    });
+    expect(JSON.stringify(diagnostics.mock.calls)).not.toMatch(
+      /private_job_identifier|Private customer name/,
+    );
+    expectFailedWithoutCommit(db, "sync_unstable_pages");
   });
   it("allows a validated empty catalog", async () => {
     const db = database();

@@ -1,4 +1,4 @@
-import type { ReceiptUploadFailureCategory } from "@svl/domain";
+import { MAX_RECEIPT_PAGES, type ReceiptUploadFailureCategory } from "@svl/domain";
 import type { ReceiptLocationMetadata, ReceiptPage } from "@/lib/capture/receipt-pages";
 import { UploadTransportError } from "./errors";
 import type {
@@ -56,6 +56,12 @@ export async function executeReceiptSubmission(input: {
   const submissionStartedAt = dependencies.now().getTime();
   try {
     assertNotCancelled(signal);
+    if (input.pages.length < 1 || input.pages.length > MAX_RECEIPT_PAGES)
+      throw new ReceiptSubmissionError(
+        "invalid_response",
+        `Choose between 1 and ${MAX_RECEIPT_PAGES} receipt pages`,
+        attempt,
+      );
     await input.onUpdate({
       phase: "preparing",
       deviceStatus: "sending",

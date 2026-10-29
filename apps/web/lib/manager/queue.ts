@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { isReceiptStatus } from "@svl/domain";
+import { isReceiptStatus, MAX_RECEIPT_PAGES } from "@svl/domain";
 import {
   DEFAULT_QUEUE_FILTERS,
   HOUSECALL_STATUSES,
@@ -158,9 +158,11 @@ export function normalizeQueueRow(value: Record<string, unknown>): QueueReceipt 
   const job = value.suggestedJob as Record<string, unknown> | null;
   return {
     id: value.id,
+    receiptType:
+      value.receiptType === "credit" ? "credit" : value.receiptType === "debit" ? "debit" : "",
     status: value.status,
     submittedAt: value.submittedAt,
-    submitter: { id: value.submitterId, label: `Worker ${value.submitterId.slice(0, 8)}` },
+    submitter: { id: value.submitterId, label: "Name unavailable" },
     vendor: nullableText(value.vendor),
     reference: nullableText(value.reference),
     referenceTotalCents:
@@ -173,7 +175,7 @@ export function normalizeQueueRow(value: Record<string, unknown>): QueueReceipt 
       typeof value.pageCount === "number" &&
       Number.isInteger(value.pageCount) &&
       value.pageCount >= 0 &&
-      value.pageCount <= 5
+      value.pageCount <= MAX_RECEIPT_PAGES
         ? value.pageCount
         : 0,
     thumbnailUrl:

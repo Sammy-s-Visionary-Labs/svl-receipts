@@ -1,4 +1,4 @@
-import { extendedCostCents } from "@svl/domain";
+import { extendedCostCents, MAX_RECEIPT_PAGES } from "@svl/domain";
 import { isHousecallQuantitySupported } from "@svl/integrations";
 
 export type PreviewStepRow = {
@@ -128,7 +128,7 @@ export function buildHousecallExportPreview(input: {
       if (
         !Number.isInteger(image.page_index) ||
         (image.page_index as number) < 0 ||
-        (image.page_index as number) > 4 ||
+        (image.page_index as number) >= MAX_RECEIPT_PAGES ||
         job.images.some((item) => item.pageIndex === image.page_index)
       )
         throw new Error("invalid_export_preview");
@@ -160,7 +160,8 @@ export function buildHousecallExportPreview(input: {
       });
       job.materialCostCents += line.extended_cost_cents;
       result.totalMaterialCostCents += line.extended_cost_cents;
-      if (result.totalMaterialCostCents > 2147483647) throw new Error("invalid_export_preview");
+      if (Math.abs(result.totalMaterialCostCents) > 2147483647)
+        throw new Error("invalid_export_preview");
     } else throw new Error("invalid_export_preview");
   }
   if (!result.jobs.length || result.jobs.some((job) => !job.images.length || !job.lines.length))

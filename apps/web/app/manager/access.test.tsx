@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import Home from "../page";
 import ReceiptPage from "../receipts/[id]/page";
 import SettingsPage from "../settings/page";
+import UpdatesPage from "../updates/page";
 import { ManagerShell } from "./shell";
 
 const { loadActor } = vi.hoisted(() => ({ loadActor: vi.fn() }));
@@ -67,7 +68,10 @@ describe("manager page access and role-aware navigation", () => {
       </ManagerShell>,
     );
     expect(manager).toContain("Inbox");
-    expect(manager).toContain("History");
+    expect(manager).toContain('href="/updates"');
+    expect(admin).toContain('href="/updates"');
+    expect(manager).not.toContain('href="/?tab=history');
+    expect(admin).not.toContain('href="/?tab=history');
     expect(manager).not.toContain('href="/settings"');
     expect(admin).toContain('href="/settings"');
   });
@@ -103,6 +107,24 @@ describe("manager page access and role-aware navigation", () => {
       ).toContain(attribute);
     },
   );
+  it.each(["manager", "admin"] as const)("allows an active %s to read Updates", async (role) => {
+    loadActor.mockResolvedValue(actor(role));
+    const html = renderToStaticMarkup(await UpdatesPage());
+    expect(html).toContain('href="/updates"');
+    expect(html).toMatch(/href="\/updates"[^>]*aria-current="page"/);
+  });
+
+  it("protects direct Updates access from workers and signed-out visitors", async () => {
+    loadActor.mockResolvedValue(actor("worker"));
+    await expect(UpdatesPage()).rejects.toThrow("redirect:/field");
+    loadActor.mockResolvedValue(null);
+    await expect(UpdatesPage()).rejects.toThrow("redirect:/login");
+  });
+
+  it("denies Updates to an inactive manager even if an actor object is present", async () => {
+    loadActor.mockResolvedValue({ ...actor("manager"), disabled: true });
+    await expect(UpdatesPage()).rejects.toThrow("redirect:/login");
+  });
 
   it("protects direct navigation to Settings", async () => {
     loadActor.mockResolvedValue(actor("manager"));

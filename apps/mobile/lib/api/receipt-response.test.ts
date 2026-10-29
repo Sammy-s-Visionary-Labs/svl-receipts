@@ -169,7 +169,41 @@ describe("receipt API response parsing", () => {
     expect(parseRecentReceiptsResponse(response)).toEqual(response);
   });
 
-  it.each([-1, 1.5, 6, "0"])("rejects an invalid history page count of %s", (pageCount) => {
+  it("accepts ten-page history and ordered detail through page index nine", () => {
+    const record = {
+      id,
+      status: "needs_review",
+      workerStatus: "in_review",
+      submittedAt: null,
+      readability: null,
+    };
+    const history = { receipts: [{ ...record, pageCount: 10, thumbnail: null }], nextCursor: null };
+    expect(parseRecentReceiptsResponse(history)).toEqual(history);
+    const detail = {
+      ...record,
+      pages: Array.from({ length: 10 }, (_, pageIndex) => ({
+        pageIndex,
+        image: {
+          url: `https://storage.example/${pageIndex}.jpg`,
+          expiresAt: "2026-09-01T18:01:00.000Z",
+        },
+      })),
+    };
+    expect(parseWorkerReceiptDetail(detail)).toEqual(detail);
+    const firstPage = detail.pages[0];
+    if (!firstPage) throw new Error("Missing synthetic page");
+    expect(
+      parseWorkerReceiptDetail({
+        ...detail,
+        pages: [...detail.pages, { ...firstPage, pageIndex: 10 }],
+      }),
+    ).toBeNull();
+    expect(
+      parseWorkerReceiptDetail({ ...detail, pages: [{ ...firstPage, pageIndex: 10 }] }),
+    ).toBeNull();
+  });
+
+  it.each([-1, 1.5, 11, "0"])("rejects an invalid history page count of %s", (pageCount) => {
     expect(
       parseRecentReceiptsResponse({
         receipts: [
