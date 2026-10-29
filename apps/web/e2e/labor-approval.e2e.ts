@@ -410,3 +410,122 @@ test("avoids timed full-preview polling and refreshes changed reviews on visible
   await expect(review).not.toBeChecked();
   expect(state.writes).toHaveLength(0);
 });
+
+test("retries the identical manual-resolution record after a lost response without sending labor again", async ({
+  page,
+}) => {
+  const state = await fixture(page, true);
+  const approvalId = "a2700000-0000-4000-8000-000000000077";
+  const snapshotHash = "f".repeat(64);
+  state.approvals.push({
+    id: approvalId,
+    housecallJobId: job.housecallJobId as string,
+    jobName: job.name,
+    fromDate: "2026-10-01",
+    toDate: "2026-10-02",
+    snapshotHash,
+    hours: 4,
+    paidHours: 3.5,
+    estimatedCostCents: 10819,
+    approvedWorkerNames: ["TEST Worker"],
+    status: "reconciliation_required",
+    approvedAt: "2026-10-13T12:00:00Z",
+    approvedBy: "TEST-MANAGER",
+    sentAt: null,
+    lastError: "TEST uncertain response; do not send again.",
+    canSend: false,
+    canVerify: true,
+    canRevoke: false,
+  });
+  const requests: Record<string, unknown>[] = [];
+  const providerRequests: string[] = [];
+  page.on("request", (request) => {
+    if (new URL(request.url()).hostname.endsWith("housecallpro.com"))
+      providerRequests.push(request.url());
+  });
+  await page.route("**/api/manager/labor/corrections?*", (route) => {
+    expect(new URL(route.request().url()).searchParams.get("approvalId")).toBe(approvalId);
+    return route.fulfill({ json: { corrections: [] } });
+  });
+  await page.route("**/api/manager/labor/corrections", (route) => {
+    expect(route.request().method()).toBe("POST");
+    const body = route.request().postDataJSON();
+    requests.push(body);
+    // Simulate a committed record whose first response is lost in transit.
+    if (requests.length === 1) return route.abort("failed");
+    expect(body).toEqual(requests[0]);
+    return route.fulfill({
+      json: {
+        correction: {
+          id: "a2700000-0000-4000-8000-000000000078",
+          approvalId,
+          snapshotHash,
+          recordedBy: "TEST-MANAGER",
+          recordedAt: "2026-10-29T15:00:00Z",
+          reason: body.reason,
+          providerReference: body.providerReference,
+          evidence: body.evidence,
+        },
+      },
+    });
+  });
+  await state.workspace.getByRole("button", { name: "Refresh job review", exact: true }).click();
+  await expect(state.workspace.getByText("Needs reconciliation", { exact: true })).toBeVisible();
+  await state.workspace
+    .getByRole("button", { name: "Record manual resolution / view history", exact: true })
+    .click();
+  const save = state.workspace.getByRole("button", { name: "Save manual resolution", exact: true });
+  await expect(save).toBeDisabled();
+  const reason = state.workspace.getByRole("textbox", {
+    name: "Reason for resolution",
+    exact: true,
+  });
+  await reason.fill("TEST duplicate material was corrected manually.");
+  await state.workspace
+    .getByLabel("Housecall material ID or reference", { exact: true })
+    .fill("TEST-MATERIAL-REFERENCE");
+  await state.workspace
+    .getByRole("textbox", { name: "Completed action and evidence", exact: true })
+    .fill("TEST manager inspected the job and removed the duplicate material.");
+  await state.workspace
+    .getByRole("checkbox", { name: /^I checked the actual Housecall job/ })
+    .check();
+  await save.click();
+  await expect(state.workspace.getByRole("alert")).toContainText("Failed to fetch");
+  await expect(reason).toBeDisabled();
+  await expect(
+    state.workspace.getByLabel("Housecall material ID or reference", { exact: true }),
+  ).toBeDisabled();
+  await expect(
+    state.workspace.getByRole("checkbox", { name: /^I checked the actual Housecall job/ }),
+  ).toBeDisabled();
+  await state.workspace
+    .getByRole("button", { name: "Retry recording this resolution", exact: true })
+    .click();
+  await expect(
+    state.workspace.getByText("Manual resolution recorded.", { exact: false }),
+  ).toBeVisible();
+  expect(requests).toHaveLength(2);
+  expect(requests[0]).toMatchObject({
+    approvalId,
+    expectedSnapshotHash: snapshotHash,
+    confirmed: true,
+  });
+  expect(requests[0]?.requestId).toMatch(/^[a-f0-9-]{36}$/);
+  expect(requests[1]).toEqual(requests[0]);
+  await expect(
+    state.workspace.getByText("Housecall reference: TEST-MATERIAL-REFERENCE", { exact: true }),
+  ).toHaveCount(1);
+  await expect(state.workspace.getByText("Needs reconciliation", { exact: true })).toBeVisible();
+  await expect(
+    state.workspace.getByRole("button", { name: "Send approved hours…", exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    state.workspace.getByRole("button", { name: "Retry send…", exact: true }),
+  ).toHaveCount(0);
+  await expect(save).toBeDisabled();
+  await expect(reason).toBeEnabled();
+  await expect(reason).toHaveValue("");
+  expect(state.writes).toEqual([]);
+  expect(providerRequests).toEqual([]);
+});

@@ -1,6 +1,6 @@
 # Hosted Supercrew worker
 
-The GitHub workflow checks the receipt app each hour at minute 17 UTC. An idle check uses Node built-ins and exits before installing npm packages or Chromium. When the app grants a command, one finite Linux job exports Timesheet and Daily Timesheet Notes for the same last fourteen completed dates, imports both originals together, refreshes its encrypted login state, and finishes its lease. The current date is excluded using the app's configured time zone.
+The GitHub workflow checks the receipt app each hour at minute 17 UTC. An idle check uses Node built-ins and exits before installing npm packages or Chromium. When the app grants a command, one finite Linux job exports Timesheet and Daily Timesheet Notes for the same claimed period of at most 31 completed dates, imports both originals together, refreshes its encrypted login state, and finishes its lease. The current date is excluded using the app's configured time zone.
 
 This option uses the existing GitHub, Vercel and Supabase accounts. It requires no additional paid service. The current repository is public: [standard GitHub-hosted runners are free for public repositories](https://docs.github.com/en/actions/reference/runners/github-hosted-runners), including the workflow's `ubuntu-latest` runner. If the repository becomes private, its included Actions minutes become shared with the account's other workflows; prevent paid overage through account usage limits. GitHub can delay scheduled runs, so the app catches up after the configured local hour. Scheduled workflows must be on the repository's default branch. An explicit Download now request stays queued for the next hourly check when immediate workflow dispatch is not configured.
 
@@ -22,6 +22,41 @@ Never use the Supabase service-role key as the worker token. The worker only rec
 
 An optional app-side GitHub token with access limited to dispatching this repository's workflow can make Download now start sooner. Without it, queued requests are serviced by the hourly gate. Configure that token only on the server. The workflow itself has only read access to repository contents.
 
+## Recurrence and missed dates
+
+Managers choose daily, weekly, biweekly (14 days), or a custom interval of 1–365
+calendar days in Labor Hours. **Save schedule** preserves whether downloads are
+enabled or paused. **Enable recurring downloads** saves the settings and enables
+automatic work; **Pause downloads** stops automatic continuation. Older saved
+settings default to daily. The start hour uses the configured time zone and
+daylight-saving rules; a delayed worker retains the overdue date and catches up
+when it next checks.
+
+**Days to download** is the recent correction window, from 1–31 completed dates
+(default 14). In shared mode, the server also includes missing dates after its
+last verified paired-report coverage. A weekly or longer interval therefore
+does not silently skip dates outside that recent window. Initial coverage is
+derived only from contiguous, complete Timesheet and verified Daily Timesheet
+Notes pairs; a heartbeat timestamp alone cannot establish source coverage. A
+new ledger with no verified pair starts with the configured recent window.
+
+Each claim covers at most 31 dates and keeps the existing eight-minute worker
+deadline. A successful chunk advances the persisted cursor; remaining chunks
+become eligible at the next hourly `:17` gate. A failed or expired attempt waits
+for a new explicit request or the next configured interval, rather than retrying
+on every poll. A chunk whose import already committed is retained even if its
+worker later fails. Successful downloads restart the interval from their local
+completion date; failed attempts also consume an interval.
+
+An explicit **Queue download** works while recurring downloads are paused, but
+claims only one chunk. Labor Hours shows the remaining dates and asks the manager
+to enable recurring downloads or queue another chunk. A new explicit request
+or a retry at the next interval extends a pending target through yesterday;
+normal successful continuation keeps that target fixed. Existing completed
+chunks are not replayed to resume the pending range. Older corrections before
+the verified coverage and outside the recent correction window still require
+an explicit historical import.
+
 ## Connect or reconnect Supercrew
 
 An operator runs the isolated setup from a trusted computer with a display. Configure the variables and secrets above in a protected environment without pasting them into chat, shell history, logs, or files in the repository. Then, from the repository root:
@@ -42,9 +77,9 @@ Before declaring production acceptance, run a real fresh Linux import using the 
 
 ## Finite runs and recovery
 
-The app grants at most one active 15-minute lease. The worker heartbeats every 30 seconds while Chromium is running and stops after an eight-minute operation deadline. The workflow allows 15 minutes including installation. Every import and session refresh carries the claim's command and lease identity. Expired or superseded leases cannot overwrite the ledger or newer source session. Lease recovery exposes a failed run and its import state; it does not silently repeat that day's automatic export.
+The app grants at most one active 15-minute lease. The worker heartbeats every 30 seconds while Chromium is running and stops after an eight-minute operation deadline. The workflow allows 15 minutes including installation. Every import and session refresh carries the claim's command and lease identity. Expired or superseded leases cannot overwrite the ledger or newer source session. Lease recovery exposes a failed run and its import state; it does not silently repeat the current interval's automatic export.
 
-Successful finish is accepted only after the paired import commits. If the import succeeds but session refresh or finish fails, the message explicitly asks the operator to inspect import history before retrying. A manual retry remains available while daily scheduling is paused. A missing/expired login leaves automatic work stopped until reconnection. Browser layout, job/worker filter, date-selection or note-scope failures stop the import rather than accepting partial report coverage.
+Successful finish is accepted only after the paired import commits. If the import succeeds but session refresh or finish fails, the message explicitly asks the operator to inspect import history before retrying. A manual retry remains available while recurring downloads are paused. A missing/expired login leaves automatic work stopped until reconnection. Browser layout, job/worker filter, date-selection or note-scope failures stop the import rather than accepting partial report coverage.
 
 The ephemeral job removes local state on completion. Its claim record and downloaded originals use private local permissions. Reports are saved durably by the app; the workflow does not upload reports or login data as GitHub artifacts, cache them, or print session contents. Workflow logs are public, so hosted CLI output contains generic status messages only; provider/parser error details stay in the manager-only app status. No customer names, wages, reported hours, filenames, source rows, or signed URLs are printed. Runner cancellation can bypass cleanup, so no later job reuses the runner's local directory. The server's lease expires independently of the runner.
 
@@ -70,4 +105,4 @@ docker build -t svl-supercrew-worker-acceptance:local scripts/supercrew-worker
 docker run --rm --network none svl-supercrew-worker-acceptance:local
 ```
 
-The old `worker.mjs --watch`, `--once` and local connection interface remain available for loopback development. Hosted operation uses `hosted.mjs --preflight`, `--run` and `--abort`; do not run a second watch daemon beside it.
+The old `worker.mjs --watch`, `--once` and local connection interface remain available for loopback development. They support the recurrence interval but only import the recent lookback window; they do not implement shared coverage-aware catch-up and are not the production scheduling path. Hosted operation uses `hosted.mjs --preflight`, `--run` and `--abort`; the shared local supervisor uses the same server-owned claims through `hosted.mjs --watch`. Do not run a second worker beside either.

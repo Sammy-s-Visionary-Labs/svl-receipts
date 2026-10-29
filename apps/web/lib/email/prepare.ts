@@ -1,4 +1,4 @@
-import { createRequire } from "node:module";
+import * as nodeModule from "node:module";
 import path from "node:path";
 import { createCanvas, GlobalFonts } from "@napi-rs/canvas";
 import { MAX_RECEIPT_PAGES } from "@svl/domain";
@@ -19,7 +19,8 @@ export type PreparedEmail = {
   receivedAt: string | null;
   documents: EmailDocument[];
 };
-const runtimeRequire = createRequire(path.join(process.cwd(), "package.json"));
+// Preserve runtime cwd resolution in both Webpack and Turbopack builds.
+const runtimeRequire = nodeModule.createRequire(path.join(process.cwd(), "package.json"));
 const pdfRoot = path.dirname(runtimeRequire.resolve("pdfjs-dist/package.json"));
 const fontPath = path.join(process.cwd(), "assets/fonts/NotoSans.ttf");
 let fontLoaded = false;

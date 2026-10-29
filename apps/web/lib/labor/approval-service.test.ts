@@ -115,7 +115,7 @@ const db = {
   finish: vi.fn(),
   reconcile: vi.fn(),
 };
-const client = { executePreparedWrite: vi.fn(), reconcileWrite: vi.fn() };
+const client = { executePreparedWrite: vi.fn(), reconcileWrite: vi.fn(), getJob: vi.fn() };
 const makeClient = vi.fn(() => client as unknown as HousecallClient);
 const env = {
   HOUSECALL_READS_ENABLED: "true",
@@ -170,6 +170,7 @@ beforeEach(() => {
     status: evidence.status === "sent" ? "sent" : "reconciliation_required",
   }));
   client.reconcileWrite.mockResolvedValue({ status: "absent" });
+  client.getJob.mockResolvedValue({ id: scope.housecallJobId, customerId: catalog.customerId });
   client.executePreparedWrite.mockResolvedValue({ status: "accepted", httpStatus: 200 });
 });
 async function approve() {
@@ -420,6 +421,71 @@ describe("manager approval and explicit labor send", () => {
     client.reconcileWrite.mockResolvedValue({ status: "found", providerId: "TEST-EXISTING" });
     expect((await laborApprovalAction(send(), manager, deps)).approval.status).toBe("sent");
     expect(client.executePreparedWrite).not.toHaveBeenCalled();
+  });
+  it("cannot adopt an existing matching reference after the job customer changes", async () => {
+    await approve();
+    client.getJob.mockResolvedValue({
+      id: scope.housecallJobId,
+      customerId: "TEST-OTHER-CUSTOMER",
+    });
+    client.reconcileWrite.mockResolvedValue({ status: "found", providerId: "TEST-EXISTING" });
+    expect((await laborApprovalAction(send(), manager, deps)).approval.status).toBe("failed");
+    expect(client.reconcileWrite).not.toHaveBeenCalled();
+    expect(db.dispatch).not.toHaveBeenCalled();
+    expect(client.executePreparedWrite).not.toHaveBeenCalled();
+    expect(db.finish.mock.calls[0][3]).toEqual({
+      status: "failed",
+      errorCode: "housecall_unsafe_destination",
+    });
+  });
+  it("keeps dispatched hours uncertain if the customer changes before readback", async () => {
+    await approve();
+    client.getJob
+      .mockResolvedValueOnce({ id: scope.housecallJobId, customerId: catalog.customerId })
+      .mockResolvedValueOnce({ id: scope.housecallJobId, customerId: "TEST-OTHER-CUSTOMER" });
+    expect((await laborApprovalAction(send(), manager, deps)).approval.status).toBe(
+      "reconciliation_required",
+    );
+    expect(client.executePreparedWrite).toHaveBeenCalledTimes(1);
+    expect(db.finish.mock.calls[0][3]).toEqual({
+      status: "reconciliation_required",
+      errorCode: "housecall_unsafe_destination",
+    });
+  });
+  it("cannot mark uncertain hours sent from a different current customer", async () => {
+    await approve();
+    records[0].status = "reconciliation_required";
+    client.getJob.mockResolvedValue({ id: scope.housecallJobId, customerId: null });
+    client.reconcileWrite.mockResolvedValue({ status: "found", providerId: "TEST-EXISTING" });
+    expect(
+      (await laborApprovalAction({ action: "verify", approvalId }, manager, deps)).approval.status,
+    ).toBe("reconciliation_required");
+    expect(db.reconcile).toHaveBeenCalledWith(approvalId, { status: "unknown" }, manager);
+    expect(client.reconcileWrite).not.toHaveBeenCalled();
+    expect(client.executePreparedWrite).not.toHaveBeenCalled();
+  });
+  it("confines send and verification before provider access even with an injected client", async () => {
+    await approve();
+    for (const restriction of [
+      { LABOR_HOUSECALL_TEST_MODE: "1" },
+      { LABOR_HOUSECALL_ALLOWED_JOB_IDS: "job_other" },
+      { LABOR_HOUSECALL_ALLOWED_JOB_IDS: "" },
+    ]) {
+      const restricted = { ...deps, env: { ...env, ...restriction } };
+      const workspace = await loadLaborApprovalWorkspace(scope, restricted);
+      expect(workspace.capability.sendingEnabled).toBe(false);
+      expect(workspace.approvals[0].canSend).toBe(false);
+      records[0].status = "approved";
+      await expect(laborApprovalAction(send(), manager, restricted)).rejects.toMatchObject({
+        status: 403,
+      });
+      records[0].status = "reconciliation_required";
+      await expect(
+        laborApprovalAction({ action: "verify", approvalId }, manager, restricted),
+      ).rejects.toMatchObject({ status: 403 });
+    }
+    expect(db.claim).not.toHaveBeenCalled();
+    expect(makeClient).not.toHaveBeenCalled();
   });
   it("retains uncertain dispatch and verification never grants another write even when readback is absent", async () => {
     await approve();

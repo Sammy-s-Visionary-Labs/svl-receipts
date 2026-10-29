@@ -48,6 +48,10 @@ export type LaborSyncState = {
   hour: number;
   timeZone: string;
   lookbackDays: number;
+  /** Calendar days between downloads. Older saved settings default to daily. */
+  intervalDays?: number;
+  /** Last completed report date; unlike lastSuccessAt this records source coverage. */
+  coverageThrough?: string | null;
   status: "not_connected" | "idle" | "running" | "needs_login" | "failed";
   lastAttemptAt: string | null;
   lastSuccessAt: string | null;
@@ -138,6 +142,8 @@ export type LaborDashboardData = {
     reportedCostCents: number;
   };
   sync: LaborSyncState;
+  /** Remaining source dates in a bounded, resumable download. */
+  pendingDownload?: { from: string; to: string; nextRunAt: string | null } | null;
 };
 
 export type JobsDashboardData = {

@@ -1,5 +1,7 @@
 # Labor Hours and Jobs production runbook
 
+The October 13 baseline below is historical. See [October 29 rollout](labor-rollout-2026-10-29.md) for the current deployment, acceptance results and operational state.
+
 This is the October 13, 2026 integration runbook. Production remains untouched; development uses separate verification data. The development history remains in [labor-development.md](labor-development.md). The release includes job-by-job manager review, immutable approval and an explicit Housecall send path. **Live labor sending remains disabled and no labor hours or costs have been sent.** Internal job linking and approval never dispatch writes. Existing receipt approval/export behavior remains unchanged.
 
 ## Release gates and existing accounts

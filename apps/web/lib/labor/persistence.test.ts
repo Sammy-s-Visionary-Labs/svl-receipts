@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   rpc: vi.fn(),
   upload: vi.fn(),
   download: vi.fn(),
+  createSignedUrl: vi.fn(),
   remove: vi.fn(),
   storageFrom: vi.fn(),
   tableFrom: vi.fn(),
@@ -40,6 +41,7 @@ beforeEach(async () => {
   mocks.storageFrom.mockReturnValue({
     upload: mocks.upload,
     download: mocks.download,
+    createSignedUrl: mocks.createSignedUrl,
     remove: mocks.remove,
   });
   const query = { select: vi.fn(), eq: vi.fn(), maybeSingle: mocks.maybeSingle };
@@ -187,6 +189,28 @@ describe("shared labor state", () => {
 });
 
 describe("private labor originals", () => {
+  it("signs only the requested immutable workbook for a one-minute attachment download", async () => {
+    mocks.createSignedUrl.mockResolvedValue({
+      data: { signedUrl: "https://storage.example.invalid/private/TEST.xlsx?token=TEST" },
+      error: null,
+    });
+    expect(await persistence.createSupabaseLaborOriginalDownloadUrl(id, "TEST report.xlsx")).toBe(
+      "https://storage.example.invalid/private/TEST.xlsx?token=TEST",
+    );
+    expect(mocks.storageFrom).toHaveBeenCalledWith("labor-originals");
+    expect(mocks.createSignedUrl).toHaveBeenCalledWith(`${id}.xlsx`, 60, {
+      download: "TEST report.xlsx",
+    });
+    expect(mocks.download).not.toHaveBeenCalled();
+    await expect(
+      persistence.createSupabaseLaborOriginalDownloadUrl("../private", "TEST.xlsx"),
+    ).rejects.toThrow("identifier");
+    mocks.createSignedUrl.mockResolvedValue({ data: null, error: { message: "private secret" } });
+    await expect(
+      persistence.createSupabaseLaborOriginalDownloadUrl(id, "TEST.xlsx"),
+    ).rejects.toThrow("Labor original could not be loaded");
+  });
+
   it("uses bounded immutable uploads and accepts only byte-identical retries", async () => {
     mocks.upload.mockResolvedValueOnce({ error: null });
     await persistence.putSupabaseLaborOriginal(id, bytes);

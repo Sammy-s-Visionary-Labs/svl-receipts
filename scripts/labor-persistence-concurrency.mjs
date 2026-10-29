@@ -9,6 +9,7 @@ if (!rawUrl || !["localhost", "127.0.0.1", "[::1]"].includes(new URL(rawUrl).hos
 }
 const sql = postgres(rawUrl, { max: 3, prepare: false });
 const marker = `labor-cas-${randomUUID()}`;
+const manager = randomUUID();
 const objects = [randomUUID(), randomUUID()].map((id) => `${id}.bin`);
 
 async function racingWriters(firstWrite, secondWrite) {
@@ -216,6 +217,67 @@ async function naturalExpiryDuringImportLock() {
   }
 }
 
+async function revokeManagerDuringLedgerLock(demote) {
+  const [before] = await sql`select revision,control from public.labor_state where singleton`;
+  const [audit] = await sql`select count(*)::int as count from public.labor_control_events`;
+  let locked;
+  let release = () => {};
+  const ready = new Promise((resolve) => {
+    locked = resolve;
+  });
+  const held = new Promise((resolve) => {
+    release = resolve;
+  });
+  const blocker = sql.begin(async (tx) => {
+    await tx`set local role service_role`;
+    await tx`select revision from public.labor_state where singleton for update`;
+    locked();
+    await held;
+  });
+  try {
+    await ready;
+    const pending = sql
+      .begin(async (tx) => {
+        await tx`select set_config('application_name',${marker},true)`;
+        await tx`set local role service_role`;
+        return tx`select public.compare_and_swap_labor_state(${before.revision},${tx.json({ ...before.control, rulesRevision: 999 })},'[]','[]',${manager}) as result`;
+      })
+      .then(
+        () => ({ error: null }),
+        (error) => ({ error }),
+      );
+    let blocked = false;
+    for (let attempt = 0; attempt < 40; attempt++) {
+      const [row] =
+        await sql`select exists(select 1 from pg_stat_activity where application_name=${marker} and wait_event_type='Lock') as blocked`;
+      if (row.blocked) {
+        blocked = true;
+        break;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    assert.equal(blocked, true, "manager write did not wait for ledger lock");
+    if (demote) await sql`update public.profiles set role='worker' where id=${manager}`;
+    else await sql`update public.profiles set disabled=true where id=${manager}`;
+    release();
+    await blocker;
+    const result = await pending;
+    assert.equal(
+      result.error?.message,
+      demote ? "forbidden" : "unauthenticated",
+      "manager permission was not rechecked after the ledger lock wait",
+    );
+    const [after] = await sql`select revision,control from public.labor_state where singleton`;
+    const [events] = await sql`select count(*)::int as count from public.labor_control_events`;
+    assert.deepEqual(after, before, "revoked manager changed the labor ledger");
+    assert.equal(events.count, audit.count, "revoked manager appended audit evidence");
+  } finally {
+    release();
+    await blocker;
+    await sql`update public.profiles set disabled=false,role='manager' where id=${manager}`;
+  }
+}
+
 try {
   const [state] = await sql`select revision,control from public.labor_state where singleton`;
   const [session] =
@@ -224,15 +286,17 @@ try {
     throw new Error("Requires a fresh disposable labor ledger");
   if (state.control !== null || session.object_key !== null)
     throw new Error("Refusing to change an existing labor ledger or worker session");
+  await sql`insert into auth.users(id,aud,role,email,raw_app_meta_data) values(${manager},'authenticated','authenticated',${`${marker}@example.invalid`},'{"svl_access_approved":true}')`;
+  await sql`update public.profiles set role='manager' where id=${manager}`;
   await racingWriters(
     async (tx) => {
       const [row] =
-        await tx`select public.compare_and_swap_labor_state(0,${tx.json({ version: 1, marker, winningWriter: 1, sync: { command: "connect" }, workerLease: null })},'[]','[]',null) as result`;
+        await tx`select public.compare_and_swap_labor_state(0,${tx.json({ version: 1, marker, winningWriter: 1, sync: { command: "connect" }, workerLease: null })},'[]','[]',${manager}) as result`;
       return Number(row.result);
     },
     async (tx) => {
       const [row] =
-        await tx`select public.compare_and_swap_labor_state(0,${tx.json({ version: 1, marker, winningWriter: 2 })},'[]','[]',null) as result`;
+        await tx`select public.compare_and_swap_labor_state(0,${tx.json({ version: 1, marker, winningWriter: 2 })},'[]','[]',${manager}) as result`;
       return row.result;
     },
   );
@@ -242,6 +306,8 @@ try {
   const [events] =
     await sql`select count(*)::int as count from public.labor_control_events where details->'resultingControl'->>'marker'=${marker}`;
   assert.equal(events.count, 1, "stale writer inserted a second audit record");
+  await revokeManagerDuringLedgerLock(false);
+  await revokeManagerDuringLedgerLock(true);
 
   await sql`insert into storage.objects(bucket_id,name,metadata) values('labor-worker-sessions',${objects[0]},${sql.json({ size: 1 })}),('labor-worker-sessions',${objects[1]},${sql.json({ size: 1 })})`;
   await racingWriters(
@@ -316,7 +382,7 @@ try {
   await naturalExpiryDuringSessionLock(objects[1]);
   await naturalExpiryDuringImportLock();
   console.log(
-    "Ledger/session races retained one revision; expired session and report commits waiting on row locks changed nothing.",
+    "Ledger/session races retained one revision; revoked managers and expired workers waiting on row locks changed nothing.",
   );
 } finally {
   // This test leaves only its synthetic facts in the disposable database; stop that QA project after use.

@@ -19,17 +19,18 @@ import {
 } from "./labor-view";
 import { NotesUpload } from "./notes-upload";
 import { LaborPayWorkspace } from "./pay-settings";
+import { LaborDownloadButton, laborSyncPresentation } from "./sync-view";
 
 type View = "entries" | "workers" | "jobs";
 const DAILY_HOURS = Array.from({ length: 24 }, (_, value) => value);
-const syncLabels: Record<LaborSyncState["status"], string> = {
-  not_connected: "Not connected",
-  idle: "Ready",
-  running: "Downloading report",
-  needs_login: "Sign-in required",
-  failed: "Needs attention",
-};
-
+const downloadFrequency = (days: number) =>
+  days === 1
+    ? "Daily"
+    : days === 7
+      ? "Weekly"
+      : days === 14
+        ? "Every two weeks"
+        : `Every ${days} days`;
 export function LaborDashboard() {
   const [data, setData] = useState<LaborDashboardData | null>(null);
   const [error, setError] = useState("");
@@ -41,6 +42,9 @@ export function LaborDashboard() {
   const [page, setPage] = useState(0);
   const [hour, setHour] = useState(6);
   const [lookback, setLookback] = useState(14);
+  const [frequency, setFrequency] = useState("1");
+  const [customInterval, setCustomInterval] = useState("21");
+  const intervalDays = frequency === "custom" ? Number(customInterval) : Number(frequency);
   const fileInput = useRef<HTMLInputElement>(null);
   const sequence = useRef(0);
   const dataRevision = useRef<string | null>(null);
@@ -73,13 +77,19 @@ export function LaborDashboard() {
     const current = sequence.current;
     statusBusy.current = true;
     try {
-      const status = await readApi<{ sync: LaborSyncState; dataRevision: string }>(
-        await fetch("/api/manager/labor/status", { cache: "no-store" }),
-      );
+      const status = await readApi<{
+        sync: LaborSyncState;
+        dataRevision: string;
+        pendingDownload?: LaborDashboardData["pendingDownload"];
+      }>(await fetch("/api/manager/labor/status", { cache: "no-store" }));
       if (current !== sequence.current) return;
       if (typeof status.dataRevision !== "string")
         throw new Error("Could not refresh labor status.");
-      setData((previous) => (previous ? { ...previous, sync: status.sync } : previous));
+      setData((previous) =>
+        previous
+          ? { ...previous, sync: status.sync, pendingDownload: status.pendingDownload }
+          : previous,
+      );
       if (status.dataRevision !== dataRevision.current) await load();
     } catch (cause) {
       if (current === sequence.current)
@@ -111,10 +121,15 @@ export function LaborDashboard() {
 
   const syncHour = data?.sync.hour;
   const syncLookback = data?.sync.lookbackDays;
+  const syncInterval = data?.sync.intervalDays ?? 1;
   useEffect(() => {
     if (syncHour !== undefined) setHour(syncHour);
     if (syncLookback !== undefined) setLookback(syncLookback);
   }, [syncHour, syncLookback]);
+  useEffect(() => {
+    setFrequency([1, 7, 14].includes(syncInterval) ? String(syncInterval) : "custom");
+    if (![1, 7, 14].includes(syncInterval)) setCustomInterval(String(syncInterval));
+  }, [syncInterval]);
 
   function changeFilter(key: keyof LaborFilters, value: string) {
     setFilters((current) => ({ ...current, [key]: value }));
@@ -142,7 +157,7 @@ export function LaborDashboard() {
     }
   }
 
-  async function syncAction(action: "connect" | "run" | "pause" | "resume") {
+  async function syncAction(action: "connect" | "run" | "pause" | "resume" | "configure") {
     setBusy(action);
     setError("");
     setNotice("");
@@ -151,7 +166,12 @@ export function LaborDashboard() {
         await fetch("/api/manager/labor/sync", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action, hour, lookbackDays: lookback }),
+          body: JSON.stringify({
+            action,
+            ...(action === "configure" || action === "resume"
+              ? { hour, lookbackDays: lookback, intervalDays }
+              : {}),
+          }),
         }),
       );
       setData((previous) => (previous ? { ...previous, sync: result.sync } : previous));
@@ -162,10 +182,12 @@ export function LaborDashboard() {
             : "Worker sign-in requested. Complete normal Supercrew sign-in through the configured worker connection setup."
           : action === "run"
             ? (result.dispatch?.message ??
-              "Download queued for the next worker check. Import history will update after both reports are verified.")
+              "Download request saved. A configured worker must pick it up before downloading and verifying both reports.")
             : action === "pause"
               ? "Recurring downloads paused."
-              : "Recurring download schedule saved.",
+              : action === "resume"
+                ? "Recurring downloads enabled."
+                : `Recurring download schedule saved.${data?.sync.enabled ? "" : " Downloads remain paused."}`,
       );
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Could not update downloads.");
@@ -185,6 +207,7 @@ export function LaborDashboard() {
   const travelHours = entries.reduce((sum, entry) => sum + (entry.travel ? entry.hours : 0), 0);
   const sourceImports = new Map(data?.imports.map((item) => [item.id, item]) ?? []);
   const busySync = Boolean(busy) || data?.sync.status === "running";
+  const syncView = laborSyncPresentation(data?.sync ?? null, busy, data?.development);
 
   return (
     <main id="main-content" className={styles.main}>
@@ -236,11 +259,12 @@ export function LaborDashboard() {
                   <div className={styles.syncTitle}>
                     <Icon name="clock" size={19} />
                     <h2>Recurring downloads</h2>
-                    <span className={styles.syncStatus}>{syncLabels[data.sync.status]}</span>
+                    <span className={styles.syncStatus}>{syncView.statusLabel}</span>
                   </div>
                   <p className={styles.subtitle}>
-                    {data.sync.enabled ? "Daily schedule enabled" : "Daily schedule paused"} ·{" "}
-                    {data.sync.timeZone} · previous {data.sync.lookbackDays} completed days
+                    {downloadFrequency(data.sync.intervalDays ?? 1)} schedule{" "}
+                    {data.sync.enabled ? "enabled" : "paused"} · {data.sync.timeZone} · previous{" "}
+                    {data.sync.lookbackDays} completed days
                   </p>
                 </div>
                 <div className={styles.actions}>
@@ -256,25 +280,17 @@ export function LaborDashboard() {
                         ? "Connect Supercrew"
                         : "Request worker sign-in"}
                   </button>
-                  <button
-                    className={styles.primary}
-                    type="button"
-                    disabled={busySync || data.sync.command !== null}
+                  <LaborDownloadButton
+                    presentation={syncView}
                     onClick={() => void syncAction("run")}
-                  >
-                    {busy === "run"
-                      ? "Queuing…"
-                      : data.development
-                        ? "Download now"
-                        : "Queue download"}
-                  </button>
+                  />
                 </div>
               </div>
               {!data.development && (
                 <p className={styles.muted}>
                   Supercrew uses the isolated worker’s normal login. The person managing the worker
-                  completes sign-in in its connection setup. Download requests are queued for the
-                  next worker check.
+                  completes sign-in in its connection setup. A download request stays queued until a
+                  configured worker checks for it.
                 </p>
               )}
               <dl className={styles.syncMeta}>
@@ -295,25 +311,66 @@ export function LaborDashboard() {
                   <dd>{localTime(data.sync.workerHeartbeatAt, data.sync.timeZone)}</dd>
                 </div>
               </dl>
-              {data.sync.command && (
+              {syncView.message && (
                 <p role="status" className={styles.notice}>
-                  {data.sync.command === "connect"
-                    ? "Waiting for worker to open sign-in."
-                    : "Waiting for worker to start download."}
+                  {syncView.message}
                 </p>
               )}
               {data.sync.lastError && <p className={styles.error}>{data.sync.lastError}</p>}
+              {data.pendingDownload && (
+                <p className={styles.notice} role="status">
+                  Dates remaining: {shortDate(data.pendingDownload.from)}–
+                  {shortDate(data.pendingDownload.to)}.
+                  {data.sync.enabled
+                    ? " Catch-up continues in batches of up to 31 days at scheduled worker checks."
+                    : " Recurring downloads are paused. Enable recurring downloads or queue another download to continue."}
+                </p>
+              )}
               <form
                 className={styles.scheduleForm}
                 onSubmit={(event) => {
                   event.preventDefault();
-                  void syncAction("resume");
+                  const submitter = (event.nativeEvent as SubmitEvent).submitter;
+                  void syncAction(
+                    submitter instanceof HTMLButtonElement && submitter.value === "resume"
+                      ? "resume"
+                      : "configure",
+                  );
                 }}
               >
                 <label>
-                  Daily start time
+                  Download frequency
                   <select
-                    aria-label="Daily start time"
+                    value={frequency}
+                    onChange={(event) => setFrequency(event.target.value)}
+                    disabled={Boolean(busy)}
+                    className={styles.button}
+                  >
+                    <option value="1">Daily</option>
+                    <option value="7">Weekly</option>
+                    <option value="14">Biweekly (every 14 days)</option>
+                    <option value="custom">Custom interval</option>
+                  </select>
+                </label>
+                {frequency === "custom" && (
+                  <label>
+                    Repeat every (days)
+                    <input
+                      type="number"
+                      min={1}
+                      max={365}
+                      step={1}
+                      required
+                      value={customInterval}
+                      onChange={(event) => setCustomInterval(event.target.value)}
+                      disabled={Boolean(busy)}
+                    />
+                  </label>
+                )}
+                <label>
+                  Start time
+                  <select
+                    aria-label="Start time"
                     value={hour}
                     onChange={(event) => setHour(Number(event.target.value))}
                     disabled={Boolean(busy)}
@@ -333,6 +390,7 @@ export function LaborDashboard() {
                     type="number"
                     min={1}
                     max={31}
+                    step={1}
                     required
                     value={lookback}
                     onChange={(event) => setLookback(Number(event.target.value))}
@@ -340,9 +398,9 @@ export function LaborDashboard() {
                   />
                 </label>
                 <button className={styles.button} type="submit" disabled={Boolean(busy)}>
-                  {data.sync.enabled ? "Save schedule" : "Enable daily downloads"}
+                  Save schedule
                 </button>
-                {data.sync.enabled && (
+                {data.sync.enabled ? (
                   <button
                     className={styles.textButton}
                     type="button"
@@ -351,11 +409,26 @@ export function LaborDashboard() {
                   >
                     Pause downloads
                   </button>
+                ) : (
+                  <button
+                    className={styles.button}
+                    type="submit"
+                    value="resume"
+                    disabled={Boolean(busy)}
+                  >
+                    Enable recurring downloads
+                  </button>
                 )}
                 <span className={styles.muted}>
                   The connected worker must be running for downloads to occur.
                 </span>
               </form>
+              <p className={styles.muted}>
+                Frequency controls how often reports are downloaded; days to download controls how
+                many recent completed dates are rechecked (up to 31). Custom intervals can be 1–365
+                days. Older dates since the last verified paired import are collected in batches of
+                up to 31 days. A successful download restarts the interval.
+              </p>
             </div>
           </section>
           <fieldset

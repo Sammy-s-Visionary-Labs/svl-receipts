@@ -37,6 +37,7 @@ describe("lightweight manager labor status", () => {
         commandId: null,
       },
       dataRevision: "synthetic-revision",
+      pendingDownload: null,
     };
     vi.mocked(loadLaborStatus).mockResolvedValue(status);
     const request = new Request("https://fixture.example/api/manager/labor/status");

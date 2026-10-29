@@ -1,5 +1,5 @@
 import { requireLaborAccess } from "@/lib/labor/access";
-import { laborError, laborResponse } from "@/lib/labor/http";
+import { laborError, laborResponse, laborStreamResponse } from "@/lib/labor/http";
 import { loadLaborDashboard } from "@/lib/labor/store";
 
 export const runtime = "nodejs";
@@ -110,15 +110,12 @@ export async function GET(request: Request) {
                   row.sourceRow,
                 ]),
               ];
-      return new Response(rows.map((row) => row.map(csvCell).join(",")).join("\r\n"), {
-        headers: {
-          "Content-Type": "text/csv; charset=utf-8",
-          "Content-Disposition": `attachment; filename="supercrew-${format === "csv" ? "hours" : format}-development.csv"`,
-          "Cache-Control": "private, no-store",
-        },
+      return laborStreamResponse(rows.map((row) => row.map(csvCell).join(",")).join("\r\n"), {
+        "Content-Type": "text/csv; charset=utf-8",
+        "Content-Disposition": `attachment; filename="supercrew-${format === "csv" ? "hours" : format}.csv"`,
       });
     }
-    return laborResponse(data);
+    return laborResponse(data, 200, { stream: true });
   } catch (error) {
     return laborError(error);
   }

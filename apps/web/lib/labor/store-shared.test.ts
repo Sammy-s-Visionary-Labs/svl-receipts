@@ -8,12 +8,14 @@ const cloud = vi.hoisted(() => ({
   cas: vi.fn(),
   put: vi.fn(),
   get: vi.fn(),
+  sign: vi.fn(),
 }));
 vi.mock("./persistence", () => ({
   readSupabaseLaborState: cloud.read,
   compareAndSwapSupabaseLaborState: cloud.cas,
   putSupabaseLaborOriginal: cloud.put,
   getSupabaseLaborOriginal: cloud.get,
+  createSupabaseLaborOriginalDownloadUrl: cloud.sign,
 }));
 vi.mock("./job-catalog", () => ({
   loadLaborJobCatalog: async () => ({
@@ -37,6 +39,10 @@ import {
   ingestLaborFile,
   initializeSharedLaborLedger,
   loadLaborDashboard,
+  loadLaborStatus,
+  loadLaborWorkerPoll,
+  type NotesImportOptions,
+  originalLaborDownload,
   originalLaborFile,
   queueLaborSync,
   updateLaborPaySettings,
@@ -135,7 +141,173 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
+describe("shared recurrence and source coverage", () => {
+  const pairedSource = async (
+    from: string,
+    to: string,
+    options: Partial<NotesImportOptions> = {},
+    generatedAt = "2026-10-29 8:00:00 AM",
+  ) => {
+    const source = { ...report([], generatedAt), period: { from, to } };
+    return ingestLaborFile(bytes(source), `TEST-${from}-${to}.xlsx`, "supercrew", source.period, {
+      bytes: new TextEncoder().encode(
+        JSON.stringify({ notes: [], warnings: [], datesVerified: true, formatVersion: "TEST" }),
+      ),
+      filename: "TEST-daily-notes.xlsx",
+      scope: "daily_timesheet",
+      complete: true,
+      datesVerified: true,
+      ...options,
+    });
+  };
+  const legacyCoverage = async () => {
+    delete stored().sync.coverageThrough;
+    return (await loadLaborStatus()).sync.coverageThrough;
+  };
+
+  it("defaults old settings to daily and keeps the current pause state when saving", async () => {
+    await queueLaborSync("pause", {}, actorId);
+    delete stored().sync.intervalDays;
+    expect((await loadLaborStatus()).sync.intervalDays).toBe(1);
+    const configured = await queueLaborSync("configure", { intervalDays: 7, hour: 9 }, actorId);
+    expect(configured).toMatchObject({ enabled: false, intervalDays: 7, hour: 9, nextRunAt: null });
+    const resumed = await queueLaborSync("resume", {}, actorId);
+    expect(resumed).toMatchObject({ enabled: true, intervalDays: 7, hour: 9 });
+    expect((await queueLaborSync("configure", { lookbackDays: 3 }, actorId)).enabled).toBe(true);
+    expect(stored().sync.intervalDays).toBe(7);
+    expect(cloud.cas.mock.lastCall?.[2]).toBe(actorId);
+  });
+
+  it.each([
+    [1, "2026-10-14T13:17:00.000Z"],
+    [7, "2026-10-20T13:17:00.000Z"],
+    [14, "2026-10-27T13:17:00.000Z"],
+    [45, "2026-11-27T14:17:00.000Z"],
+    [365, "2027-10-13T13:17:00.000Z"],
+  ])(
+    "persists %s-day settings and recalculates the public next gate",
+    async (intervalDays, nextRunAt) => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2026-10-14T12:00:00Z"));
+      await queueLaborSync("resume", {}, actorId);
+      stored().sync.status = "idle";
+      stored().lastScheduledDate = "2026-10-13";
+      const configured = await queueLaborSync("configure", { intervalDays, hour: 9 }, actorId);
+      expect(configured).toMatchObject({ enabled: true, intervalDays, nextRunAt });
+      expect((await loadLaborStatus()).sync.nextRunAt).toBe(nextRunAt);
+      expect((await queueLaborSync("pause", {}, actorId)).nextRunAt).toBeNull();
+      expect((await queueLaborSync("resume", {}, actorId)).nextRunAt).toBe(nextRunAt);
+    },
+  );
+
+  it.each([0, 366, 1.5, Number.NaN])(
+    "rejects invalid %s-day settings at the store boundary",
+    async (intervalDays) => {
+      await expect(queueLaborSync("configure", { intervalDays }, actorId)).rejects.toThrow(
+        "intervalDays",
+      );
+      expect(cloud.cas).not.toHaveBeenCalled();
+    },
+  );
+
+  it("derives legacy coverage from an ordered contiguous union of complete verified pairs", async () => {
+    await pairedSource("2026-09-24", "2026-09-28");
+    await pairedSource("2026-09-20", "2026-09-22");
+    await pairedSource("2026-09-22", "2026-09-25");
+    expect(await legacyCoverage()).toBe("2026-09-28");
+  });
+
+  it("stops at a missing date and makes that gap the next catch-up start", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-29T14:00:00Z"));
+    await pairedSource("2026-09-20", "2026-09-22");
+    await pairedSource("2026-09-24", "2026-09-28");
+    expect(await legacyCoverage()).toBe("2026-09-22");
+    await queueLaborSync("run", { intervalDays: 45, lookbackDays: 7 }, actorId);
+    const claim = await claimLaborWorker("TEST-catchup-gap");
+    expect(claim?.period).toEqual({ from: "2026-09-23", to: "2026-10-23" });
+    expect((await loadLaborStatus()).pendingDownload).toEqual({
+      from: "2026-09-23",
+      to: "2026-10-28",
+      nextRunAt: null,
+    });
+  });
+
+  it.each([{ complete: false }, { datesVerified: false }, { scope: "mixed" as const }])(
+    "excludes incomplete or unverified daily-note coverage: %j",
+    async (options) => {
+      await pairedSource("2026-09-24", "2026-09-30", options);
+      expect(await legacyCoverage()).toBeNull();
+    },
+  );
+
+  it("excludes the source generation date because it was not a completed date", async () => {
+    await pairedSource("2026-10-20", "2026-10-29");
+    expect(await legacyCoverage()).toBeNull();
+  });
+
+  it("excludes filtered timesheets and mismatched or missing paired source references", async () => {
+    await pairedSource("2026-09-24", "2026-09-30");
+    const notes = stored().notesImports[0] as Record<string, unknown>;
+    const original = structuredClone(notes);
+    for (const change of [
+      { laborImportId: null },
+      { laborImportId: "TEST-missing-source" },
+      { period: { from: "2026-09-23", to: "2026-09-30" } },
+    ]) {
+      Object.assign(notes, original, change);
+      expect(await legacyCoverage()).toBeNull();
+    }
+    Object.assign(notes, original);
+    stored().imports[0].report.filters.workers = "TEST single worker";
+    expect(await legacyCoverage()).toBeNull();
+  });
+
+  it("never infers covered source dates from a successful heartbeat alone", async () => {
+    await queueLaborSync("pause", {}, actorId);
+    stored().sync.lastSuccessAt = "2026-10-29T14:00:00Z";
+    expect(await legacyCoverage()).toBeNull();
+  });
+});
+
 describe("shared labor transactions", () => {
+  it("polls a paused idle worker without database writes or ledger revision changes", async () => {
+    await queueLaborSync("pause", {}, actorId);
+    const before = structuredClone(cloud.snapshot);
+    cloud.cas.mockClear();
+    for (let index = 0; index < 3; index++)
+      expect((await loadLaborWorkerPoll()).claimable).toBe(false);
+    expect(cloud.cas).not.toHaveBeenCalled();
+    expect(cloud.snapshot).toEqual(before);
+  });
+
+  it("exposes a queued request while paused without claiming or clearing it", async () => {
+    await queueLaborSync("pause", {}, actorId);
+    await queueLaborSync("run", { lookbackDays: 7 }, actorId);
+    const before = structuredClone(cloud.snapshot);
+    cloud.cas.mockClear();
+    const polled = await loadLaborWorkerPoll();
+    expect(polled.claimable).toBe(true);
+    expect(polled.sync).toEqual(stored().sync);
+    expect(cloud.cas).not.toHaveBeenCalled();
+    expect(cloud.snapshot).toEqual(before);
+  });
+
+  it("allows lease recovery to be requested without recovering or changing it during a poll", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-01T12:00:00Z"));
+    await queueLaborSync("run", {}, actorId);
+    await claimLaborWorker("TEST-poll-recovery");
+    const active = await loadLaborWorkerPoll();
+    expect(active.claimable).toBe(false);
+    vi.setSystemTime(new Date("2026-10-01T12:16:00Z"));
+    const before = structuredClone(cloud.snapshot);
+    cloud.cas.mockClear();
+    expect((await loadLaborWorkerPoll()).claimable).toBe(true);
+    expect(cloud.cas).not.toHaveBeenCalled();
+    expect(cloud.snapshot).toEqual(before);
+  });
+
   const claim = async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-10-01T12:00:00Z"));
@@ -423,6 +595,22 @@ describe("shared labor transactions", () => {
 });
 
 describe("checked shared-ledger initialization", () => {
+  it("rejects extra originals before storing any workbook", async () => {
+    const source = bytes(report([row("2026-09-24", 2)]));
+    await ingestLaborFile(source, "TEST.xlsx", "upload");
+    const seed = structuredClone(cloud.snapshot?.state);
+    const originals = new Map(cloud.originals);
+    originals.set("93000000-0000-4000-8000-000000000099", source);
+    cloud.snapshot = null;
+    cloud.put.mockClear();
+    cloud.cas.mockClear();
+    await expect(initializeSharedLaborLedger(seed, originals, actorId)).rejects.toThrow(
+      "must match the ledger exactly",
+    );
+    expect(cloud.put).not.toHaveBeenCalled();
+    expect(cloud.cas).not.toHaveBeenCalled();
+  });
+
   it("rejects mismatched or missing originals before writing shared data", async () => {
     const source = bytes(report([row("2026-09-24", 2)]));
     const imported = await ingestLaborFile(source, "TEST.xlsx", "upload");
@@ -489,10 +677,56 @@ describe("checked shared-ledger initialization", () => {
     await ingestLaborFile(bytes(report([row("2026-09-24", 2)])), "TEST.xlsx", "upload");
     const before = structuredClone(cloud.snapshot);
     cloud.cas.mockClear();
+    cloud.put.mockClear();
     await expect(
       initializeSharedLaborLedger(before?.state, new Map(cloud.originals), actorId),
     ).rejects.toThrow("already contains records");
     expect(cloud.snapshot).toEqual(before);
     expect(cloud.cas).not.toHaveBeenCalled();
+    expect(cloud.put).not.toHaveBeenCalled();
+  });
+
+  it("preserves manager settings saved while originals are uploading", async () => {
+    await ingestLaborFile(bytes(report([row("2026-09-24", 2)])), "TEST.xlsx", "upload");
+    const seed = structuredClone(cloud.snapshot?.state);
+    const originals = new Map(cloud.originals);
+    cloud.snapshot = null;
+    cloud.put.mockImplementationOnce(async () => {
+      await queueLaborSync("pause", { hour: 11 }, actorId);
+    });
+    await expect(initializeSharedLaborLedger(seed, originals, actorId)).rejects.toThrow(
+      "already contains records",
+    );
+    expect(stored().sync.hour).toBe(11);
+    expect(stored().imports).toEqual([]);
+  });
+
+  it("rejects a configured target even when it has no source imports", async () => {
+    await ingestLaborFile(bytes(report([row("2026-09-24", 2)])), "TEST.xlsx", "upload");
+    const seed = structuredClone(cloud.snapshot?.state);
+    const originals = new Map(cloud.originals);
+    cloud.snapshot = null;
+    await queueLaborSync("pause", { hour: 11 }, actorId);
+    cloud.put.mockClear();
+    await expect(initializeSharedLaborLedger(seed, originals, actorId)).rejects.toThrow(
+      "already contains records",
+    );
+    expect(cloud.put).not.toHaveBeenCalled();
+    expect(stored().sync.hour).toBe(11);
+  });
+});
+
+describe("shared original download", () => {
+  it("requires ledger provenance before issuing a private download URL", async () => {
+    const source = bytes(report([row("2026-09-24", 2)]));
+    const result = await ingestLaborFile(source, "TEST report.xlsx", "upload");
+    cloud.sign.mockResolvedValue("https://storage.example.invalid/TEST?token=TEST");
+    expect(await originalLaborDownload("93000000-0000-4000-8000-000000000099")).toBeNull();
+    expect(cloud.sign).not.toHaveBeenCalled();
+    expect(await originalLaborDownload(result.import.id)).toEqual({
+      url: "https://storage.example.invalid/TEST?token=TEST",
+    });
+    expect(cloud.sign).toHaveBeenCalledWith(result.import.id, "TEST report.xlsx");
+    expect(cloud.get).not.toHaveBeenCalled();
   });
 });

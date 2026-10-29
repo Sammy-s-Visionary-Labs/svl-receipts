@@ -6,7 +6,10 @@
     "packages/*"
   ],
   "scripts": {
+    "dev": "npm run dev:labor",
     "dev:web": "npm run dev --workspace=@svl/web",
+    "dev:labor": "node --env-file=apps/web/.env.local --env-file=apps/web/.env.labor-stage scripts/supercrew-worker/local.mjs",
+    "dev:labor-watch": "node --env-file=apps/web/.env.local --env-file=apps/web/.env.labor-stage scripts/supercrew-worker/local.mjs --worker-only",
     "dev:labor-web": "npm run dev --workspace=@svl/web -- --hostname 127.0.0.1 --port 3145",
     "dev:mobile": "npm run start --workspace=@svl/mobile",
     "dev:labor-worker": "node --env-file=apps/web/.env.local scripts/supercrew-worker/worker.mjs --watch",

@@ -33,6 +33,7 @@ import type {
 import { loadLaborJobCatalog } from "./job-catalog";
 import {
   compareAndSwapSupabaseLaborState,
+  createSupabaseLaborOriginalDownloadUrl,
   getSupabaseLaborOriginal,
   type LaborPersistenceLeaseGuard,
   putSupabaseLaborOriginal,
@@ -43,8 +44,11 @@ import {
   claimWorker,
   finishWorker,
   heartbeatWorker,
+  type LaborWorkerCatchup,
   type LaborWorkerLease,
+  nextWorkerRun,
   recoverExpiredLaborLease,
+  workerClaimAvailable,
 } from "./worker-control";
 
 type StoredImport = LaborImportSummary & { hash: string; report: LaborReport };
@@ -79,12 +83,14 @@ type State = {
   jobMappingsRevision: number;
   workerLease?: LaborWorkerLease | null;
   lastScheduledDate?: string | null;
+  workerCatchup?: LaborWorkerCatchup | null;
 };
 const initialSync = (): LaborSyncState => ({
   enabled: false,
   hour: 6,
   timeZone: "America/New_York",
   lookbackDays: 14,
+  intervalDays: 1,
   status: "not_connected",
   lastAttemptAt: null,
   lastSuccessAt: null,
@@ -124,6 +130,7 @@ export function laborDataDirectory() {
 const stateFile = () => path.join(laborDataDirectory(), "state.json");
 
 function normalizeState(state: State): State {
+  state.sync.intervalDays ??= 1;
   state.notesImports ??= [];
   state.rules ??= { locations: [], jobAliases: [], workerAliases: [] };
   state.rulesRevision ??= 0;
@@ -132,7 +139,48 @@ function normalizeState(state: State): State {
   state.payRevision ??= 0;
   state.jobMappings ??= [];
   state.jobMappingsRevision ??= 0;
+  if (!state.sync.coverageThrough) state.sync.coverageThrough = pairedCoverageThrough(state);
   return state;
+}
+
+/** Legacy progress comes only from verified paired exports, never a heartbeat timestamp. */
+function pairedCoverageThrough(state: State): string | null {
+  const periods = state.notesImports
+    .flatMap((notes) => {
+      if (!notes.complete || !notes.datesVerified || notes.notesScope !== "daily_timesheet")
+        return [];
+      const source = state.imports.find((item) => item.id === notes.laborImportId);
+      if (
+        !source ||
+        !isCompleteSnapshot(source.report) ||
+        source.period.from !== notes.period.from ||
+        source.period.to !== notes.period.to ||
+        (source.generatedAt ?? source.report.generatedAt).slice(0, 10) <= source.period.to
+      )
+        return [];
+      return [source.period];
+    })
+    .sort((a, b) => a.from.localeCompare(b.from) || a.to.localeCompare(b.to));
+  let through: string | null = null;
+  for (const period of periods) {
+    if (through) {
+      const next = new Date(`${through}T12:00:00Z`);
+      next.setUTCDate(next.getUTCDate() + 1);
+      if (period.from > next.toISOString().slice(0, 10)) break;
+    }
+    if (!through || period.to > through) through = period.to;
+  }
+  return through;
+}
+
+function pendingDownload(state: State) {
+  return state.workerCatchup
+    ? {
+        from: state.workerCatchup.nextFrom,
+        to: state.workerCatchup.to,
+        nextRunAt: state.sync.enabled ? state.workerCatchup.nextClaimAt : null,
+      }
+    : null;
 }
 
 async function readState(): Promise<State> {
@@ -626,6 +674,7 @@ export async function loadLaborDashboard(): Promise<LaborDashboardData> {
   return {
     development: laborLocalPreviewEnabled() || !laborUsesSupabase(),
     dataRevision: laborDataRevision(state),
+    pendingDownload: pendingDownload(state),
     allocation,
     jobMappings: state.jobMappings,
     jobMappingsRevision: state.jobMappingsRevision,
@@ -681,6 +730,16 @@ export async function originalLaborFile(id: string) {
     bytes,
     filename: item.filename,
   };
+}
+
+export async function originalLaborDownload(id: string) {
+  if (!laborUsesSupabase()) return originalLaborFile(id);
+  const state = await readState();
+  const item =
+    state.imports.find((value) => value.id === id) ??
+    state.notesImports.find((value) => value.id === id);
+  if (!item) return null;
+  return { url: await createSupabaseLaborOriginalDownloadUrl(item.id, item.filename) };
 }
 
 function nextDate(date: string) {
@@ -1048,14 +1107,23 @@ export async function verifyLaborNote(
 }
 
 export async function queueLaborSync(
-  action: "run" | "connect" | "pause" | "resume",
-  options: { hour?: number; lookbackDays?: number } = {},
+  action: "run" | "connect" | "pause" | "resume" | "configure",
+  options: { hour?: number; lookbackDays?: number; intervalDays?: number } = {},
   actorId: string | null = null,
 ) {
+  for (const [name, value, min, max] of [
+    ["hour", options.hour, 0, 23],
+    ["lookbackDays", options.lookbackDays, 1, 31],
+    ["intervalDays", options.intervalDays, 1, 365],
+  ] as const) {
+    if (value !== undefined && (!Number.isSafeInteger(value) || value < min || value > max))
+      throw new Error(`Invalid ${name}: enter a whole number from ${min} to ${max}`);
+  }
   return transaction((state) => {
     recoverExpiredLaborLease(state, new Date());
     if (options.hour !== undefined) state.sync.hour = options.hour;
     if (options.lookbackDays !== undefined) state.sync.lookbackDays = options.lookbackDays;
+    if (options.intervalDays !== undefined) state.sync.intervalDays = options.intervalDays;
     if (action === "pause") state.sync.enabled = false;
     if (action === "resume") state.sync.enabled = true;
     if (action === "run" || action === "connect") {
@@ -1065,6 +1133,7 @@ export async function queueLaborSync(
       state.sync.commandId = randomUUID();
       state.sync.lastError = null;
     }
+    state.sync.nextRunAt = nextWorkerRun(state, new Date());
     return state.sync;
   }, actorId);
 }
@@ -1140,12 +1209,20 @@ export async function initializeSharedLaborLedger(
   const seed = normalizeState(structuredClone(input) as State);
   if (seed.version !== 1 || !Array.isArray(seed.imports) || !Array.isArray(seed.notesImports))
     throw new Error("Invalid labor ledger");
-  for (const item of [...seed.imports, ...seed.notesImports]) {
+  const sources = [...seed.imports, ...seed.notesImports];
+  for (const item of sources) {
     const bytes = originals.get(item.id);
     if (!bytes || createHash("sha256").update(bytes).digest("hex") !== item.hash)
       throw new Error("Original workbook hash does not match ledger");
   }
+  const sourceIds = new Set(sources.map((item) => item.id));
+  if (sourceIds.size !== sources.length || originals.size !== sourceIds.size)
+    throw new Error("Original workbooks must match the ledger exactly");
   currentEntries(seed.imports);
+  // Refuse populated/configured targets before creating any storage objects. The CAS
+  // below also fences an initialization that wins while these originals are uploading.
+  if (await readSupabaseLaborState())
+    throw new Error("The shared labor ledger already contains records");
   seed.sync = {
     ...seed.sync,
     enabled: false,
@@ -1157,25 +1234,19 @@ export async function initializeSharedLaborLedger(
     lastError: null,
   };
   seed.workerLease = null;
+  seed.workerCatchup = null;
   seed.lastScheduledDate = null;
   // Local preview fixtures are not business receipts; the production receipt tables supply activity.
   seed.receipts = [];
   for (const [id, bytes] of originals) await putSupabaseLaborOriginal(id, bytes);
-  return transaction((state) => {
-    if (
-      state.imports.length ||
-      state.notesImports.length ||
-      state.payRevision ||
-      state.rulesRevision
-    )
-      throw new Error("The shared labor ledger already contains records");
-    Object.assign(state, seed);
-    return {
-      imports: seed.imports.length,
-      notesImports: seed.notesImports.length,
-      entryCount: currentEntries(seed.imports).length,
-    };
-  }, actorId);
+  compactParsedSources(seed);
+  if ((await compareAndSwapSupabaseLaborState(seed, 0, actorId)) === null)
+    throw new Error("The shared labor ledger already contains records");
+  return {
+    imports: seed.imports.length,
+    notesImports: seed.notesImports.length,
+    entryCount: currentEntries(seed.imports).length,
+  };
 }
 
 export async function beginLaborWorkerConnection() {
@@ -1218,5 +1289,15 @@ function laborDataRevision(state: State) {
 export async function loadLaborStatus() {
   const state = await readState();
   recoverExpiredLaborLease(state, new Date());
-  return { sync: state.sync, dataRevision: laborDataRevision(state) };
+  return {
+    sync: state.sync,
+    pendingDownload: pendingDownload(state),
+    dataRevision: laborDataRevision(state),
+  };
+}
+
+/** Dedicated worker poll: no catalog load, lease claim, audit event or database write. */
+export async function loadLaborWorkerPoll() {
+  const state = await readState();
+  return { sync: state.sync, claimable: workerClaimAvailable(state, new Date()) };
 }

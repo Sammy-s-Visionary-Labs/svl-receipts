@@ -19,6 +19,7 @@ import {
 import styles from "./labor.module.css";
 import approvalStyles from "./labor-approval.module.css";
 import { hours, localTime, readApi, shortDate, sourceMoney } from "./labor-view";
+import { LaborManualResolution } from "./manual-resolution";
 
 type Props = {
   job: Pick<JobActivity, "housecallJobId" | "name" | "address">;
@@ -856,6 +857,9 @@ export function LaborApprovalWorkspace({ job, initialFrom, initialTo, refreshTok
                                 </button>
                               </div>
                             </form>
+                          )}
+                          {["sent", "reconciliation_required"].includes(item.status) && (
+                            <LaborManualResolution key={key} approval={item} />
                           )}
                         </article>
                       );

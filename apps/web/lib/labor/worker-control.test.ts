@@ -11,6 +11,7 @@ import {
   nextWorkerRun,
   recoverExpiredLaborLease,
   workerCalendar,
+  workerClaimAvailable,
 } from "./worker-control";
 
 const ids = {
@@ -98,6 +99,143 @@ describe("hosted worker leases and calendar scheduling", () => {
     expect(nextWorkerRun(value, new Date("2026-11-01T04:30:00Z"))).toBe("2026-11-02T07:17:00.000Z");
     expect(nextWorkerRun(state({ enabled: false }), now)).toBeNull();
     expect(nextWorkerRun(state({ status: "needs_login" }), now)).toBeNull();
+  });
+
+  it.each([
+    [undefined, "2026-10-14T13:17:00.000Z"],
+    [7, "2026-10-20T13:17:00.000Z"],
+    [14, "2026-10-27T13:17:00.000Z"],
+    [45, "2026-11-27T14:17:00.000Z"],
+    [365, "2027-10-13T13:17:00.000Z"],
+  ])("uses a %s-day calendar interval from the latest attempt", (intervalDays, expected) => {
+    const value = state({ intervalDays, lastSuccessAt: "2026-10-12T13:17:00Z" });
+    value.lastScheduledDate = "2026-10-13";
+    expect(nextWorkerRun(value, now)).toBe(expected);
+    expect(workerClaimAvailable(value, now)).toBe(false);
+    expect(workerClaimAvailable(value, new Date(expected))).toBe(true);
+  });
+
+  it("retains overdue gates and catches up before today's configured hour", () => {
+    const value = state({ intervalDays: 7 });
+    value.lastScheduledDate = "2026-10-01";
+    expect(nextWorkerRun(value, now)).toBe("2026-10-08T13:17:00.000Z");
+    expect(workerClaimAvailable(value, new Date("2026-10-13T04:00:00Z"))).toBe(true);
+    value.sync.enabled = false;
+    expect(workerClaimAvailable(value, now)).toBe(false);
+  });
+
+  it("uses the first repeated fall gate and the next real spring gate", () => {
+    expect(nextWorkerRun(state({ hour: 1 }), new Date("2026-11-01T04:00:00Z"))).toBe(
+      "2026-11-01T05:17:00.000Z",
+    );
+    expect(nextWorkerRun(state({ hour: 2 }), new Date("2026-03-08T05:00:00Z"))).toBe(
+      "2026-03-08T07:17:00.000Z",
+    );
+  });
+
+  it("consumes the whole interval on failure and resets it after a later manual success", () => {
+    const value = state({ intervalDays: 7 });
+    claimWorker(value, "github:failed", now, ids);
+    finishWorker(value, ids.leaseToken, "failed", "Source unavailable", now);
+    expect(value.sync.nextRunAt).toBe("2026-10-20T13:17:00.000Z");
+    expect(claimWorker(value, "github:retry", new Date("2026-10-14T13:17:00Z"), ids)).toBeNull();
+    value.sync.command = "run";
+    value.sync.commandId = ids.commandId;
+    const manual = new Date("2026-10-15T13:17:00Z");
+    claimWorker(value, "github:manual", manual, ids);
+    assertWorkerLease(value, ids.leaseToken, manual).imported = true;
+    finishWorker(value, ids.leaseToken, "idle", null, manual);
+    expect(value.sync.nextRunAt).toBe("2026-10-22T13:17:00.000Z");
+    value.sync.intervalDays = 14;
+    expect(nextWorkerRun(value, manual)).toBe("2026-10-29T13:17:00.000Z");
+    value.sync.intervalDays = 1;
+    expect(nextWorkerRun(value, manual)).toBe("2026-10-16T13:17:00.000Z");
+  });
+
+  it.each([0, 366, 1.5, Number.NaN])("rejects invalid interval %s", (intervalDays) => {
+    expect(() => nextWorkerRun(state({ intervalDays }), now)).toThrow("interval");
+    expect(() => workerClaimAvailable(state({ intervalDays }), now)).toThrow("interval");
+  });
+
+  it("covers long gaps in finite chunks and resumes after persisted state reload", () => {
+    let value = state({ intervalDays: 90, coverageThrough: "2026-07-01", lookbackDays: 7 });
+    value.lastScheduledDate = "2026-07-02";
+    const periods = [];
+    let attempt = now;
+    for (let index = 0; index < 4; index++) {
+      const claim = claimWorker(value, `github:chunk${index}`, attempt, ids);
+      expect(claim).not.toBeNull();
+      periods.push(claim?.period);
+      assertWorkerLease(value, ids.leaseToken, attempt).imported = true;
+      finishWorker(value, ids.leaseToken, "idle", null, attempt);
+      // Persisted cursor is the authority across process/server restarts.
+      value = JSON.parse(JSON.stringify(value));
+      if (index < 3) {
+        expect(workerClaimAvailable(value, attempt)).toBe(false);
+        expect(value.sync.nextRunAt).toBe(new Date(attempt.getTime() + 3600000).toISOString());
+        attempt = new Date(attempt.getTime() + 3600000);
+      }
+    }
+    expect(periods).toEqual([
+      { from: "2026-07-02", to: "2026-08-01" },
+      { from: "2026-08-02", to: "2026-09-01" },
+      { from: "2026-09-02", to: "2026-10-02" },
+      { from: "2026-10-03", to: "2026-10-12" },
+    ]);
+    expect(value.sync.coverageThrough).toBe("2026-10-12");
+    expect(value.workerCatchup).toBeNull();
+    expect(value.sync.nextRunAt).toBe("2027-01-11T14:17:00.000Z");
+  });
+
+  it("keeps pending dates when paused or failed and advances only committed chunks", () => {
+    const value = state({ enabled: false, intervalDays: 7, coverageThrough: "2026-08-01" });
+    value.sync.command = "run";
+    value.sync.commandId = ids.commandId;
+    claimWorker(value, "manual:first", now, ids);
+    assertWorkerLease(value, ids.leaseToken, now).imported = true;
+    finishWorker(value, ids.leaseToken, "idle", null, now);
+    expect(value.sync.coverageThrough).toBe("2026-09-01");
+    expect(value.workerCatchup?.nextFrom).toBe("2026-09-02");
+    expect(value.sync.nextRunAt).toBeNull();
+    const nextHour = new Date(now.getTime() + 3600000);
+    expect(workerClaimAvailable(value, nextHour)).toBe(false);
+    value.sync.enabled = true;
+    const claim = claimWorker(value, "resume:next", nextHour, ids);
+    finishWorker(value, ids.leaseToken, "failed", "Download failed", nextHour);
+    expect(value.sync.coverageThrough).toBe("2026-09-01");
+    expect(value.workerCatchup?.nextFrom).toBe(claim?.period.from);
+    expect(value.workerCatchup?.nextClaimAt).toBeNull();
+    expect(workerClaimAvailable(value, new Date(nextHour.getTime() + 3600000))).toBe(false);
+    expect(value.sync.nextRunAt).toBe("2026-10-20T13:17:00.000Z");
+  });
+
+  it("does not re-download a chunk already committed when its worker lease expires", () => {
+    const value = state({ coverageThrough: "2026-08-01" });
+    claimWorker(value, "interrupted", now, ids);
+    assertWorkerLease(value, ids.leaseToken, now).imported = true;
+    recoverExpiredLaborLease(value, new Date(now.getTime() + LABOR_WORKER_LEASE_MS));
+    expect(value.sync.coverageThrough).toBe("2026-09-01");
+    expect(value.workerCatchup?.nextFrom).toBe("2026-09-02");
+    expect(value.sync.lastSuccessAt).toBeNull();
+    expect(workerClaimAvailable(value, new Date(now.getTime() + 3600000))).toBe(false);
+  });
+
+  it("includes newly completed dates on a fresh manual catch-up request without replaying committed chunks", () => {
+    const value = state({ enabled: false, intervalDays: 7, coverageThrough: "2026-08-01" });
+    value.sync.command = "run";
+    value.sync.commandId = ids.commandId;
+    claimWorker(value, "manual:first", now, ids);
+    assertWorkerLease(value, ids.leaseToken, now).imported = true;
+    finishWorker(value, ids.leaseToken, "idle", null, now);
+    expect(value.workerCatchup?.to).toBe("2026-10-12");
+    value.sync.command = "run";
+    value.sync.commandId = ids.commandId;
+    const later = new Date("2026-10-20T13:17:00Z");
+    expect(claimWorker(value, "manual:later", later, ids)?.period).toEqual({
+      from: "2026-09-02",
+      to: "2026-10-02",
+    });
+    expect(value.workerCatchup?.to).toBe("2026-10-19");
   });
 
   it("extends only the current unexpired lease and refuses stale worker heartbeats", () => {

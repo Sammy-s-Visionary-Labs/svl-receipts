@@ -35,7 +35,93 @@ Inspected the signed-in Supercrew web application on September 29, 2026:
   Employee ID. **Unpaid Break** rows contain deductions and missing clock times;
   the importer must preserve them separately from positive job time.
 
+## Run the shared local app and queue worker
+
+For the local site backed by the shared development database, run this from the
+repository root:
+
+```sh
+npm run dev:labor
+```
+
+`npm run dev` is an alias for this command at the repository root. From a terminal
+in another directory, supply the path to the intended checkout:
+
+```sh
+npm --prefix "/absolute/path/to/receipt-app" run dev:labor
+```
+
+The environment-file paths are relative to the repository root, so do not run
+the raw `node --env-file=.env.local` command from a different folder. The local
+website uses Next's supported Webpack development mode to avoid the observed
+Turbopack empty-update reload loop. Production builds keep their existing bundler.
+
+This starts the website at `http://127.0.0.1:3150` when needed, waits for its
+authenticated worker endpoint, and then starts the queue worker. If a matching
+site is already running, it reuses that site. The supervisor only stops the
+processes it started.
+
+Both commands in this section load the ignored `apps/web/.env.local` and
+`apps/web/.env.labor-stage` files. Keep their credentials private. The shared
+development configuration needs `LABOR_ENABLED=1`,
+`LABOR_DEVELOPMENT_ENABLED=1`, `LABOR_PERSISTENCE=supabase`, and the intended
+development Supabase settings. Configure the worker in that private environment:
+
+- `LABOR_APP_URL=http://127.0.0.1:3150`.
+- `LABOR_WORKER_TOKEN`: at least 32 characters, matching the website's private
+  worker credential.
+- `LABOR_SESSION_ENCRYPTION_KEY`: exactly 64 hexadecimal characters, matching
+  the key used to encrypt the connected Supercrew session.
+- `SUPERCREW_REPORT_DOWNLOADS_APPROVED=1`: permits the normal report-download
+  scope already approved by the user.
+
+The supervisor rejects non-loopback destinations, invalid credentials or
+encryption keys, and a missing approved-download flag before starting anything.
+It starts no worker until the website responds with the authenticated shared
+worker contract. A mismatched token fails immediately; an unavailable website
+has a bounded startup wait.
+
+When the website is already running and only the worker is needed, use:
+
+```sh
+npm run dev:labor-watch
+```
+
+This command waits for the configured existing website and never starts another
+website. Keep the terminal open while using **Queue download**. A queued manual
+request can run while recurring downloads are paused. Starting the worker can
+therefore immediately claim an existing request. Neither command enables the
+recurring schedule or sends labor hours to Housecall.
+
+Press Ctrl+C to stop the supervisor. It stops its worker first, then its own
+website; a website it reused remains open. These commands do not install an OS
+background service. If this local worker exits unexpectedly, its website stays
+available and the terminal explains that this worker is not running. Fix the
+reported worker issue and restart the command to resume it; the supervisor does
+not repeatedly restart a failed worker. Do not run a second worker beside them. If the Supercrew
+session expires, stop the worker and follow the normal isolated connection
+setup in the [hosted worker guide](../scripts/supercrew-worker/README.md).
+Chromium must already be installed for the pinned Playwright version. The hosted
+GitHub finite workflow remains a separate deployment option using the same
+lease-protected paired-import protocol.
+
+Shared development and production use the server-owned recurrence and catch-up
+rules in the [hosted worker guide](../scripts/supercrew-worker/README.md#recurrence-and-missed-dates):
+daily, weekly, biweekly, or a custom 1–365 calendar-day interval. Saving settings
+preserves the paused/enabled state. Missing dates since the last verified paired
+coverage are collected in resumable batches of at most 31 days, independently
+of the 1–31-day recent correction window. While paused, one explicit queued
+download claims one batch; the app shows remaining dates until the manager queues
+another batch or enables recurring downloads.
+
 ## Run the local development worker
+
+This older flow uses the filesystem development ledger and its isolated browser
+profile on port 3145. Use the shared commands above for the shared database;
+the legacy `dev:labor-worker` and `dev:labor-once` commands do not supply shared
+worker leases or coverage-aware catch-up. Their recurrence support only downloads
+the configured recent window, so they must not be used as the production path
+for intervals longer than that window.
 
 The Notes Report interface was inspected on October 1. It exposes Job,
 Notetaker, Notes For, Note Type and Search filters. Acquisition clears all
@@ -45,10 +131,11 @@ Excel omits Note Type and period metadata, so acquisition scope and requested
 dates travel with the paired upload. Mixed manual uploads require separate
 daily-comment and date verification in the development app.
 
-Start the local development receipt app first. The default worker destination
-is `http://127.0.0.1:3145`; public/production URLs, credentials in URLs, paths,
-query strings and redirects are rejected. Both app and worker need the same
-private `LABOR_WORKER_TOKEN` of at least 32 characters.
+Start the local development receipt app first. Keep this legacy workflow on its
+default loopback destination, `http://127.0.0.1:3145`. Shared deployed endpoints
+require the hosted worker's lease protocol. Credentials in URLs, paths, query
+strings and redirects are rejected. Both app and worker need the same private
+`LABOR_WORKER_TOKEN` of at least 32 characters.
 
 ```sh
 npx playwright install chromium
@@ -83,15 +170,18 @@ npm run dev:labor-once
 ```
 
 Only one worker process may own this development profile. A second process is
-blocked by `.local/labor-worker/worker.lock`. If a worker was killed abruptly,
-verify it is no longer running before removing its stale lock.
+blocked by `.local/labor-worker/worker.lock`. The worker can reclaim a lock only
+when its recorded owner is confirmed absent. A live, unverifiable, malformed or
+actively recovering lock remains protected and produces a specific diagnostic.
+Do not delete a lock merely to bypass that check; stop the owning worker first.
 
 ## Scheduling, ingestion and status
 
 `--watch` polls the local development worker endpoint every 15 seconds. The app's
-sync configuration controls enablement, hour, time zone and lookback. Defaults
-are 6 a.m. America/New_York and the previous 14 completed calendar dates (with
-configuration limited to 1–31 days). Automatic attempts begin only after a
+sync configuration controls enablement, interval, hour, time zone and lookback.
+Defaults are daily at 6 a.m. America/New_York and the previous 14 completed
+calendar dates. Recurrence accepts 1–365 days; this legacy flow's lookback remains
+limited to 1–31 days. Automatic attempts begin only after a
 successful isolated connection records `connectedAt` locally. A newly started
 worker preserves the app's `not_connected` state and does not attempt exports.
 Expired login needs another connection. If the worker first connects after the
@@ -103,9 +193,10 @@ local hour and time zone. Paused, unconnected or expired-login states show no
 scheduled timestamp. Spring and fall transitions use the next actual local
 schedule occurrence rather than a fixed UTC offset.
 
-The worker records a scheduled day when the attempt starts. A failed login or
-download needs attention or a new **Download now** action; it does not re-export
-every poll. Command IDs are consumed locally before execution, preventing an
+The worker records the local date when an attempt starts. A failed download
+consumes the configured interval; it can be retried by a new **Download now**
+action, and does not re-export every poll. A successful manual run restarts the
+interval. An expired login needs reconnection. Command IDs are consumed locally before execution, preventing an
 uncertain heartbeat from repeatedly executing the same command.
 
 All interface failures are bounded: exact-date selection is verified, filters

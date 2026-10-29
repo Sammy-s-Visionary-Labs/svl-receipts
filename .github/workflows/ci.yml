@@ -17,6 +17,8 @@ jobs:
       - run: npm run typecheck
       - run: npm run lint
       - run: npm test
+      - name: Check download worker and local startup behavior
+        run: npm run test:labor-worker
       - name: Check retained RA-5 synthetic fixture evidence without provider calls
         run: npm run test:ra5:fixtures
       - run: npm run build:web
@@ -62,6 +64,13 @@ jobs:
         run: npm run test:email:concurrency
         env:
           SVL_APPLIED_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+      - name: Check concurrent labor persistence and role changes
+        run: node scripts/labor-persistence-concurrency.mjs
+        env:
+          SVL_APPLIED_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+          SVL_LABOR_PERSISTENCE_QA: isolated-disposable
+      - name: Reset disposable ledger before independent approval races
+        run: npm run db:reset
       - name: Check concurrent labor approvals, manual sends and dispatch expiry
         run: node scripts/labor-approval-concurrency.mjs
         env:

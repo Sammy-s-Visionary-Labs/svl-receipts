@@ -31,6 +31,7 @@ import {
   markSupabaseLaborApprovalDispatch,
   reconcileSupabaseLaborApproval,
 } from "./approval-persistence";
+import { laborDestinationAllowed } from "./housecall-destination";
 
 const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
 const sha256 = /^[a-f0-9]{64}$/;
@@ -53,13 +54,15 @@ type Dependencies = {
 /** Separate from receipt exports: enabling receipts must never authorize labor writes. */
 export function laborApprovalCapability(
   env: Readonly<Record<string, string | undefined>> = process.env,
+  jobId?: string,
 ) {
   const config = housecallConfiguration(env);
   const sendingEnabled =
     env.LABOR_HOUSECALL_SEND_ENABLED === "1" &&
     config.readsEnabled &&
     config.allJobs &&
-    config.configured;
+    config.configured &&
+    laborDestinationAllowed(env, jobId);
   return {
     supported: true,
     sendingEnabled,
@@ -70,15 +73,21 @@ export function laborApprovalCapability(
 }
 
 function providerClient(jobId: string, deps: Dependencies): HousecallClient {
-  if (deps.client) return deps.client();
   const env = deps.env ?? process.env;
+  if (!laborDestinationAllowed(env, jobId))
+    throw new AuthHttpError(
+      403,
+      "labor_destination_blocked",
+      "This job is outside the configured labor test destinations. Nothing was sent.",
+    );
+  if (deps.client) return deps.client();
   const config = housecallConfiguration(env);
   if (!config.readsEnabled || !config.allJobs || !config.configured)
     throw new AuthHttpError(503, "housecall_unavailable", "Housecall reads are not configured.");
   return createHousecallClient({
     apiKey: env.HOUSECALL_API_KEY ?? "",
     allowedReadJobIds: [jobId],
-    allowedWriteJobIds: laborApprovalCapability(env).sendingEnabled ? [jobId] : [],
+    allowedWriteJobIds: laborApprovalCapability(env, jobId).sendingEnabled ? [jobId] : [],
     correlationId: `labor-${crypto.randomUUID()}`,
   });
 }
@@ -347,8 +356,11 @@ async function history(
       record.status === "sent" && !current
         ? "Source data changed after sending. Review a correction; these hours cannot be sent again automatically."
         : record.lastError,
-    canSend: mutable && current && laborApprovalCapability(env).sendingEnabled,
-    canVerify: uncertain,
+    canSend:
+      mutable &&
+      current &&
+      laborApprovalCapability(env, record.snapshot.housecallJobId).sendingEnabled,
+    canVerify: uncertain && laborDestinationAllowed(env, record.snapshot.housecallJobId),
     canRevoke: mutable || record.status === "stale",
   };
 }
@@ -362,7 +374,7 @@ export async function loadLaborApprovalWorkspace(
   const { preview } = await review(context, input, env);
   const records = context.storageRevision === null ? [] : await (deps.store ?? store).list();
   return {
-    capability: laborApprovalCapability(env),
+    capability: laborApprovalCapability(env, preview.housecallJobId),
     preview,
     approvals: await Promise.all(
       records
@@ -398,6 +410,18 @@ async function frozenWrite(record: LaborApprovalRecord): Promise<PreparedMateria
 
 function safeError(error: unknown): string {
   return error instanceof HousecallError ? `housecall_${error.code}` : "labor_send_interrupted";
+}
+
+/** Readback adoption needs the same immutable customer binding as a new write. */
+async function reconcileForCustomer(
+  client: HousecallClient,
+  record: LaborApprovalRecord,
+  write: PreparedMaterialWrite,
+) {
+  const job = await client.getJob(record.snapshot.housecallJobId);
+  if (job.id !== record.snapshot.housecallJobId || job.customerId !== record.snapshot.customerId)
+    throw new HousecallError("unsafe_destination");
+  return client.reconcileWrite(write);
 }
 
 export async function laborApprovalAction(
@@ -465,7 +489,7 @@ export async function laborApprovalAction(
       throw new Error("Only an uncertain submission needs Housecall verification.");
     let evidence: Awaited<ReturnType<HousecallClient["reconcileWrite"]>>;
     try {
-      evidence = await client.reconcileWrite(write);
+      evidence = await reconcileForCustomer(client, record, write);
     } catch {
       return { approval: await db.reconcile(record.id, { status: "unknown" }, actorId) };
     }
@@ -500,7 +524,7 @@ export async function laborApprovalAction(
   let dispatched = false;
   try {
     // Reconcile first even on a first send: a matching reference must never be appended twice.
-    const existing = await client.reconcileWrite(write);
+    const existing = await reconcileForCustomer(client, record, write);
     const guard = await db.dispatch(...args);
     if (!guard.allowed)
       throw new AuthHttpError(
@@ -533,7 +557,7 @@ export async function laborApprovalAction(
       expectedCustomerId: record.snapshot.customerId,
       requestHash: write.requestHash,
     });
-    const verified = await client.reconcileWrite(write);
+    const verified = await reconcileForCustomer(client, record, write);
     return {
       approval: await db.finish(
         ...args,

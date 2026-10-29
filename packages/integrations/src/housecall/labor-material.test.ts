@@ -6,7 +6,7 @@ import {
   type LaborMaterialTotalCostInput,
   prepareLaborMaterialWrite,
 } from "./labor-material";
-import { HOUSECALL_ORIGIN, verifyPreparedHousecallWrite } from "./payloads";
+import { HOUSECALL_ORIGIN, prepareMaterialWrite, verifyPreparedHousecallWrite } from "./payloads";
 import type { HousecallWritePermit, PreparedMaterialWrite } from "./types";
 
 const NOW = Date.parse("2026-10-01T12:00:00Z");
@@ -267,6 +267,56 @@ describe("labor materials use the existing bounded permits and exact reconciliat
     ).rejects.toMatchObject({ code: "unsafe_destination" });
     expect(transport).toHaveBeenCalledTimes(1);
     expect(transport.mock.calls[0]?.[1]).toMatchObject({ method: "GET" });
+  });
+
+  it("keeps receipt and labor appends independent and leaves unrelated material rows untouched", async () => {
+    const labor = await prepareLaborMaterialWrite(totalCostInput());
+    const receipt = await prepareMaterialWrite({
+      jobId: labor.jobId,
+      intentId: "TEST_RECEIPT_INTENT",
+      receiptId: "TEST_RECEIPT",
+      receiptLineId: "TEST_LINE",
+      description: "TEST receipt supplies",
+      quantity: 2,
+      unitCostCents: 1234,
+      formatVersion: 3,
+    });
+    const unrelated = {
+      uuid: "TEST_EXISTING",
+      name: "Existing materials",
+      description: "Original unrelated row",
+      part_number: "ORIGINAL",
+      quantity: 3,
+      unit_cost: 4567,
+    };
+    const rows = [structuredClone(unrelated)];
+    // This fixture models the published append-without-uuid contract. It proves
+    // our request isolation, not the remote provider's concurrency guarantees.
+    const transport = vi.fn(async (url: string, init: RequestInit) => {
+      if (init.method === "PUT") {
+        const payload = JSON.parse(String(init.body));
+        expect(payload.job_input_materials).toHaveLength(1);
+        expect(payload.job_input_materials[0]).not.toHaveProperty("uuid");
+        expect(payload.job_input_materials[0].part_number).not.toBe(unrelated.part_number);
+        rows.push({ uuid: `TEST_CREATED_${rows.length}`, ...payload.job_input_materials[0] });
+        return json({ job_input_materials: rows });
+      }
+      if (url.endsWith("/job_input_materials")) return json({ job_input_materials: rows });
+      return json(job());
+    });
+    const adapter = client(transport, [labor.jobId]);
+    await Promise.all([
+      adapter.executePreparedWrite(labor, permit(labor, { approvalId: "TEST_LABOR_APPROVAL" })),
+      adapter.executePreparedWrite(
+        receipt,
+        permit(receipt, { approvalId: "TEST_RECEIPT_APPROVAL" }),
+      ),
+    ]);
+    expect(rows).toHaveLength(3);
+    expect(rows[0]).toEqual(unrelated);
+    expect(await adapter.reconcileWrite(labor)).toMatchObject({ status: "found" });
+    expect(await adapter.reconcileWrite(receipt)).toMatchObject({ status: "found" });
+    expect(transport.mock.calls.filter((call) => call[1].method === "PUT")).toHaveLength(2);
   });
 
   it("detects missing or conflicting provider values and duplicate references without resending", async () => {

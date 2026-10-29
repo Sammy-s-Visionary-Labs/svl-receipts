@@ -8,13 +8,7 @@ import styles from "../labor-hours/labor.module.css";
 import { LaborApprovalWorkspace } from "../labor-hours/labor-approval-workspace";
 import { hours, localTime, readApi, shortDate, sourceMoney } from "../labor-hours/labor-view";
 import { Icon } from "../manager/icons";
-import { resolveJobSelection } from "./job-view";
-
-function receiptDate(receipt: JobReceiptActivity) {
-  const value = new Date(receipt.submittedAt);
-  if (Number.isNaN(value.getTime())) return "";
-  return value.toLocaleDateString("en-CA", { timeZone: "America/New_York" });
-}
+import { filterJobActivity, resolveJobSelection } from "./job-view";
 
 export function JobsDashboard() {
   const [data, setData] = useState<JobsDashboardData | null>(null);
@@ -52,8 +46,14 @@ export function JobsDashboard() {
     };
   }, [load]);
 
+  const activity = filterJobActivity(
+    data?.jobs ?? [],
+    data?.allocation.entries ?? [],
+    data?.unassignedReceipts ?? [],
+    { from, to, worker },
+  );
   const query = search.trim().toLocaleLowerCase();
-  const visibleJobs = (data?.jobs ?? []).filter(
+  const visibleJobs = activity.jobs.filter(
     (job) =>
       !query ||
       [job.name, job.address, job.housecallJobId ?? ""].some((value) =>
@@ -71,27 +71,14 @@ export function JobsDashboard() {
   const selectedAllocations = (data?.allocation.entries ?? []).filter(
     (entry) => entry.status === "allocated" && entry.job?.key === selected?.key,
   );
-  const entries = selectedAllocations.filter(
-    (entry) =>
-      (!worker || entry.workerName === worker) &&
-      (!from || entry.date >= from) &&
-      (!to || entry.date <= to),
+  const entries = activity.allocations.filter(
+    (entry) => entry.status === "allocated" && entry.job?.key === selected?.key,
   );
   const dailyGroups = allocatedWorkerDays(entries);
-  const pending = (data?.allocation.entries ?? []).filter(
-    (entry) =>
-      entry.status === "pending" &&
-      (!worker || entry.workerName === worker) &&
-      (!from || entry.date >= from) &&
-      (!to || entry.date <= to),
-  );
-  const filteredReceipts = (receipts: JobReceiptActivity[]) =>
-    receipts.filter((receipt) => {
-      const date = receiptDate(receipt);
-      return (!from || date >= from) && (!to || date <= to);
-    });
-  const receipts = filteredReceipts(selected?.receipts ?? []);
-  const unassignedReceipts = filteredReceipts(data?.unassignedReceipts ?? []);
+  const pending = activity.allocations.filter((entry) => entry.status === "pending");
+  const receipts = activity.jobs.find((job) => job.key === selected?.key)?.receipts ?? [];
+  const unassignedReceipts = activity.unassignedReceipts;
+  const pendingHours = pending.reduce((sum, entry) => sum + entry.pendingHours, 0);
   const filteredHours = entries.reduce((sum, entry) => sum + entry.allocatedHours, 0);
   const approvalDates = selectedAllocations.map((entry) => entry.date).sort();
   const sourceDates = (data?.entries ?? []).map((entry) => entry.date).sort();
@@ -158,22 +145,22 @@ export function JobsDashboard() {
           <div className={styles.metrics}>
             <div className={styles.metric}>
               <span>Jobs with activity</span>
-              <strong>{data.jobs.length}</strong>
+              <strong>{activity.summary.jobCount}</strong>
               <small>Receipts or imported hours</small>
             </div>
             <div className={styles.metric}>
               <span>Allocated job hours</span>
-              <strong>{hours(data.allocation.totals.allocatedHours)}</strong>
+              <strong>{hours(activity.summary.allocatedHours)}</strong>
               <small>Before daily lunch</small>
             </div>
             <div className={styles.metric}>
               <span>Assigned receipts</span>
-              <strong>{data.jobs.reduce((sum, job) => sum + job.receiptCount, 0)}</strong>
+              <strong>{activity.summary.assignedReceiptCount}</strong>
               <small>Across job groupings</small>
             </div>
             <div className={styles.metric}>
               <span>Unassigned receipts</span>
-              <strong>{data.unassignedReceipts.length}</strong>
+              <strong>{activity.summary.unassignedReceiptCount}</strong>
               <small>Awaiting a job assignment</small>
             </div>
           </div>
@@ -217,16 +204,19 @@ export function JobsDashboard() {
             send hours. Sending requires job-hour approval and a separate confirmation. Worker-day
             lunch is separate from job hours.
           </p>
-          {data.allocation.totals.pendingHours > 0 && (
+          {pendingHours > 0 && (
             <p className={styles.warnings}>
-              {hours(data.allocation.totals.pendingHours)} hours await allocation review.{" "}
+              {hours(pendingHours)} hours await allocation review.{" "}
               <Link className={styles.textButton} href="/labor-hours?allocation=pending">
                 Review unresolved hours
               </Link>
             </p>
           )}
           <div className={styles.filterActions}>
-            <span>Date filters apply to work dates and receipt submission dates.</span>
+            <span>
+              Summary cards and job groups use the selected work dates and receipt submission dates.
+              Worker filters apply to hours.
+            </span>
             <button
               className={styles.textButton}
               type="button"
@@ -253,7 +243,7 @@ export function JobsDashboard() {
                 <p>{visibleJobs.length}</p>
               </div>
               {visibleJobs.length === 0 ? (
-                <div className={styles.empty}>No jobs found.</div>
+                <div className={styles.empty}>No jobs with activity in these filters.</div>
               ) : (
                 visibleJobs.map((job) => (
                   <button
@@ -529,7 +519,7 @@ export function JobsDashboard() {
               <p>{unassignedReceipts.length} in selected dates</p>
             </div>
             {unassignedReceipts.length === 0 ? (
-              <div className={styles.empty}>No unassigned receipts in the connected data.</div>
+              <div className={styles.empty}>No unassigned receipts in the selected dates.</div>
             ) : (
               <ReceiptTable receipts={unassignedReceipts} />
             )}

@@ -313,6 +313,19 @@ export async function getSupabaseLaborOriginal(id: string): Promise<Uint8Array |
   return new Uint8Array(await data.arrayBuffer());
 }
 
+/** Short-lived private download avoids the host's response-size limit for preserved workbooks. */
+export async function createSupabaseLaborOriginalDownloadUrl(
+  id: string,
+  filename: string,
+): Promise<string> {
+  target();
+  const { data, error } = await createServiceRoleClient()
+    .storage.from(LABOR_ORIGINALS_BUCKET)
+    .createSignedUrl(originalKey(id), 60, { download: filename });
+  if (error || !data?.signedUrl) throw new Error("Labor original could not be loaded");
+  return data.signedUrl;
+}
+
 /** The caller encrypts the session before upload; plaintext credentials never enter this adapter. */
 export async function putSupabaseLaborEncryptedWorkerSession(
   bytes: Uint8Array,

@@ -10,7 +10,9 @@ import {
   validateWorkbookBytes,
 } from "./core.mjs";
 
-const DATE_BUTTON = /^[A-Z][a-z]{2} \d{1,2}, \d{4}(?: - [A-Z][a-z]{2} \d{1,2}, \d{4})?$/;
+// The picker briefly clears its selected range when the existing start is clicked.
+const DATE_BUTTON =
+  /^(?:[A-Z][a-z]{2} \d{1,2}, \d{4}(?: - [A-Z][a-z]{2} \d{1,2}, \d{4})?|Select date range)$/;
 const DAILY_NOTE_OPTION = "Daily Timesheet Note Not associated with a job";
 
 function reportFilterButton(panel, name) {

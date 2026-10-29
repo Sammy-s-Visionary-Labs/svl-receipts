@@ -10,6 +10,7 @@ import {
   getSession,
   loadClaim,
   preflight,
+  publicWorkerFailureMessage,
   runLeasedImport,
   safeWorkerError,
   saveClaim,
@@ -17,6 +18,32 @@ import {
   workflowRunId,
 } from "./hosted.mjs";
 import { decryptSession, encryptSession, MAX_SESSION_BYTES } from "./session.mjs";
+import { WorkerLockError } from "./worker.mjs";
+
+test("public startup diagnostics explain known local lock failures without provider or secret details", () => {
+  for (const code of [
+    "WORKER_LOCK_ACTIVE",
+    "WORKER_LOCK_UNVERIFIED",
+    "WORKER_LOCK_RECOVERY_BUSY",
+    "WORKER_LOCK_SETUP_FAILED",
+  ]) {
+    const error = new WorkerLockError(code);
+    const message = publicWorkerFailureMessage(error);
+    assert.match(message, /^Supercrew worker could not start:/);
+    assert.ok(message.includes(error.message));
+  }
+  const privateDetail = "TEST-SECRET customer report.xlsx https://signed.example?token=TEST";
+  const providerError = Object.assign(new Error(privateDetail), { code: "WORKER_LOCK_ACTIVE" });
+  const generic = publicWorkerFailureMessage(providerError);
+  assert.match(generic, /Check the receipt app's Supercrew status/);
+  assert.ok(!generic.includes(privateDetail));
+  for (const code of ["EACCES", "EPERM", "ENOSPC", "EDQUOT"])
+    assert.ok(
+      !publicWorkerFailureMessage(Object.assign(new Error(privateDetail), { code })).includes(
+        privateDetail,
+      ),
+    );
+});
 
 const state = {
   cookies: [
@@ -303,6 +330,91 @@ test("lease loss and finite deadline stop further import/session writes and clos
     } finally {
       await f.cleanup();
     }
+  }
+});
+
+test("cancellation waits for a late browser launch to close and never imports", async () => {
+  const f = await fixture();
+  const controller = new AbortController();
+  let entered, release;
+  const starting = new Promise((resolve) => {
+    entered = resolve;
+  });
+  const resume = new Promise((resolve) => {
+    release = resolve;
+  });
+  try {
+    const running = runLeasedImport(f.config, lease, {
+      ...f.operations,
+      signal: controller.signal,
+      createBrowser: async (...args) => {
+        entered();
+        await resume;
+        return f.operations.createBrowser(...args);
+      },
+    });
+    let settled = false;
+    running.then(
+      () => {
+        settled = true;
+      },
+      () => {
+        settled = true;
+      },
+    );
+    await starting;
+    controller.abort(new Error("SYNTHETIC-SECRET-ABORT-REASON"));
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    assert.equal(settled, false);
+    release();
+    await assert.rejects(running, /worker was stopped/);
+    assert.equal(f.events.includes("browser:closed"), true);
+    assert.equal(f.events.includes("context:closed"), true);
+    assert.equal(f.events.includes("navigate"), false);
+    assert.equal(f.events.includes("import"), false);
+    assert.equal(f.events.includes("session:put"), false);
+    assert.equal(f.finishes.length, 1);
+    assert.equal(f.finishes[0].status, "failed");
+    assert.equal(f.finishes[0].lastError.includes("SYNTHETIC-SECRET"), false);
+  } finally {
+    release?.();
+    await f.cleanup();
+  }
+});
+
+test("cancellation after import preserves the history warning and skips session publication", async () => {
+  const f = await fixture();
+  const controller = new AbortController();
+  let entered, release;
+  const capturing = new Promise((resolve) => {
+    entered = resolve;
+  });
+  const resume = new Promise((resolve) => {
+    release = resolve;
+  });
+  f.resources.context.storageState = async () => {
+    entered();
+    await resume;
+    return state;
+  };
+  try {
+    const running = runLeasedImport(f.config, lease, {
+      ...f.operations,
+      signal: controller.signal,
+    });
+    await capturing;
+    controller.abort();
+    release();
+    await assert.rejects(running, /Reports were imported; review import history/);
+    assert.equal(f.events.filter((event) => event === "import").length, 1);
+    assert.equal(f.events.includes("session:put"), false);
+    assert.equal(f.finishes.length, 1);
+    assert.equal(f.finishes[0].status, "failed");
+    assert.match(f.finishes[0].lastError, /Reports were imported/);
+    assert.equal(f.events.includes("browser:closed"), true);
+  } finally {
+    release?.();
+    await f.cleanup();
   }
 });
 

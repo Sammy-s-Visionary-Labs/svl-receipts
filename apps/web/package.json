@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev --webpack",
     "build": "next build",
     "start": "next start",
     "test": "vitest run",
@@ -17,7 +17,7 @@
     "@svl/integrations": "*",
     "html-to-text": "10.0.1",
     "mailparser": "3.9.28",
-    "next": "^16.4.0",
+    "next": "16.4.2",
     "pdfjs-dist": "6.3.289",
     "react": "19.2.8",
     "react-dom": "19.2.8",
@@ -30,7 +30,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "^16.4.0",
+    "eslint-config-next": "16.4.2",
     "typescript": "^5",
     "vitest": "^3.2.4"
   }

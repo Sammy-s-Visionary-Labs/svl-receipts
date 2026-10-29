@@ -2,7 +2,11 @@
 export async function dispatchLaborWorker(): Promise<{ dispatched: boolean; message: string }> {
   const token = process.env.LABOR_GITHUB_DISPATCH_TOKEN;
   if (!token)
-    return { dispatched: false, message: "Download queued for the next hourly worker check." };
+    return {
+      dispatched: false,
+      message:
+        "Download request saved. No immediate worker trigger is configured. A running worker must check for the queued request.",
+    };
   const repository = process.env.LABOR_GITHUB_REPOSITORY;
   const ref = process.env.LABOR_GITHUB_REF ?? "master";
   if (
@@ -12,7 +16,8 @@ export async function dispatchLaborWorker(): Promise<{ dispatched: boolean; mess
   )
     return {
       dispatched: false,
-      message: "Download queued. The immediate worker trigger needs configuration.",
+      message:
+        "Download request saved. The immediate worker trigger needs configuration. A running worker must check for the queued request.",
     };
   try {
     const response = await fetch(
@@ -31,13 +36,17 @@ export async function dispatchLaborWorker(): Promise<{ dispatched: boolean; mess
       },
     );
     if (response.status === 204)
-      return { dispatched: true, message: "Download queued. The worker will start shortly." };
+      return {
+        dispatched: true,
+        message:
+          "Download request saved. Worker launch requested; import history updates after the worker verifies both reports.",
+      };
   } catch {
-    /* Keep the durable command for the next scheduled check. */
+    /* Keep the durable command for a configured worker to claim. */
   }
   return {
     dispatched: false,
     message:
-      "Download queued for the next hourly worker check; the immediate trigger is unavailable.",
+      "Download request saved. The immediate worker trigger is unavailable. A running worker must check for the queued request.",
   };
 }

@@ -1,8 +1,8 @@
 import { AuthHttpError } from "@/lib/auth/guards";
-import { isLaborWorker, requireLaborDevelopment } from "@/lib/labor/access";
+import { isLaborWorker, requireLaborDevelopment, requireLaborWorker } from "@/lib/labor/access";
 import type { LaborSyncState } from "@/lib/labor/contract";
 import { boundedJson, laborError, laborResponse } from "@/lib/labor/http";
-import { loadLaborDashboard, updateLaborWorker } from "@/lib/labor/store";
+import { loadLaborWorkerPoll, updateLaborWorker } from "@/lib/labor/store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -13,8 +13,8 @@ function authorize(request: Request) {
 }
 export async function GET(request: Request) {
   try {
-    authorize(request);
-    return laborResponse({ sync: (await loadLaborDashboard()).sync });
+    requireLaborWorker(request);
+    return laborResponse(await loadLaborWorkerPoll());
   } catch (error) {
     return laborError(error);
   }

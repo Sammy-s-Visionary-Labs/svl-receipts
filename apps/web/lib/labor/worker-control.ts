@@ -16,6 +16,13 @@ export type LaborWorkerControlState = {
   sync: LaborSyncState;
   workerLease?: LaborWorkerLease | null;
   lastScheduledDate?: string | null;
+  workerCatchup?: LaborWorkerCatchup | null;
+};
+export type LaborWorkerCatchup = {
+  nextFrom: string;
+  to: string;
+  /** Null means wait for a new manual command or the next configured interval. */
+  nextClaimAt: string | null;
 };
 export type LaborWorkerClaim = {
   commandId: string;
@@ -42,8 +49,29 @@ export function workerCalendar(now: Date, timeZone: string) {
 
 function addDays(date: string, days: number) {
   const result = new Date(`${date}T12:00:00Z`);
+  if (
+    !/^\d{4}-\d{2}-\d{2}$/.test(date) ||
+    !Number.isFinite(result.getTime()) ||
+    result.toISOString().slice(0, 10) !== date
+  )
+    throw new Error("Invalid Supercrew schedule date");
   result.setUTCDate(result.getUTCDate() + days);
   return result.toISOString().slice(0, 10);
+}
+
+function nextScheduledDate(state: LaborWorkerControlState, now: Date) {
+  const { sync } = state;
+  if (!Number.isInteger(sync.hour) || sync.hour < 0 || sync.hour > 23)
+    throw new Error("Invalid Supercrew schedule hour");
+  const intervalDays = sync.intervalDays ?? 1;
+  if (!Number.isInteger(intervalDays) || intervalDays < 1 || intervalDays > 365)
+    throw new Error("Supercrew download interval must be 1–365 days");
+  const anchors = [];
+  if (state.lastScheduledDate) anchors.push(addDays(state.lastScheduledDate, 0));
+  if (sync.lastSuccessAt)
+    anchors.push(workerCalendar(new Date(sync.lastSuccessAt), sync.timeZone).date);
+  const latest = anchors.sort().at(-1);
+  return latest ? addDays(latest, intervalDays) : workerCalendar(now, sync.timeZone).date;
 }
 
 export function getClaimPeriod(sync: LaborSyncState, now: Date) {
@@ -53,26 +81,71 @@ export function getClaimPeriod(sync: LaborSyncState, now: Date) {
   return { from: addDays(today, -sync.lookbackDays), to: addDays(today, -1) };
 }
 
-/** The hosted gate runs at minute 17 UTC each hour and claims the first due local hour. */
+function catchupPeriod(state: LaborWorkerControlState, now: Date, refreshTarget: boolean) {
+  if (!state.workerCatchup) {
+    const rolling = getClaimPeriod(state.sync, now);
+    const afterCoverage = state.sync.coverageThrough
+      ? addDays(state.sync.coverageThrough, 1)
+      : rolling.from;
+    state.workerCatchup = {
+      nextFrom: afterCoverage < rolling.from ? afterCoverage : rolling.from,
+      to: rolling.to,
+      nextClaimAt: null,
+    };
+  } else if (refreshTarget) {
+    // A new explicit request or cadence retry also includes dates completed
+    // while this download was paused or awaiting attention.
+    const yesterday = addDays(workerCalendar(now, state.sync.timeZone).date, -1);
+    if (yesterday > state.workerCatchup.to) state.workerCatchup.to = yesterday;
+  }
+  const { nextFrom, to } = state.workerCatchup;
+  addDays(nextFrom, 0);
+  addDays(to, 0);
+  if (nextFrom > to || to >= workerCalendar(now, state.sync.timeZone).date)
+    throw new Error("Invalid Supercrew catch-up period");
+  const end = addDays(nextFrom, 30);
+  return { from: nextFrom, to: end < to ? end : to };
+}
+
+function commitWorkerCoverage(state: LaborWorkerControlState, lease: LaborWorkerLease) {
+  if (!lease.imported) return;
+  const previous = state.sync.coverageThrough;
+  if (previous) {
+    addDays(previous, 0);
+    if (lease.period.from > addDays(previous, 1))
+      throw new Error("Worker import would leave a gap in Supercrew coverage");
+  }
+  if (!previous || lease.period.to > previous) state.sync.coverageThrough = lease.period.to;
+  if (state.workerCatchup) {
+    state.workerCatchup.nextFrom = addDays(lease.period.to, 1);
+    if (state.workerCatchup.nextFrom > state.workerCatchup.to) state.workerCatchup = null;
+  }
+}
+
+function nextHourlyGate(now: Date) {
+  const next = new Date(now);
+  next.setUTCMinutes(17, 0, 0);
+  if (next <= now) next.setUTCHours(next.getUTCHours() + 1);
+  return next.toISOString();
+}
+
+/** The hosted gate runs at minute 17 UTC. Retain overdue dates for catch-up visibility. */
 export function nextWorkerRun(state: LaborWorkerControlState, now: Date) {
   const sync = state.sync;
   if (!sync.enabled || !["idle", "failed"].includes(sync.status)) return null;
-  if (!Number.isInteger(sync.hour) || sync.hour < 0 || sync.hour > 23)
-    throw new Error("Invalid Supercrew schedule hour");
-  const lastSuccessDate = sync.lastSuccessAt
-    ? workerCalendar(new Date(sync.lastSuccessAt), sync.timeZone).date
-    : null;
-  const candidate = new Date(now);
-  candidate.setUTCMinutes(17, 0, 0);
-  if (candidate <= now) candidate.setUTCHours(candidate.getUTCHours() + 1);
-  for (let hour = 0; hour < 72; hour++) {
+  if (state.workerCatchup?.nextClaimAt) {
+    if (!Number.isFinite(Date.parse(state.workerCatchup.nextClaimAt)))
+      throw new Error("Invalid Supercrew catch-up gate");
+    return state.workerCatchup.nextClaimAt;
+  }
+  const date = nextScheduledDate(state, now);
+  // Search the due civil date, including offset changes. This chooses the first
+  // repeated fall hour and the first real hour after a skipped spring hour.
+  const candidate = new Date(`${date}T00:17:00Z`);
+  candidate.setUTCHours(candidate.getUTCHours() - 14);
+  for (let hour = 0; hour < 53; hour++) {
     const local = workerCalendar(candidate, sync.timeZone);
-    if (
-      local.hour >= sync.hour &&
-      local.date !== state.lastScheduledDate &&
-      local.date !== lastSuccessDate
-    )
-      return candidate.toISOString();
+    if (local.date === date && local.hour >= sync.hour) return candidate.toISOString();
     candidate.setUTCHours(candidate.getUTCHours() + 1);
   }
   throw new Error("Could not determine the next Supercrew worker gate");
@@ -81,6 +154,8 @@ export function nextWorkerRun(state: LaborWorkerControlState, now: Date) {
 export function recoverExpiredLaborLease(state: LaborWorkerControlState, now: Date) {
   const lease = state.workerLease;
   if (!lease || Date.parse(lease.expiresAt) > now.getTime()) return false;
+  commitWorkerCoverage(state, lease);
+  if (state.workerCatchup) state.workerCatchup.nextClaimAt = null;
   state.workerLease = null;
   if (state.sync.commandId === lease.commandId) {
     state.sync.command = null;
@@ -94,6 +169,19 @@ export function recoverExpiredLaborLease(state: LaborWorkerControlState, now: Da
   return true;
 }
 
+/** Read-only polling hint. An expired lease needs one claim request to recover it. */
+export function workerClaimAvailable(state: LaborWorkerControlState, now: Date): boolean {
+  if (state.workerLease) return Date.parse(state.workerLease.expiresAt) <= now.getTime();
+  if (state.sync.status === "running" || state.sync.command === "connect") return false;
+  if (state.sync.command === "run") return true;
+  if (!state.sync.enabled || !["idle", "failed"].includes(state.sync.status)) return false;
+  if (state.workerCatchup?.nextClaimAt)
+    return Date.parse(state.workerCatchup.nextClaimAt) <= now.getTime();
+  const local = workerCalendar(now, state.sync.timeZone);
+  const date = nextScheduledDate(state, now);
+  return date < local.date || (date === local.date && local.hour >= state.sync.hour);
+}
+
 export function claimWorker(
   state: LaborWorkerControlState,
   runId: string,
@@ -104,27 +192,13 @@ export function claimWorker(
   if (!uuid.test(ids.commandId) || !uuid.test(ids.leaseToken))
     throw new Error("Invalid worker claim IDs");
   recoverExpiredLaborLease(state, now);
-  if (state.workerLease || state.sync.status === "running" || state.sync.command === "connect")
-    return null;
+  if (!workerClaimAvailable(state, now)) return null;
   const manual = state.sync.command === "run";
   const local = workerCalendar(now, state.sync.timeZone);
-  if (!manual) {
-    if (
-      !state.sync.enabled ||
-      !["idle", "failed"].includes(state.sync.status) ||
-      !Number.isInteger(state.sync.hour) ||
-      state.sync.hour < 0 ||
-      state.sync.hour > 23 ||
-      local.hour < state.sync.hour ||
-      state.lastScheduledDate === local.date ||
-      (state.sync.lastSuccessAt &&
-        workerCalendar(new Date(state.sync.lastSuccessAt), state.sync.timeZone).date === local.date)
-    )
-      return null;
-  }
   const commandId = manual ? state.sync.commandId : ids.commandId;
   if (!commandId || !uuid.test(commandId)) throw new Error("Invalid queued worker command ID");
-  const period = getClaimPeriod(state.sync, now);
+  const period = catchupPeriod(state, now, manual || !state.workerCatchup?.nextClaimAt);
+  if (state.workerCatchup) state.workerCatchup.nextClaimAt = null;
   state.workerLease = {
     commandId,
     leaseToken: ids.leaseToken,
@@ -134,7 +208,8 @@ export function claimWorker(
     expiresAt: new Date(now.getTime() + LABOR_WORKER_LEASE_MS).toISOString(),
     imported: false,
   };
-  // Any export attempt consumes automatic work for its day; manual retries stay explicit.
+  // Any export attempt consumes the interval, including failed/manual attempts.
+  // This prevents a failing download from restarting at every hourly gate.
   state.lastScheduledDate = local.date;
   state.sync.command = "run";
   state.sync.commandId = commandId;
@@ -181,6 +256,9 @@ export function finishWorker(
     throw new Error("Invalid worker error");
   if (status === "idle" && !lease.imported)
     throw new Error("Worker cannot report success before paired import commits");
+  commitWorkerCoverage(state, lease);
+  if (state.workerCatchup)
+    state.workerCatchup.nextClaimAt = status === "idle" ? nextHourlyGate(now) : null;
   state.sync.status = status;
   state.sync.lastError =
     status === "idle" ? null : (lastError ?? "Supercrew worker needs attention");

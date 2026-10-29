@@ -1,5 +1,15 @@
-import { unlinkSync } from "node:fs";
-import { chmod, mkdir, open, readFile, writeFile } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
+import {
+  closeSync,
+  constants,
+  fstatSync,
+  lstatSync,
+  openSync,
+  readSync,
+  unlinkSync,
+  writeFileSync,
+} from "node:fs";
+import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { pathToFileURL } from "node:url";
@@ -176,7 +186,7 @@ export async function ensurePrivateDirectories(config) {
   }
 }
 
-export async function connectSession(config, commandId) {
+export async function connectSession(config, commandId, state = {}) {
   await postHeartbeat(config, {
     status: "running",
     lastError: null,
@@ -197,7 +207,7 @@ export async function connectSession(config, commandId) {
     await postHeartbeat(config, {
       status: "idle",
       lastError: null,
-      nextRunAt: nextScheduledRun({ ...sync, status: "idle" }),
+      nextRunAt: nextScheduledRun({ ...sync, status: "idle" }, new Date(), state),
       ...(commandId ? { commandId } : {}),
     });
     console.log(
@@ -222,12 +232,16 @@ export function idleWorkerHeartbeat(sync, now, state) {
   return {
     status,
     lastError: status === "idle" ? null : (sync.lastError ?? null),
-    nextRunAt: state.connectedAt ? nextScheduledRun({ ...sync, status }, now) : null,
+    nextRunAt: state.connectedAt ? nextScheduledRun({ ...sync, status }, now, state) : null,
   };
 }
 
-export async function runImport(config, sync, commandId) {
+export async function runImport(config, sync, commandId, state = {}) {
   const attempt = new Date();
+  state.lastScheduledDate = calendarDate(attempt, sync?.timeZone).date;
+  // Persist before contacting the source so a failed or interrupted manual run
+  // cannot trigger another automatic export immediately after restart.
+  await saveSchedulerState(config, state);
   const interval = reportInterval(
     attempt,
     sync?.lookbackDays ?? 14,
@@ -261,7 +275,11 @@ export async function runImport(config, sync, commandId) {
       status: "idle",
       lastError: null,
       lastSuccessAt: success,
-      nextRunAt: nextScheduledRun({ ...sync, status: "idle" }, new Date(success)),
+      nextRunAt: nextScheduledRun(
+        { ...sync, status: "idle", lastSuccessAt: success },
+        new Date(success),
+        state,
+      ),
       ...(commandId ? { commandId } : {}),
     });
     console.log(
@@ -272,10 +290,11 @@ export async function runImport(config, sync, commandId) {
     await postHeartbeat(config, {
       status: error instanceof NeedsLoginError ? "needs_login" : "failed",
       lastError: safeError(error),
-      nextRunAt: nextScheduledRun({
-        ...sync,
-        status: error instanceof NeedsLoginError ? "needs_login" : "failed",
-      }),
+      nextRunAt: nextScheduledRun(
+        { ...sync, status: error instanceof NeedsLoginError ? "needs_login" : "failed" },
+        new Date(),
+        state,
+      ),
       ...(commandId ? { commandId } : {}),
     });
     throw error;
@@ -301,27 +320,175 @@ async function saveSchedulerState(config, state) {
   });
 }
 
-export async function claimWorker(config) {
-  const path = join(config.stateDir, "worker.lock");
-  let file;
-  try {
-    file = await open(path, "wx", 0o600);
-  } catch (error) {
-    if (error.code === "EEXIST") {
-      throw new Error(
-        "Another development worker owns .local/labor-worker/worker.lock. Stop it before starting another; remove a stale lock only after verifying no worker is running.",
-      );
-    }
-    throw error;
+const WORKER_LOCK_MESSAGES = Object.freeze({
+  WORKER_LOCK_ACTIVE: "Another local worker is running. Stop that worker before starting another.",
+  WORKER_LOCK_UNVERIFIED:
+    "The local worker lock owner could not be verified. Preserve the lock and inspect the local worker setup.",
+  WORKER_LOCK_RECOVERY_BUSY:
+    "A local worker lock recovery is already recorded. Preserve it and inspect the local worker setup.",
+  WORKER_LOCK_SETUP_FAILED:
+    "The private local worker lock could not be prepared. Check the local worker setup.",
+});
+
+export class WorkerLockError extends Error {
+  constructor(code) {
+    const safeCode = Object.hasOwn(WORKER_LOCK_MESSAGES, code) ? code : "WORKER_LOCK_SETUP_FAILED";
+    super(WORKER_LOCK_MESSAGES[safeCode]);
+    this.name = "WorkerLockError";
+    this.code = safeCode;
   }
-  await file.writeFile(`${process.pid}\n`);
-  await file.close();
-  const release = () => {
+}
+
+function sameLockFile(left, right) {
+  return left.dev === right.dev && left.ino === right.ino;
+}
+
+function readWorkerLock(path) {
+  let descriptor;
+  try {
+    const expected = lstatSync(path);
+    if (!expected.isFile() || expected.size < 1 || expected.size > 1024)
+      throw new WorkerLockError("WORKER_LOCK_UNVERIFIED");
+    descriptor = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
+    const identity = fstatSync(descriptor);
+    if (
+      !identity.isFile() ||
+      !sameLockFile(expected, identity) ||
+      identity.size < 1 ||
+      identity.size > 1024
+    )
+      throw new WorkerLockError("WORKER_LOCK_UNVERIFIED");
+    const buffer = Buffer.alloc(1025);
+    const count = readSync(descriptor, buffer, 0, buffer.length, 0);
+    if (count !== identity.size) throw new WorkerLockError("WORKER_LOCK_UNVERIFIED");
+    return { identity, content: buffer.subarray(0, count).toString("utf8") };
+  } finally {
+    if (descriptor !== undefined) closeSync(descriptor);
+  }
+}
+
+function workerLockPid(content) {
+  let pid;
+  if (/^[1-9]\d{0,9}\n?$/.test(content)) pid = Number(content.trim());
+  else {
+    let record;
     try {
-      unlinkSync(path);
+      record = JSON.parse(content);
     } catch {
-      /* already released */
+      throw new WorkerLockError("WORKER_LOCK_UNVERIFIED");
     }
+    if (
+      record?.version !== 1 ||
+      !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(record.token)
+    )
+      throw new WorkerLockError("WORKER_LOCK_UNVERIFIED");
+    pid = record.pid;
+  }
+  if (!Number.isSafeInteger(pid) || pid < 1 || pid > 2147483647)
+    throw new WorkerLockError("WORKER_LOCK_UNVERIFIED");
+  return pid;
+}
+
+function unlinkOwnedWorkerLock(path, owned, verifyContent = true) {
+  try {
+    const current = verifyContent ? readWorkerLock(path) : { identity: lstatSync(path) };
+    if (
+      sameLockFile(current.identity, owned.identity) &&
+      (!verifyContent || current.content === owned.content)
+    )
+      unlinkSync(path);
+  } catch {
+    // Unknown, replaced, or unreadable files remain untouched.
+  }
+}
+
+function createWorkerLock(path, content, writeRecord = writeFileSync) {
+  const descriptor = openSync(path, "wx", 0o600);
+  let identity;
+  let closed = false;
+  try {
+    identity = fstatSync(descriptor);
+    writeRecord(descriptor, content);
+    closeSync(descriptor);
+    closed = true;
+    return { identity, content };
+  } catch {
+    if (identity) unlinkOwnedWorkerLock(path, { identity }, false);
+    throw new WorkerLockError("WORKER_LOCK_SETUP_FAILED");
+  } finally {
+    if (!closed) {
+      try {
+        closeSync(descriptor);
+      } catch {
+        /* Closing a failed setup is best effort. */
+      }
+    }
+  }
+}
+
+export async function claimWorker(config, operations = {}) {
+  const path = join(config.stateDir, "worker.lock");
+  const recoveryPath = `${path}.recovery`;
+  const content = `${JSON.stringify({ version: 1, pid: process.pid, token: randomUUID() })}\n`;
+  const probeProcess = operations.probeProcess ?? ((pid) => process.kill(pid, 0));
+  let owned;
+  try {
+    try {
+      lstatSync(recoveryPath);
+      throw new WorkerLockError("WORKER_LOCK_RECOVERY_BUSY");
+    } catch (error) {
+      if (error.code !== "ENOENT") throw error;
+    }
+    try {
+      owned = createWorkerLock(path, content, operations.writeRecord);
+    } catch (error) {
+      if (error.code !== "EEXIST") throw error;
+      let recovery;
+      try {
+        recovery = createWorkerLock(recoveryPath, content);
+      } catch (error) {
+        if (error.code === "EEXIST") throw new WorkerLockError("WORKER_LOCK_RECOVERY_BUSY");
+        throw error;
+      }
+      try {
+        const previous = readWorkerLock(path);
+        const pid = workerLockPid(previous.content);
+        try {
+          await probeProcess(pid);
+          throw new WorkerLockError("WORKER_LOCK_ACTIVE");
+        } catch (error) {
+          if (error instanceof WorkerLockError) throw error;
+          if (error.code !== "ESRCH") throw new WorkerLockError("WORKER_LOCK_UNVERIFIED");
+        }
+        const current = readWorkerLock(path);
+        if (
+          !sameLockFile(current.identity, previous.identity) ||
+          current.content !== previous.content
+        )
+          throw new WorkerLockError("WORKER_LOCK_UNVERIFIED");
+        // The recovery guard serializes stale contenders. A fresh exclusive
+        // creator can win after this unlink; its replacement must be preserved.
+        unlinkSync(path);
+        try {
+          owned = createWorkerLock(path, content, operations.writeRecord);
+        } catch (error) {
+          if (error.code === "EEXIST") throw new WorkerLockError("WORKER_LOCK_UNVERIFIED");
+          throw error;
+        }
+      } finally {
+        unlinkOwnedWorkerLock(recoveryPath, recovery);
+      }
+    }
+  } catch (error) {
+    if (error instanceof WorkerLockError) throw error;
+    throw new WorkerLockError("WORKER_LOCK_UNVERIFIED");
+  }
+  let released = false;
+  const release = () => {
+    if (released) return;
+    released = true;
+    process.removeListener("exit", release);
+    unlinkOwnedWorkerLock(path, owned);
   };
   process.once("exit", release);
   return release;
@@ -345,22 +512,22 @@ export async function watch(config) {
           lastError:
             "This command was already attempted. Review the last import and request a new command if needed.",
           commandId: sync.commandId,
-          nextRunAt: state.connectedAt ? nextScheduledRun({ ...sync, status: "failed" }) : null,
+          nextRunAt: state.connectedAt
+            ? nextScheduledRun({ ...sync, status: "failed" }, now, state)
+            : null,
         });
       } else if (sync.command === "connect") {
         state.lastCommandId = sync.commandId;
         await saveSchedulerState(config, state);
-        await connectSession(config, sync.commandId);
+        await connectSession(config, sync.commandId, state);
         state.connectedAt = new Date().toISOString();
         await saveSchedulerState(config, state);
       } else if (sync.command === "run") {
         state.lastCommandId = sync.commandId;
         await saveSchedulerState(config, state);
-        await runImport(config, sync, sync.commandId);
+        await runImport(config, sync, sync.commandId, state);
       } else if (shouldRunScheduled(sync, now, state)) {
-        state.lastScheduledDate = calendarDate(now, sync.timeZone).date;
-        await saveSchedulerState(config, state);
-        await runImport(config, sync);
+        await runImport(config, sync, undefined, state);
       } else {
         const heartbeat = idleWorkerHeartbeat(sync, now, state);
         if (heartbeat) await postHeartbeat(config, heartbeat);
@@ -370,7 +537,7 @@ export async function watch(config) {
     } catch (error) {
       failures++;
       console.error(safeError(error));
-      // Import/login errors consume their command and scheduled day. Retry only
+      // Import/login errors consume their command and schedule interval. Retry only
       // read-only local polling, with a cap of 60 seconds between polls.
       await delay(Math.min(60000, 15000 * 2 ** Math.min(failures - 1, 2)));
     }
@@ -386,15 +553,15 @@ export async function main(argv = process.argv.slice(2)) {
   const release = await claimWorker(config);
   try {
     if (argv[0] === "--connect") {
-      await connectSession(config);
       const state = await readSchedulerState(config);
+      await connectSession(config, undefined, state);
       state.connectedAt = new Date().toISOString();
       await saveSchedulerState(config, state);
       return;
     }
     if (argv[0] === "--watch") return await watch(config);
     const { sync } = await appRequest(config, "/api/manager/labor/worker");
-    return await runImport(config, sync);
+    return await runImport(config, sync, undefined, await readSchedulerState(config));
   } finally {
     release();
   }

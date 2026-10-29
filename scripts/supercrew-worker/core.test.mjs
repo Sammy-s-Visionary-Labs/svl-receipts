@@ -138,11 +138,11 @@ test("unconnected or expired sessions do not auto-run or falsely become connecte
 test("upcoming configured local schedule uses the correct DST offset and pauses cleanly", () => {
   const sync = { enabled: true, hour: 6, timeZone: "America/New_York", status: "idle" };
   assert.equal(
-    nextScheduledRun(sync, new Date("2026-03-07T12:00:00Z")),
+    nextScheduledRun(sync, new Date("2026-03-07T12:00:00Z"), { lastScheduledDate: "2026-03-07" }),
     "2026-03-08T10:00:00.000Z",
   );
   assert.equal(
-    nextScheduledRun(sync, new Date("2026-10-31T12:00:00Z")),
+    nextScheduledRun(sync, new Date("2026-10-31T12:00:00Z"), { lastScheduledDate: "2026-10-31" }),
     "2026-11-01T11:00:00.000Z",
   );
   assert.equal(
@@ -153,9 +153,59 @@ test("upcoming configured local schedule uses the correct DST offset and pauses 
   assert.equal(nextScheduledRun({ ...sync, status: "not_connected" }, new Date()), null);
   assert.equal(nextScheduledRun({ ...sync, status: "needs_login" }, new Date()), null);
   assert.equal(
-    nextScheduledRun({ ...sync, hour: 2 }, new Date("2026-03-07T12:00:00Z")),
+    nextScheduledRun({ ...sync, hour: 2 }, new Date("2026-03-07T12:00:00Z"), {
+      lastScheduledDate: "2026-03-07",
+    }),
     "2026-03-08T07:00:00.000Z",
   );
+});
+
+test("recurrence supports weekly, biweekly, custom and legacy daily calendar dates", () => {
+  const sync = { enabled: true, hour: 6, timeZone: "America/New_York", status: "idle" };
+  const now = new Date("2026-10-13T13:00:00Z");
+  const state = { connectedAt: "2026-10-01T10:00:00Z", lastScheduledDate: "2026-10-13" };
+  for (const [intervalDays, expected] of [
+    [undefined, "2026-10-14T10:00:00.000Z"],
+    [7, "2026-10-20T10:00:00.000Z"],
+    [14, "2026-10-27T10:00:00.000Z"],
+    [45, "2026-11-27T11:00:00.000Z"],
+    [365, "2027-10-13T10:00:00.000Z"],
+  ]) {
+    const settings = { ...sync, intervalDays };
+    assert.equal(nextScheduledRun(settings, now, state), expected);
+    assert.equal(shouldRunScheduled(settings, now, state), false);
+    assert.equal(shouldRunScheduled(settings, new Date(expected), state), true);
+  }
+  for (const intervalDays of [0, 366, 1.5, NaN])
+    assert.throws(() => nextScheduledRun({ ...sync, intervalDays }, now, state), /interval/);
+});
+
+test("failed attempts consume cadence, manual success resets it and overdue work stays visible", () => {
+  const sync = {
+    enabled: true,
+    hour: 6,
+    timeZone: "America/New_York",
+    status: "failed",
+    intervalDays: 7,
+  };
+  const now = new Date("2026-10-13T04:00:00Z");
+  const state = { connectedAt: "2026-10-01T10:00:00Z", lastScheduledDate: "2026-10-01" };
+  assert.equal(nextScheduledRun(sync, now, state), "2026-10-08T10:00:00.000Z");
+  assert.equal(shouldRunScheduled(sync, now, state), true);
+  assert.equal(idleWorkerHeartbeat(sync, now, state).nextRunAt, "2026-10-08T10:00:00.000Z");
+  state.lastScheduledDate = "2026-10-13";
+  assert.equal(shouldRunScheduled(sync, new Date("2026-10-14T15:00:00Z"), state), false);
+  assert.equal(
+    nextScheduledRun({ ...sync, lastSuccessAt: "2026-10-15T18:00:00Z" }, now, state),
+    "2026-10-22T10:00:00.000Z",
+  );
+  assert.equal(
+    nextScheduledRun({ ...sync, hour: 1, intervalDays: 1 }, new Date("2026-11-01T06:30:00Z"), {
+      lastScheduledDate: "2026-10-31",
+    }),
+    "2026-11-01T05:00:00.000Z",
+  );
+  assert.throws(() => nextScheduledRun(sync, now, { lastScheduledDate: "2026-02-30" }), /date/);
 });
 
 test("report labels match observed Supercrew UI and calendar navigation spans years", () => {

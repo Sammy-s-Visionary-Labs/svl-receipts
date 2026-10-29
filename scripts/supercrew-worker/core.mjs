@@ -95,31 +95,35 @@ export function reportInterval(now, lookbackDays = 14, timeZone = "America/New_Y
 }
 
 export function shouldRunScheduled(sync, now, state = {}) {
-  if (!sync?.enabled) return false;
-  if (!state.connectedAt || !["idle", "failed"].includes(sync.status)) return false;
-  const local = calendarDate(now, sync.timeZone ?? "America/New_York");
-  if (local.hour < (sync.hour ?? 6)) return false;
-  // Mark the day when an attempt starts. A failed login/download needs attention,
-  // rather than a fresh browser/export attempt every poll.
-  if (state.lastScheduledDate === local.date) return false;
-  if (
-    sync.lastSuccessAt &&
-    calendarDate(new Date(sync.lastSuccessAt), sync.timeZone).date === local.date
-  ) {
-    return false;
-  }
-  return true;
+  if (!state.connectedAt) return false;
+  const next = nextScheduledRun(sync, now, state);
+  return next !== null && Date.parse(next) <= now.getTime();
 }
 
-export function nextScheduledRun(sync, now = new Date()) {
+export function nextScheduledRun(sync, now = new Date(), state = {}) {
   if (!sync?.enabled || !["idle", "failed"].includes(sync.status)) return null;
   const timeZone = sync.timeZone ?? "America/New_York";
   const hour = sync.hour ?? 6;
+  const intervalDays = sync.intervalDays ?? 1;
   if (!Number.isInteger(hour) || hour < 0 || hour > 23) {
     throw new Error("The schedule hour must be from 0 to 23.");
   }
-  const local = calendarDate(now, timeZone);
-  const date = local.hour < hour ? local.date : addCalendarDays(local.date, 1);
+  if (!Number.isInteger(intervalDays) || intervalDays < 1 || intervalDays > 365) {
+    throw new Error("The download interval must be from 1 to 365 days.");
+  }
+  const anchors = [];
+  if (state.lastScheduledDate) {
+    // Validate retained state before using it to suppress another source export.
+    anchors.push(addCalendarDays(state.lastScheduledDate, 0));
+  }
+  if (sync.lastSuccessAt) {
+    anchors.push(calendarDate(new Date(sync.lastSuccessAt), timeZone).date);
+  }
+  // Attempts consume the configured interval even when a download fails. A
+  // later manual success resets that interval. Keep an overdue timestamp so
+  // the displayed next run agrees with the worker's immediate catch-up.
+  const latest = anchors.sort().at(-1);
+  const date = latest ? addCalendarDays(latest, intervalDays) : calendarDate(now, timeZone).date;
   const anchor = Date.parse(`${date}T${String(hour).padStart(2, "0")}:00:00Z`);
   const formatter = new Intl.DateTimeFormat("en-US", {
     timeZone,
@@ -139,7 +143,7 @@ export function nextScheduledRun(sync, now = new Date()) {
       formatter.formatToParts(candidate).map((part) => [part.type, part.value]),
     );
     const candidateDate = `${parts.year}-${parts.month}-${parts.day}`;
-    if (candidateDate !== date || Number(parts.minute) !== 0 || candidate <= now) continue;
+    if (candidateDate !== date || Number(parts.minute) !== 0) continue;
     if (Number(parts.hour) === hour) return candidate.toISOString();
     // A nonexistent spring hour runs at the first real full hour afterward.
     if (Number(parts.hour) > hour && !skippedHourFallback)

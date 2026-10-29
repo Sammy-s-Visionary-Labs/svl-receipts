@@ -46,6 +46,12 @@ do $$ declare first_control jsonb; source jsonb; sources jsonb; snapshot jsonb; 
   'file_sha256',repeat('a',64),'content_hash',repeat('b',64),'summary',jsonb_build_object('filename','TEST.xlsx'),
   'report',jsonb_build_object('entries',jsonb_build_array(jsonb_build_object('workerName','TEST worker','hours',8))));
  sources:=jsonb_build_array(source-'file_sha256'-'summary'-'report');
+ begin
+  perform public.compare_and_swap_labor_state(0,first_control,sources,jsonb_build_array(source),null);
+  raise exception 'actorless ledger initialization accepted';
+ exception when insufficient_privilege then
+  if sqlerrm<>'labor_manager_actor_required' then raise; end if;
+ end;
  if public.compare_and_swap_labor_state(0,first_control,sources,jsonb_build_array(source),'92000000-0000-4000-8000-000000000001')<>1
  then raise exception 'initial labor CAS failed'; end if;
  snapshot:=public.read_labor_state();
@@ -143,6 +149,39 @@ do $$ declare test_control jsonb; proposed jsonb; source jsonb; manifest jsonb; 
   then raise exception 'manager CAS compatibility failed'; end if;
  if not exists(select 1 from public.labor_control_events where revision=6 and actor_id='92000000-0000-4000-8000-000000000002')
   then raise exception 'manager CAS audit actor lost'; end if;
+end; $$;
+
+-- Worker credentials cannot edit rates, mappings, rules or recurrence configuration.
+do $$ declare current_control jsonb; candidate jsonb; manifest jsonb; before_events bigint; begin
+ select control into current_control from public.labor_state where singleton;
+ manifest:=public.read_labor_state_manifest()->'manifest';
+ select count(*) into before_events from public.labor_control_events;
+ for candidate in select value from jsonb_array_elements(jsonb_build_array(
+  jsonb_set(current_control,'{paySettings}','{}'),
+  jsonb_set(current_control,'{rulesRevision}','999'),
+  current_control || '{"jobMappings":[{"housecallJobId":"TEST-forged"}]}',
+  current_control || '{"noteVerifications":{"TEST-forged":true}}',
+  jsonb_set(current_control,'{sync,hour}','12'),
+  jsonb_set(current_control,'{sync,intervalDays}','14')
+ )) loop
+  begin
+   perform public.compare_and_swap_labor_state(6,candidate,manifest,'[]',null);
+   raise exception 'actorless manager configuration accepted';
+  exception when insufficient_privilege then
+   if sqlerrm<>'labor_manager_actor_required' then raise; end if;
+  end;
+ end loop;
+ if (select revision from public.labor_state where singleton)<>6
+  or (select count(*) from public.labor_control_events)<>before_events
+ then raise exception 'rejected worker configuration changed ledger or audit'; end if;
+ -- A legacy daily default, catch-up progress and connection commands are operational.
+ candidate:=current_control || jsonb_build_object('workerCatchup',jsonb_build_object('nextFrom','2026-10-01','to','2026-10-14','nextClaimAt',null),
+  'sync',(current_control->'sync') || '{"intervalDays":1,"coverageThrough":"2026-09-30","command":"connect","commandId":null}');
+ if public.compare_and_swap_labor_state(6,candidate,manifest,'[]',null)<>7
+ then raise exception 'worker progress or legacy daily normalization was rejected'; end if;
+ candidate:=jsonb_set(candidate,'{sync,intervalDays}','14');
+ if public.compare_and_swap_labor_state(7,candidate,manifest,'[]','92000000-0000-4000-8000-000000000001')<>8
+ then raise exception 'manager recurrence update failed'; end if;
 end; $$;
 reset role;
 

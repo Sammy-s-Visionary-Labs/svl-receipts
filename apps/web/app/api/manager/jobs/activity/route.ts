@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 export async function GET(request: Request) {
   try {
     const { supabase } = await requireLaborAccess(request);
-    return laborResponse(await loadJobsDashboard(supabase));
+    return laborResponse(await loadJobsDashboard(supabase), 200, { stream: true });
   } catch (error) {
     return laborError(error);
   }

@@ -220,24 +220,27 @@ test("complete Notes acquisition refuses a retained owner/job filter or text sea
   }
 });
 
-function calendarFixture({ stuck = false } = {}) {
-  let interval = { start: "2026-09-24", end: "2026-09-30" };
-  let month = "July 2026";
+function calendarFixture({
+  stuck = false,
+  initialInterval = { start: "2026-09-24", end: "2026-09-30" },
+  initialMonth = "July 2026",
+  resetOnExistingStart = false,
+  unknownLabel,
+} = {}) {
+  let interval = initialInterval;
+  let month = initialMonth;
   let visible = false;
   let clicks = 0;
-  const button = {
-    innerText: async () => reportDateLabel(interval),
-    click: async () => {
-      visible = !visible;
-    },
-  };
+  const observedLabels = [];
+  const label = () => unknownLabel ?? (interval ? reportDateLabel(interval) : "Select date range");
   const day = (name) => ({
     click: async () => {
       clicks++;
       const parsed = new Date(`${month} 1 UTC`);
       const date = `${parsed.getUTCFullYear()}-${String(parsed.getUTCMonth() + 1).padStart(2, "0")}-${String(name).padStart(2, "0")}`;
       if (stuck) return;
-      if (interval.start !== interval.end) interval = { start: date, end: date };
+      if (resetOnExistingStart && clicks === 1 && interval?.start === date) interval = null;
+      else if (!interval || interval.start !== interval.end) interval = { start: date, end: date };
       else
         interval = {
           start: [interval.start, date].sort()[0],
@@ -266,8 +269,28 @@ function calendarFixture({ stuck = false } = {}) {
   };
   return {
     page: { getByRole: () => tooltip },
-    panel: { getByRole: () => button },
-    current: () => ({ interval, visible, clicks }),
+    panel: {
+      getByRole: (role, options) => {
+        assert.equal(role, "button");
+        assert.ok(options.name instanceof RegExp);
+        const resolve = () => {
+          const text = label();
+          // Playwright locators re-evaluate the accessible name after every
+          // calendar click; a fixture that pins the node misses reset failures.
+          if (!options.name.test(text)) throw new Error("Date-range button name did not match.");
+          observedLabels.push(text);
+          return text;
+        };
+        return {
+          innerText: async () => resolve(),
+          click: async () => {
+            resolve();
+            visible = !visible;
+          },
+        };
+      },
+    },
+    current: () => ({ interval, visible, clicks, observedLabels }),
   };
 }
 
@@ -287,6 +310,33 @@ test("changed calendar behavior fails closed instead of exporting the wrong peri
     /exact requested report period/,
   );
   assert.equal(fixture.current().clicks, 4);
+});
+
+test("date selection survives the observed empty-range label when selecting the existing start", async () => {
+  const fixture = calendarFixture({
+    initialInterval: { start: "2026-10-22", end: "2026-10-28" },
+    initialMonth: "October 2026",
+    resetOnExistingStart: true,
+  });
+  const interval = { start: "2026-10-09", end: "2026-10-22" };
+  await setReportInterval(fixture.page, fixture.panel, interval);
+  assert.ok(fixture.current().observedLabels.includes("Select date range"));
+  assert.deepEqual(fixture.current().interval, interval);
+  assert.equal(fixture.current().clicks, 3);
+  assert.equal(fixture.current().visible, false);
+});
+
+test("date selection accepts only the exact empty-range placeholder and still verifies the final dates", async () => {
+  const fixture = calendarFixture({ initialInterval: null });
+  const interval = { start: "2026-10-09", end: "2026-10-22" };
+  await setReportInterval(fixture.page, fixture.panel, interval);
+  assert.deepEqual(fixture.current().interval, interval);
+  assert.equal(fixture.current().visible, false);
+  for (const unknownLabel of ["Pick a date", "Select date range for customer", "Download Excel"]) {
+    const unknown = calendarFixture({ unknownLabel });
+    await assert.rejects(setReportInterval(unknown.page, unknown.panel, interval), /did not match/);
+    assert.equal(unknown.current().clicks, 0);
+  }
 });
 
 function downloadFixture() {

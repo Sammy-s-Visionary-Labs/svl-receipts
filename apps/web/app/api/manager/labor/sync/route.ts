@@ -9,7 +9,7 @@ export async function POST(request: Request) {
   try {
     const { actor } = await requireLaborAccess(request);
     const body = await boundedJson(request);
-    if (!["run", "connect", "pause", "resume"].includes(String(body.action)))
+    if (!["run", "connect", "pause", "resume", "configure"].includes(String(body.action)))
       throw new Error("Invalid sync action");
     if (
       body.hour !== undefined &&
@@ -23,11 +23,19 @@ export async function POST(request: Request) {
         Number(body.lookbackDays) > 31)
     )
       throw new Error("Lookback must be 1–31 days");
+    if (
+      body.intervalDays !== undefined &&
+      (!Number.isInteger(body.intervalDays) ||
+        Number(body.intervalDays) < 1 ||
+        Number(body.intervalDays) > 365)
+    )
+      throw new Error("Download interval must be 1–365 days");
     const sync = await queueLaborSync(
-      body.action as "run" | "connect" | "pause" | "resume",
+      body.action as "run" | "connect" | "pause" | "resume" | "configure",
       {
         hour: body.hour as number | undefined,
         lookbackDays: body.lookbackDays as number | undefined,
+        intervalDays: body.intervalDays as number | undefined,
       },
       actor?.userId === "local-development" ? null : (actor?.userId ?? null),
     );

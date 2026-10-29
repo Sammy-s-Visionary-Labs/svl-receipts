@@ -1,8 +1,49 @@
 import { AuthHttpError, authErrorResponse } from "@/lib/auth/guards";
 import { LaborApprovalPersistenceError } from "./approval-persistence";
 
-export function laborResponse(body: unknown, status = 200) {
-  return Response.json(body, { status, headers: { "Cache-Control": "private, no-store" } });
+const STREAM_CHARS = 16 * 1024;
+const BUFFERED_JSON_CHARS = 64 * 1024;
+
+/** Pull one bounded UTF-8 chunk at a time; leave transport framing to Next/Vercel. */
+export function laborStreamResponse(text: string, headers: HeadersInit, status = 200) {
+  let offset = 0;
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream<Uint8Array>(
+    {
+      pull(controller) {
+        if (offset >= text.length) {
+          text = "";
+          controller.close();
+          return;
+        }
+        let end = Math.min(offset + STREAM_CHARS, text.length);
+        // Keep an astral character's surrogate pair together when encoding chunks.
+        const previous = text.charCodeAt(end - 1);
+        const next = text.charCodeAt(end);
+        if (previous >= 0xd800 && previous <= 0xdbff && next >= 0xdc00 && next <= 0xdfff) end--;
+        controller.enqueue(encoder.encode(text.slice(offset, end)));
+        offset = end;
+      },
+      cancel() {
+        text = "";
+      },
+    },
+    { highWaterMark: 0 },
+  );
+  const responseHeaders = new Headers(headers);
+  responseHeaders.set("Cache-Control", "private, no-store");
+  return new Response(stream, { status, headers: responseHeaders });
+}
+
+export function laborResponse(body: unknown, status = 200, options: { stream?: boolean } = {}) {
+  // Serialize before starting the response so invalid values still reach the route's
+  // error handler. Large snapshots stream past Vercel's buffered response-size limit.
+  const json = JSON.stringify(body);
+  if (json === undefined) throw new TypeError("Value is not JSON serializable");
+  const headers = { "Content-Type": "application/json", "Cache-Control": "private, no-store" };
+  return options.stream || json.length > BUFFERED_JSON_CHARS
+    ? laborStreamResponse(json, headers, status)
+    : new Response(json, { status, headers });
 }
 
 export function laborError(error: unknown) {

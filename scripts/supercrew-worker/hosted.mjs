@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { appendFile, readFile, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { setTimeout as delay } from "node:timers/promises";
 import { pathToFileURL } from "node:url";
 import {
   completeSourceConnection,
@@ -17,12 +18,28 @@ import {
   claimWorker,
   ensurePrivateDirectories,
   uploadPairedWorkbooks,
+  WorkerLockError,
 } from "./worker.mjs";
 
 const PREFIX = "/api/manager/labor/worker";
 const UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
 const RUN_ID = /^[a-zA-Z0-9._:-]{1,160}$/;
 const claimFile = (config) => join(config.stateDir, "hosted-claim.json");
+
+class WorkerPollProtocolError extends Error {}
+class WorkerCleanupError extends Error {}
+
+/** Expose fixed local setup diagnoses without printing provider/parser details. */
+export function publicWorkerFailureMessage(error) {
+  if (error instanceof WorkerLockError) return `Supercrew worker could not start: ${error.message}`;
+  if (error instanceof WorkerPollProtocolError || error instanceof WorkerCleanupError)
+    return error.message;
+  if (["EACCES", "EPERM"].includes(error?.code))
+    return "Supercrew worker could not access its private local storage. Check the worker folder permissions before restarting.";
+  if (["ENOSPC", "EDQUOT"].includes(error?.code))
+    return "Supercrew worker has no space available for its private local files. Free disk space before restarting.";
+  return "Supercrew worker did not complete. Check the receipt app's Supercrew status and the worker setup configuration.";
+}
 
 export function safeWorkerError(error, config, claim) {
   let message = error instanceof Error ? error.message : String(error);
@@ -57,7 +74,7 @@ export function workflowRunId(env = process.env) {
   return value;
 }
 
-export async function preflight(config, runId, fetchImpl = fetch) {
+export async function preflight(config, runId, fetchImpl = fetch, signal) {
   if (!RUN_ID.test(runId)) throw new Error("Invalid worker run identifier.");
   // Fail configuration before claiming work. This script imports no browser package.
   sessionKey(config.sessionEncryptionKey);
@@ -68,6 +85,7 @@ export async function preflight(config, runId, fetchImpl = fetch) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ runId }),
+      signal,
     },
     fetchImpl,
   );
@@ -187,7 +205,7 @@ export async function putSession(config, storageState, leaseToken, fetchImpl = f
   }
 }
 
-function postWorker(config, suffix, data, fetchImpl) {
+function postWorker(config, suffix, data, fetchImpl, signal) {
   return appRequest(
     config,
     `${PREFIX}/${suffix}`,
@@ -195,6 +213,7 @@ function postWorker(config, suffix, data, fetchImpl) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),
+      signal,
     },
     fetchImpl,
   );
@@ -203,7 +222,15 @@ function postWorker(config, suffix, data, fetchImpl) {
 export async function runLeasedImport(config, claim, operations = {}) {
   validateClaim(claim, operations.now?.() ?? new Date());
   sessionKey(config.sessionEncryptionKey);
-  const fetchImpl = operations.fetch ?? fetch;
+  const request = operations.fetch ?? fetch;
+  const signal = operations.signal;
+  const fetchImpl = signal
+    ? (url, init = {}) =>
+        request(url, {
+          ...init,
+          signal: init.signal ? AbortSignal.any([signal, init.signal]) : signal,
+        })
+    : request;
   const createBrowser = operations.createBrowser ?? createPortableWorkerBrowser;
   const acquire = operations.acquire ?? acquirePairedReports;
   const verify = operations.verify ?? verifySignedIn;
@@ -225,11 +252,21 @@ export async function runLeasedImport(config, claim, operations = {}) {
     // Closing Chromium also ends blocked source operations. Server leases reject stale writes.
     void resources?.browser?.close().catch(() => {});
   };
+  const stopError = () =>
+    new Error(
+      "The Supercrew worker was stopped. Review import history before requesting another download.",
+    );
+  const onAbort = () => interrupt(stopError());
+  signal?.addEventListener("abort", onAbort, { once: true });
+  if (signal?.aborted) failure = stopError();
   const heartbeat = () =>
     postWorker(config, "heartbeat", { leaseToken: claim.leaseToken, status: "running" }, fetchImpl);
   const operation = async () => {
+    assertActive();
     await ensurePrivateDirectories(config);
+    assertActive();
     await heartbeat();
+    assertActive();
     timer = setInterval(async () => {
       if (heartbeatBusy || finished) return;
       heartbeatBusy = true;
@@ -281,6 +318,7 @@ export async function runLeasedImport(config, claim, operations = {}) {
     imported = true;
     assertActive();
     const refreshed = await resources.context.storageState({ indexedDB: true });
+    assertActive();
     await putSession(config, refreshed, claim.leaseToken, fetchImpl);
     assertActive();
     await postWorker(config, "finish", { leaseToken: claim.leaseToken, status: "idle" }, fetchImpl);
@@ -288,8 +326,10 @@ export async function runLeasedImport(config, claim, operations = {}) {
     return result;
   };
   const operationPromise = operation();
+  let result, runError;
+  let cleanupIncomplete = false;
   try {
-    return await Promise.race([operationPromise, interrupted]);
+    result = await Promise.race([operationPromise, interrupted]);
   } catch (error) {
     finished = true;
     const lastError = safeWorkerError(error, config, claim);
@@ -305,19 +345,115 @@ export async function runLeasedImport(config, claim, operations = {}) {
           status: error instanceof NeedsLoginError ? "needs_login" : "failed",
           lastError: warning.slice(0, 500),
         },
-        fetchImpl,
+        request,
+        signal?.aborted ? AbortSignal.timeout(5000) : undefined,
       );
     } catch {
       /* An expired/uncertain lease stays visible for server recovery. */
     }
-    throw new Error(warning, { cause: error });
+    runError = new Error(warning, { cause: error });
   } finally {
     finished = true;
     clearInterval(timer);
     clearTimeout(timeout);
-    operationPromise.catch(() => {});
+    signal?.removeEventListener("abort", onAbort);
     await resources?.context?.close().catch(() => {});
     await resources?.browser?.close().catch(() => {});
+    // A cancelled browser launch may finish after the interruption. Its failure
+    // check above closes that late browser; do not poll for another run meanwhile.
+    if (signal || failure) {
+      let cleanupTimer;
+      const settled = await Promise.race([
+        operationPromise.then(
+          () => true,
+          () => true,
+        ),
+        new Promise((resolve) => {
+          cleanupTimer = setTimeout(() => resolve(false), operations.cleanupDeadlineMs ?? 15000);
+        }),
+      ]);
+      clearTimeout(cleanupTimer);
+      cleanupIncomplete = !settled;
+    } else operationPromise.catch(() => {});
+  }
+  if (cleanupIncomplete)
+    throw new WorkerCleanupError(
+      "The worker could not finish browser cleanup. Stop it before restarting.",
+    );
+  if (runError) throw runError;
+  return result;
+}
+
+/** Shared polling never creates commands or downloads without a server lease. */
+export async function watchHostedWorker(config, operations = {}) {
+  sessionKey(config.sessionEncryptionKey);
+  if (!config.reportDownloadsApproved)
+    throw new Error("Explicit Supercrew report-download approval is required before watching.");
+  const pollEveryMs = operations.pollEveryMs ?? 15000;
+  const maxBackoffMs = operations.maxBackoffMs ?? 60000;
+  if (
+    !Number.isSafeInteger(pollEveryMs) ||
+    pollEveryMs < 1 ||
+    pollEveryMs > 60000 ||
+    !Number.isSafeInteger(maxBackoffMs) ||
+    maxBackoffMs < pollEveryMs ||
+    maxBackoffMs > 300000
+  )
+    throw new Error("Invalid Supercrew worker polling interval.");
+  const runId = operations.runId ?? workflowRunId();
+  if (!RUN_ID.test(runId)) throw new Error("Invalid worker run identifier.");
+  const signal = operations.signal;
+  if (signal?.aborted) return;
+  const request = operations.fetch ?? fetch;
+  const runImport = operations.runImport ?? runLeasedImport;
+  const sleep = operations.sleep ?? ((ms, stopped) => delay(ms, undefined, { signal: stopped }));
+  const log = operations.log ?? console.log;
+  const reportError = operations.error ?? console.error;
+  await ensurePrivateDirectories(config);
+  const release = await claimWorker(config);
+  let failures = 0;
+  try {
+    log("Supercrew worker listening for queued or scheduled work.");
+    while (!signal?.aborted) {
+      let waitMs = pollEveryMs;
+      try {
+        const poll = await appRequest(config, PREFIX, { signal }, request);
+        if (typeof poll?.claimable !== "boolean")
+          throw new WorkerPollProtocolError("The worker poll returned an invalid claimable value.");
+        if (signal?.aborted) break;
+        if (poll.claimable) {
+          const claim = await preflight(config, runId, request, signal);
+          if (claim) {
+            const result = await runImport(config, claim, { ...operations, signal });
+            log(
+              result?.duplicate
+                ? "Supercrew report pair already recorded."
+                : "Supercrew report pair imported.",
+            );
+          }
+        }
+        failures = 0;
+      } catch (error) {
+        if (error instanceof WorkerCleanupError || error instanceof WorkerPollProtocolError)
+          throw error;
+        if (signal?.aborted) break;
+        failures++;
+        waitMs = Math.min(maxBackoffMs, pollEveryMs * 2 ** Math.min(failures - 1, 10));
+        // Detailed source errors belong only in the manager's private status.
+        reportError(
+          "Supercrew worker check did not complete. Retrying the application check shortly.",
+        );
+      }
+      if (signal?.aborted) break;
+      try {
+        await sleep(waitMs, signal);
+      } catch (error) {
+        if (!signal?.aborted) throw error;
+      }
+    }
+  } finally {
+    release();
+    process.removeListener("exit", release);
   }
 }
 
@@ -368,8 +504,28 @@ export function abortClaim(config, claim, fetchImpl = fetch) {
 
 export async function main(argv = process.argv.slice(2), env = process.env) {
   const config = workerConfig(env);
-  if (argv.length !== 1 || !["--preflight", "--run", "--connect", "--abort"].includes(argv[0]))
-    throw new Error("Usage: hosted.mjs --preflight | --run | --connect | --abort");
+  if (
+    argv.length !== 1 ||
+    !["--preflight", "--run", "--connect", "--abort", "--watch"].includes(argv[0])
+  )
+    throw new Error("Usage: hosted.mjs --preflight | --run | --connect | --abort | --watch");
+  if (argv[0] === "--watch") {
+    const controller = new AbortController();
+    const stop = () => controller.abort();
+    process.once("SIGINT", stop);
+    process.once("SIGTERM", stop);
+    process.once("SIGHUP", stop);
+    try {
+      return await watchHostedWorker(config, {
+        signal: controller.signal,
+        runId: workflowRunId(env),
+      });
+    } finally {
+      process.removeListener("SIGINT", stop);
+      process.removeListener("SIGTERM", stop);
+      process.removeListener("SIGHUP", stop);
+    }
+  }
   if (argv[0] === "--connect") return bootstrapSession(config);
   if (argv[0] === "--abort") return abortClaim(config, await loadClaim(config, env));
   if (argv[0] === "--preflight") {
@@ -389,13 +545,11 @@ export async function main(argv = process.argv.slice(2), env = process.env) {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  main().catch(() => {
+  main().catch((error) => {
     // Public workflow logs must never contain provider/parser errors: those can
     // include customer names, report filenames, hours, or source row details.
     // A leased failure records its bounded, secret-redacted detail privately.
-    console.error(
-      "Supercrew worker did not complete. Check the receipt app's Supercrew status and the worker setup configuration.",
-    );
+    console.error(publicWorkerFailureMessage(error));
     process.exitCode = 1;
   });
 }
