@@ -97,8 +97,11 @@ export async function syncHousecallJobs(input?: {
         const result = await client.listJobs({
           page,
           pageSize: 100,
-          sortBy: "updated_at",
-          sortDirection: "desc",
+          // Updated timestamps can tie or move while pages are read, repeating
+          // an earlier job and omitting another. Unique immutable IDs give a
+          // stable order; the complete scan still validates every count and ID.
+          sortBy: "id",
+          sortDirection: "asc",
           ...(customerId ? { customerId } : {}),
         });
         const incomplete = (reason: PaginationFailure): never => {

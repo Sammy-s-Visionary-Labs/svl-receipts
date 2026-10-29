@@ -135,8 +135,8 @@ describe("Housecall catalog read synchronization", () => {
       });
     expect(await run(db, listJobs)).toMatchObject({ count: 2, scanned: 2, full: true });
     expect(listJobs.mock.calls).toEqual([
-      [{ page: 1, pageSize: 100, sortBy: "updated_at", sortDirection: "desc" }],
-      [{ page: 2, pageSize: 100, sortBy: "updated_at", sortDirection: "desc" }],
+      [{ page: 1, pageSize: 100, sortBy: "id", sortDirection: "asc" }],
+      [{ page: 2, pageSize: 100, sortBy: "id", sortDirection: "asc" }],
     ]);
     expect(finishCall(db)).toMatchObject({
       p_lease_token: "lease_test",
@@ -147,6 +147,22 @@ describe("Housecall catalog read synchronization", () => {
       ],
     });
     expect(fetch).not.toHaveBeenCalled();
+  });
+  it("avoids a repeated third-page job when updated-time ordering shifts between page reads", async () => {
+    const db = database();
+    const ids = ["job_a", "job_b", "job_c"];
+    const listJobs = vi.fn(
+      async (query: Parameters<NonNullable<SyncInput["client"]>["listJobs"]>[0]) => {
+        const index = (query?.page ?? 1) - 1;
+        const stable = query?.sortBy === "id" && query?.sortDirection === "asc";
+        const id = ids[!stable && index === 2 ? 1 : index];
+        if (!id) throw new Error("Unexpected synthetic page");
+        return page([job(id)], { page: index + 1, totalPages: 3, totalItems: 3 });
+      },
+    );
+    await expect(run(db, listJobs)).resolves.toMatchObject({ count: 3, scanned: 3, full: true });
+    expect(finishCall(db)?.p_observed_job_ids).toEqual(ids);
+    expect(db.rpc).not.toHaveBeenCalledWith("fail_housecall_job_sync", expect.anything());
   });
   it("incremental sync includes the five-minute overlap and unknown provider timestamps", async () => {
     const success = -3600000;
