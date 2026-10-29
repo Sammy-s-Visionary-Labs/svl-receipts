@@ -60,28 +60,24 @@ describe("receipt capture page set", () => {
       expect(receiptCaptureReducer(state, { type: "remove-page", index })).toBe(state);
     expect(receiptCaptureReducer(state, { type: "remove-page", index: 1 }).previewIndex).toBe(0);
   });
-  it("accepts pages in capture order up to the shared pilot cap", () => {
+  it("accepts ten pages in capture order and leaves an eleventh photo out", () => {
     const pages = appendReceiptPages(
       [],
-      Array.from({ length: 7 }, (_, index) => page(index)),
+      Array.from({ length: MAX_RECEIPT_PAGES + 1 }, (_, index) => page(index)),
     );
 
     expect(pages).toHaveLength(MAX_RECEIPT_PAGES);
-    expect(pages.map((item) => item.uri)).toEqual([
-      "file:///receipt-0.jpg",
-      "file:///receipt-1.jpg",
-      "file:///receipt-2.jpg",
-      "file:///receipt-3.jpg",
-      "file:///receipt-4.jpg",
-    ]);
+    expect(pages.map((item) => item.uri)).toEqual(
+      Array.from({ length: 10 }, (_, index) => `file:///receipt-${index}.jpg`),
+    );
   });
 
   it("adds gallery pages only in the remaining slots", () => {
-    const current = [page(1), page(2), page(3), page(4)];
-    const pages = appendReceiptPages(current, [page(5, "gallery"), page(6, "gallery")]);
+    const current = Array.from({ length: MAX_RECEIPT_PAGES - 1 }, (_, index) => page(index));
+    const pages = appendReceiptPages(current, [page(9, "gallery"), page(10, "gallery")]);
 
     expect(pages).toHaveLength(MAX_RECEIPT_PAGES);
-    expect(pages.at(-1)).toMatchObject({ uri: "file:///receipt-5.jpg", source: "gallery" });
+    expect(pages.at(-1)).toMatchObject({ uri: "file:///receipt-9.jpg", source: "gallery" });
   });
 
   it("retakes one page without changing the rest of the receipt", () => {

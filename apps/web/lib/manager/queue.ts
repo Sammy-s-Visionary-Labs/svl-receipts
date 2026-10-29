@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { isReceiptStatus } from "@svl/domain";
+import { isReceiptStatus, MAX_RECEIPT_PAGES } from "@svl/domain";
 import {
   DEFAULT_QUEUE_FILTERS,
   HOUSECALL_STATUSES,
@@ -175,7 +175,7 @@ export function normalizeQueueRow(value: Record<string, unknown>): QueueReceipt 
       typeof value.pageCount === "number" &&
       Number.isInteger(value.pageCount) &&
       value.pageCount >= 0 &&
-      value.pageCount <= 5
+      value.pageCount <= MAX_RECEIPT_PAGES
         ? value.pageCount
         : 0,
     thumbnailUrl:

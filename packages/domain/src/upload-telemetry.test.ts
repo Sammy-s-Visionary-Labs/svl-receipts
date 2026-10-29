@@ -114,10 +114,22 @@ describe("receipt upload telemetry", () => {
       parseReceiptUploadTelemetryEvent({
         event: "page_upload_completed",
         receiptId: RECEIPT_ID,
-        pageCount: 6,
+        pageCount: 11,
         occurredAt: "2026-08-21T12:00:00.000Z",
       }),
     ).toBeNull();
+  });
+
+  it("records the tenth page without dropping its page index", () => {
+    expect(
+      parseReceiptUploadTelemetryEvent({
+        event: "page_upload_completed",
+        receiptId: RECEIPT_ID,
+        pageCount: 10,
+        pageIndex: 9,
+        occurredAt: "2026-08-21T12:00:00.000Z",
+      }),
+    ).toMatchObject({ pageCount: 10, pageIndex: 9 });
   });
 
   it("rejects secret-bearing date comments instead of retaining free-form timestamp text", () => {

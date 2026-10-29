@@ -1,6 +1,7 @@
 import { createRequire } from "node:module";
 import path from "node:path";
 import { createCanvas, GlobalFonts } from "@napi-rs/canvas";
+import { MAX_RECEIPT_PAGES } from "@svl/domain";
 import { convert } from "html-to-text";
 import { simpleParser } from "mailparser";
 import sharp from "sharp";
@@ -22,6 +23,7 @@ const runtimeRequire = createRequire(path.join(process.cwd(), "package.json"));
 const pdfRoot = path.dirname(runtimeRequire.resolve("pdfjs-dist/package.json"));
 const fontPath = path.join(process.cwd(), "assets/fonts/NotoSans.ttf");
 let fontLoaded = false;
+const BODY_LINES_PER_PAGE = 50;
 function checkDeadline(deadlineAt: number) {
   if (Date.now() > deadlineAt) throw new EmailPreparationError("preparation_timeout");
 }
@@ -39,7 +41,8 @@ async function pdfPages(bytes: Buffer, deadlineAt: number) {
   });
   try {
     const pdf = await loading.promise;
-    if (pdf.numPages < 1 || pdf.numPages > 5) throw new EmailPreparationError("pdf_page_limit");
+    if (pdf.numPages < 1 || pdf.numPages > MAX_RECEIPT_PAGES)
+      throw new EmailPreparationError("pdf_page_limit");
     const pages: Buffer[] = [];
     for (let n = 1; n <= pdf.numPages; n++) {
       checkDeadline(deadlineAt);
@@ -89,9 +92,10 @@ export async function renderEmailBody(text: string): Promise<Buffer[]> {
     }
     lines.push(line);
   }
-  if (lines.length > 250) throw new EmailPreparationError("email_body_limit");
+  if (lines.length > BODY_LINES_PER_PAGE * MAX_RECEIPT_PAGES)
+    throw new EmailPreparationError("email_body_limit");
   const pages: Buffer[] = [];
-  for (let start = 0; start < lines.length; start += 50) {
+  for (let start = 0; start < lines.length; start += BODY_LINES_PER_PAGE) {
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, 1500, 2000);
     ctx.fillStyle = "#1e3b31";
@@ -99,7 +103,7 @@ export async function renderEmailBody(text: string): Promise<Buffer[]> {
     ctx.fillText("EMAILED RECEIPT", 80, 90);
     ctx.fillStyle = "#111111";
     ctx.font = '26px "SVL Receipt"';
-    lines.slice(start, start + 50).forEach((line, i) => {
+    lines.slice(start, start + BODY_LINES_PER_PAGE).forEach((line, i) => {
       ctx.fillText(line, 80, 155 + i * 35);
     });
     pages.push(await canvas.encode("jpeg", 92));

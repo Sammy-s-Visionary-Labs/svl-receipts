@@ -116,6 +116,13 @@ describe("manager review queue API", () => {
     expect(emailDocumentsIn).toHaveBeenCalledWith("receipt_id", [id, emailReceipt]);
   });
 
+  it("preserves the ten-page count for manager display", async () => {
+    rpc.mockResolvedValue({ data: [{ ...row, pageCount: 10 }], error: null });
+    const response = await GET(request());
+    expect(response.status).toBe(200);
+    expect((await response.json()).receipts[0].pageCount).toBe(10);
+  });
+
   it("uses an honest fallback when an account has no saved name", async () => {
     profilesIn.mockResolvedValue({ data: [{ id: owner, full_name: "  " }], error: null });
     const body = await (await GET(request())).json();

@@ -1,3 +1,5 @@
+import { MAX_RECEIPT_PAGES } from "./upload";
+
 /** RA-35 parseReceipt is separate from the legacy complete-line ExtractionV1 contract. */
 export const PARSED_RECEIPT_SCHEMA_VERSION = 1 as const;
 export const RECEIPT_DOCUMENT_KINDS = [
@@ -107,9 +109,14 @@ const lineTextKeys = ["description", "qty", "uom", "unit_cost", "extended_cost",
 /** Runtime boundary: no string-to-number coercion, invalid confidence or invented page references. */
 export function isReceiptObservationV1(
   value: unknown,
-  pageCount = 20,
+  pageCount: number = MAX_RECEIPT_PAGES,
 ): value is ReceiptObservationV1 {
-  if (!Number.isInteger(pageCount) || pageCount < 1 || pageCount > 20 || !isRecord(value))
+  if (
+    !Number.isInteger(pageCount) ||
+    pageCount < 1 ||
+    pageCount > MAX_RECEIPT_PAGES ||
+    !isRecord(value)
+  )
     return false;
   return (
     keysAre(value, [
@@ -179,7 +186,7 @@ function validEvidencePath(path: string, lines: unknown[], hints: unknown[]): bo
 
 export function parseReceiptObservationV1(
   value: unknown,
-  pageCount = 20,
+  pageCount: number = MAX_RECEIPT_PAGES,
 ): ReceiptObservationV1 | null {
   return isReceiptObservationV1(value, pageCount) ? value : null;
 }
@@ -255,7 +262,7 @@ export function isParsedReceiptV1(value: unknown): value is ParsedReceiptV1 {
         (index === 0 ||
           line.source_index >
             ((value.lines as ParsedReceiptLineV1[])[index - 1]?.source_index ?? -1)) &&
-        pageIndex(line.page_index, 20) &&
+        pageIndex(line.page_index, MAX_RECEIPT_PAGES) &&
         ["description", "uom", "job_hint"].every((key) => nullableText(line[key])) &&
         (line.qty === null ||
           (typeof line.qty === "number" &&
@@ -275,7 +282,7 @@ export function isParsedReceiptV1(value: unknown): value is ParsedReceiptV1 {
         typeof hint.text === "string" &&
         hint.text.length > 0 &&
         hint.text.length <= 2000 &&
-        pageIndex(hint.page_index, 20),
+        pageIndex(hint.page_index, MAX_RECEIPT_PAGES),
     ) &&
     Array.isArray(value.evidence) &&
     value.evidence.every(
@@ -286,7 +293,7 @@ export function isParsedReceiptV1(value: unknown): value is ParsedReceiptV1 {
         typeof item.text === "string" &&
         item.text.length > 0 &&
         item.text.length <= 2000 &&
-        pageIndex(item.page_index, 20) &&
+        pageIndex(item.page_index, MAX_RECEIPT_PAGES) &&
         typeof item.confidence === "number" &&
         Number.isFinite(item.confidence) &&
         item.confidence >= 0 &&

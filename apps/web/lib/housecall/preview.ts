@@ -1,4 +1,4 @@
-import { extendedCostCents } from "@svl/domain";
+import { extendedCostCents, MAX_RECEIPT_PAGES } from "@svl/domain";
 import { isHousecallQuantitySupported } from "@svl/integrations";
 
 export type PreviewStepRow = {
@@ -128,7 +128,7 @@ export function buildHousecallExportPreview(input: {
       if (
         !Number.isInteger(image.page_index) ||
         (image.page_index as number) < 0 ||
-        (image.page_index as number) > 4 ||
+        (image.page_index as number) >= MAX_RECEIPT_PAGES ||
         job.images.some((item) => item.pageIndex === image.page_index)
       )
         throw new Error("invalid_export_preview");

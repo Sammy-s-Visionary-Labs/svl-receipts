@@ -1,3 +1,4 @@
+import { MAX_RECEIPT_PAGES } from "@svl/domain";
 import { authErrorResponse, requireManager } from "@/lib/auth/guards";
 import { housecallConfiguration } from "@/lib/housecall/config";
 import { HttpError, httpErrorResponse } from "@/lib/http";
@@ -74,7 +75,7 @@ export async function GET(request: Request, context: Context) {
         .select("page_index")
         .eq("receipt_id", id)
         .not("confirmed_at", "is", null)
-        .limit(5),
+        .limit(MAX_RECEIPT_PAGES),
       supabase
         .from("housecall_outbox")
         .select("intent_id,status")

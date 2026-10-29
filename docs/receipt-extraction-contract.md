@@ -6,13 +6,15 @@
 
 ## Provider contract and evidence
 
-`createGeminiReceiptAdapter({ apiKey, model?, timeoutMs?, normalization?, fetch? }).parseReceipt(pages)` accepts an ordered array of `{pageIndex, mimeType, bytes}` and returns `{receipt, provider, model, promptVersion, usage}`. Only Gemini Flash model names are permitted; the explicit default is `gemini-3.5-flash-lite`, with prompt `ra5-receipt-v1.0`. Configuration belongs on the server. Provider payloads, credentials and transport bodies do not enter errors or logs.
+`createGeminiReceiptAdapter({ apiKey, model?, timeoutMs?, normalization?, fetch? }).parseReceipt(pages)` accepts an ordered array of 1–10 `{pageIndex, mimeType, bytes}` pages (shared `MAX_RECEIPT_PAGES` limit, page indexes 0–9) and returns `{receipt, provider, model, promptVersion, usage}`. Only Gemini Flash model names are permitted; the explicit default is `gemini-3.5-flash-lite`, with prompt `ra5-receipt-v1.0`. Configuration belongs on the server. Provider payloads, credentials and transport bodies do not enter errors or logs.
 
 The provider returns strict `ReceiptObservationV1` JSON with strings/null for quantities, amounts and dates; this avoids silently coercing malformed JSON numbers into approved costs. Domain validation rejects extra keys, out-of-bounds page references, nonnumeric confidence, unsupported versions and malformed shapes. Each non-null field should have a text snippet, page index and confidence. Missing evidence or confidence becomes a review warning.
 
 Array size caps (100 lines, 100 job hints, 1,200 evidence entries) are enforced by the domain validator. They are deliberately omitted from the provider JSON schema: a live Gemini Flash check on 2026-09-08 rejected the nested schema with those large `maxItems` values as `INVALID_ARGUMENT`; the same request passed after removing only those schema maxima. Runtime limits and strict validation remain unchanged.
 
 `ParsedReceiptV1` holds normalized fields, all incomplete material lines, per-field confidence, document and line job hints, warnings and original evidence. Original strings are preserved under `original_observation` even when arithmetic or parsing rejects them. **`raw_text`, evidence text and `original_observation` are restricted receipt evidence and must be stored in the private evidence record, not operational logs or a general manager payload.** Persist actual returned model version, configured prompt version and schema version with the immutable extraction record. Reprocessing appends a record; it never rewrites evidence or manager decisions.
+
+Readability, extraction, historical type classification, image access and Housecall attachment previews enforce the same ten-page limit. Per-image upload limits and the provider inline/file byte budgets are unchanged.
 
 The adapter sends the pages in one request, in capture order, requesting one combined receipt with continued material lines. Each line retains its page and original source index. It must not collapse two actual identical purchases. Image orientation is normalized by the queue worker before invoking the adapter. For bodies beyond the conservative 19 MiB inline budget, it uploads temporary Gemini files, preserves order and deletes them in a bounded cleanup step on success or failure.
 

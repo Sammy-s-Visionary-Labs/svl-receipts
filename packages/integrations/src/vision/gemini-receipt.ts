@@ -1,5 +1,6 @@
 import { Buffer } from "node:buffer";
 import {
+  MAX_RECEIPT_PAGES,
   normalizeReceiptObservation,
   type ParsedReceiptV1,
   parseReceiptObservationV1,
@@ -59,7 +60,7 @@ export function createGeminiReceiptAdapter(input: {
         throw new GeminiReceiptError("permanent", "provider_invalid_configuration");
       if (
         !pages.length ||
-        pages.length > 20 ||
+        pages.length > MAX_RECEIPT_PAGES ||
         pages.some(
           (page, index) =>
             page.pageIndex !== index ||
@@ -165,7 +166,7 @@ const fieldProperties = Object.fromEntries(
   ].map((key) => [key, nullableText]),
 );
 const lineProperties = {
-  page_index: { type: "integer", minimum: 0 },
+  page_index: { type: "integer", minimum: 0, maximum: MAX_RECEIPT_PAGES - 1 },
   ...Object.fromEntries(
     ["description", "qty", "uom", "unit_cost", "extended_cost", "job_hint"].map((key) => [
       key,
@@ -199,7 +200,10 @@ export const GEMINI_RECEIPT_RESPONSE_SCHEMA = {
       items: {
         type: "object",
         additionalProperties: false,
-        properties: { text: { type: "string" }, page_index: { type: "integer", minimum: 0 } },
+        properties: {
+          text: { type: "string" },
+          page_index: { type: "integer", minimum: 0, maximum: MAX_RECEIPT_PAGES - 1 },
+        },
         required: ["text", "page_index"],
       },
     },
@@ -212,7 +216,7 @@ export const GEMINI_RECEIPT_RESPONSE_SCHEMA = {
         properties: {
           field: { type: "string" },
           text: { type: "string" },
-          page_index: { type: "integer", minimum: 0 },
+          page_index: { type: "integer", minimum: 0, maximum: MAX_RECEIPT_PAGES - 1 },
           confidence: { type: "number", minimum: 0, maximum: 1 },
         },
         required: ["field", "text", "page_index", "confidence"],

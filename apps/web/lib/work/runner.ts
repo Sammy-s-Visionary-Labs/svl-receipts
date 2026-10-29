@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import {
   isDeferablePurgeReason,
   isHandledWorkKind,
+  MAX_RECEIPT_PAGES,
   persistableWorkReason,
   shouldReleasePurgeClaimAfterStorageFailure,
   WORK_HANDLED_KINDS,
@@ -295,6 +296,7 @@ async function runReadability(
   }>;
   if (
     confirmedPages.length === 0 ||
+    confirmedPages.length > MAX_RECEIPT_PAGES ||
     confirmedPages.some((page, index) => page.confirmed_at === null || page.page_index !== index)
   ) {
     throw new GeminiReadabilityError("permanent", "invalid_page_set");

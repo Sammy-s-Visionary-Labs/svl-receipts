@@ -51,6 +51,33 @@ function observedReceipt(overrides: Partial<ReceiptObservationV1> = {}): Receipt
 }
 
 describe("strict extraction boundaries", () => {
+  it("retains last-page line, hint and evidence references within the ten-page limit", () => {
+    const base = observedReceipt();
+    const lastPage = observedReceipt({
+      lines: [{ ...first(base.lines), page_index: 9 }],
+      job_hints: [{ text: "Sullivan", page_index: 9 }],
+      evidence: [{ ...first(base.evidence), page_index: 9 }],
+    });
+    expect(isReceiptObservationV1(lastPage, 10)).toBe(true);
+    expect(isParsedReceiptV1(normalizeReceiptObservation(lastPage))).toBe(true);
+    expect(isReceiptObservationV1(lastPage, 11)).toBe(false);
+    expect(
+      isReceiptObservationV1({
+        ...lastPage,
+        lines: [{ ...first(lastPage.lines), page_index: 10 }],
+      }),
+    ).toBe(false);
+    expect(
+      isReceiptObservationV1({ ...lastPage, job_hints: [{ text: "Sullivan", page_index: 10 }] }),
+    ).toBe(false);
+    expect(
+      isReceiptObservationV1({
+        ...lastPage,
+        evidence: [{ ...first(lastPage.evidence), page_index: 10 }],
+      }),
+    ).toBe(false);
+  });
+
   it("preserves legacy v1 while rejecting malformed dates, values and confidence", () => {
     const valid = {
       schema_version: 1,

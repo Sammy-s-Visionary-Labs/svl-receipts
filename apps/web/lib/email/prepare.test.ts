@@ -55,9 +55,22 @@ describe("email document preparation", () => {
     expect(result.documents[0]?.pages).toHaveLength(2);
     expect((await sharp(result.documents[0]?.pages[0]).metadata()).format).toBe("jpeg");
   });
-  it("holds excessive PDFs instead of silently discarding pages", async () => {
-    await expect(prepareEmail(attachment("application/pdf", "long.pdf", pdf(6)))).rejects.toThrow(
+  it("accepts a ten-page PDF as one complete receipt", async () => {
+    const result = await prepareEmail(attachment("application/pdf", "test-ten-pages.pdf", pdf(10)));
+    expect(result.documents).toHaveLength(1);
+    expect(result.documents[0]?.pages).toHaveLength(10);
+    expect((await sharp(result.documents[0]?.pages[9]).metadata()).format).toBe("jpeg");
+  });
+  it("holds eleven-page PDFs instead of silently discarding pages", async () => {
+    await expect(prepareEmail(attachment("application/pdf", "long.pdf", pdf(11)))).rejects.toThrow(
       "pdf_page_limit",
+    );
+  });
+  it("renders ten body pages and holds a body requiring an eleventh page", async () => {
+    const lines = Array.from({ length: 500 }, (_, index) => `TEST RECEIPT line ${index + 1}`);
+    expect(await renderEmailBody(lines.join("\n"))).toHaveLength(10);
+    await expect(renderEmailBody([...lines, "TEST RECEIPT line 501"].join("\n"))).rejects.toThrow(
+      "email_body_limit",
     );
   });
   it("decodes image attachments and attached forwarded emails", async () => {

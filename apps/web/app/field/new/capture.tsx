@@ -116,7 +116,7 @@ export function CaptureReceipt() {
     const selected = Array.from(files ?? []);
     if (!draft || draft.started || !selected.length) return;
     if (selected.length + draft.pages.length > MAX_RECEIPT_PAGES) {
-      setError("A receipt can have up to 5 pages. Choose fewer photos.");
+      setError(`A receipt can have up to ${MAX_RECEIPT_PAGES} pages. Choose fewer photos.`);
       return;
     }
     await perform(async () => {
@@ -238,7 +238,10 @@ export function CaptureReceipt() {
           <section className={styles.capturePanel}>
             <div className={styles.sectionTitle}>
               <h2>
-                Receipt photos <span className={styles.count}>{draft.pages.length} / 5</span>
+                Receipt photos{" "}
+                <span className={styles.count}>
+                  {draft.pages.length} / {MAX_RECEIPT_PAGES}
+                </span>
               </h2>
               {saved && (
                 <span className={styles.saved}>

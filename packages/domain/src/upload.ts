@@ -8,8 +8,8 @@ export const RECEIPT_BUCKET = "receipts" as const;
 /** Matches the private `receipts` bucket file_size_limit. */
 export const MAX_RECEIPT_BYTES = 10 * 1024 * 1024;
 
-/** Pilot cap for multi-page capture (RA-69 / RA-21). Single-page remains the common path. */
-export const MAX_RECEIPT_PAGES = 5;
+/** Shared cap for capture, review, extraction and receipt attachments. */
+export const MAX_RECEIPT_PAGES = 10;
 
 export const ALLOWED_RECEIPT_CONTENT_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
 

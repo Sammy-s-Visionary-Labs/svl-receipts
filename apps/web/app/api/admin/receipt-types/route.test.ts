@@ -19,6 +19,7 @@ vi.mock("@/lib/supabase/service", () => ({ createServiceRoleClient: vi.fn() }));
 vi.mock("@/lib/work/extraction", () => ({ normalizeExtractionPage: vi.fn() }));
 const rpc = vi.fn(),
   parseReceipt = vi.fn();
+const pageOrder = vi.fn();
 const cutoff = "2026-01-01T00:00:00Z";
 const request = () =>
   new Request("http://localhost/api/admin/receipt-types", {
@@ -31,7 +32,7 @@ beforeEach(() => {
   vi.mocked(requireAdmin).mockResolvedValue({
     actor: { userId: "admin", role: "admin", disabled: false },
   } as never);
-  const chain = { select: vi.fn(), eq: vi.fn(), order: vi.fn() };
+  const chain = { select: vi.fn(), eq: vi.fn(), order: pageOrder };
   chain.select.mockReturnValue(chain);
   chain.eq.mockReturnValue(chain);
   chain.order.mockResolvedValue({
@@ -64,6 +65,44 @@ beforeEach(() => {
   });
 });
 describe("receipt type classification batches", () => {
+  it.each([10, 11])(
+    "handles a retained %i-page receipt at the same page boundary",
+    async (count) => {
+      rpc.mockImplementation(async (name) => ({
+        data:
+          name === "claim_receipt_type_classifications"
+            ? [{ receiptId: "receipt", leaseToken: "lease" }]
+            : {},
+        error: null,
+      }));
+      pageOrder.mockResolvedValue({
+        data: Array.from({ length: count }, (_, page_index) => ({
+          page_index,
+          confirmed_at: "now",
+          storage_key: `synthetic-page-${page_index}`,
+        })),
+        error: null,
+      });
+      expect((await POST(request())).status).toBe(200);
+      if (count === 10) {
+        expect(
+          parseReceipt.mock.calls[0][0].map((page: { pageIndex: number }) => page.pageIndex),
+        ).toEqual(Array.from({ length: 10 }, (_, index) => index));
+        expect(rpc).toHaveBeenCalledWith(
+          "finish_receipt_type_classification",
+          expect.objectContaining({ p_type: "credit", p_error: null }),
+        );
+      } else {
+        expect(parseReceipt).not.toHaveBeenCalled();
+        expect(readReceiptObject).not.toHaveBeenCalled();
+        expect(rpc).toHaveBeenCalledWith(
+          "finish_receipt_type_classification",
+          expect.objectContaining({ p_error: "classification_failed" }),
+        );
+      }
+    },
+  );
+
   it("requires an administrator before reading data or calling AI", async () => {
     vi.mocked(requireAdmin).mockRejectedValue(
       new AuthHttpError(403, "forbidden", "Admin required"),

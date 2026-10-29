@@ -329,6 +329,25 @@ describe("native encrypted pending receipt storage", () => {
     expect(runtime.files.has(item.pages[0]?.uri ?? "")).toBe(true);
   });
 
+  it("stages the tenth encrypted page for preview without altering the stored originals", async () => {
+    const sourcePages = Array.from({ length: 10 }, (_, index) => {
+      const uri = `file:///source/receipt-${index}.jpg`;
+      runtime.files.set(uri, bytes);
+      return receiptPage(uri);
+    });
+    const queue = await newQueue();
+    const item = await queue.enqueue({
+      ownerUserId: "worker-1",
+      pages: sourcePages,
+      location: null,
+    });
+    const previewUri = await queue.preparePreviewPage(item.id, 9);
+    expect(previewUri).toContain("page-9.jpg");
+    expect(Array.from(runtime.files.get(previewUri) ?? [])).toEqual(Array.from(bytes));
+    expect(item.pages.every((page) => runtime.files.has(page.uri))).toBe(true);
+    await expect(queue.preparePreviewPage(item.id, 10)).rejects.toThrow();
+  });
+
   it("migrates legacy plaintext queue files before removing them", async () => {
     const legacyPage = receiptPage("file:///document/pending-receipts-v1/legacy-1/page-0.jpg");
     runtime.files.set(legacyPage.uri, bytes);

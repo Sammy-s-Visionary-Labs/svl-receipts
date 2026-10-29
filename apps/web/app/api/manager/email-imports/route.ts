@@ -1,5 +1,6 @@
 import { authErrorResponse, requireManager } from "@/lib/auth/guards";
 import { EMAIL_MAILBOX } from "@/lib/email/config";
+import { UNRESOLVED_EMAIL_IMPORT_STATUSES } from "@/lib/email/status";
 export async function GET(request: Request) {
   try {
     const { supabase } = await requireManager(request, "GET email imports");
@@ -14,6 +15,7 @@ export async function GET(request: Request) {
       .select(
         "id,status,sender,subject,received_at,created_at,updated_at,last_error,raw_deleted_at,email_receipt_documents(receipt_id,filename)",
       )
+      .in("status", UNRESOLVED_EMAIL_IMPORT_STATUSES)
       .order("created_at", { ascending: false })
       .limit(50);
     if (error) throw error;

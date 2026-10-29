@@ -60,6 +60,14 @@ beforeEach(() => {
   } as never);
 });
 describe("manager receipt detail API", () => {
+  it("counts all ten confirmed pages for receipt navigation", async () => {
+    rows.receipt_pages = Array.from({ length: 10 }, (_, page_index) => ({ page_index }));
+    const body = await (await run()).json();
+    expect(body.pageCount).toBe(10);
+    const pageQueryIndex = from.mock.calls.findIndex(([table]) => table === "receipt_pages");
+    expect(from.mock.results[pageQueryIndex]?.value.limit).toHaveBeenCalledWith(10);
+  });
+
   it("uses a backfilled type without replacing saved manager edits or explicit choices", async () => {
     rows.receipt_type_classifications = { receipt_type: "credit", source_extraction_id: "e" };
     rows.reviews = [

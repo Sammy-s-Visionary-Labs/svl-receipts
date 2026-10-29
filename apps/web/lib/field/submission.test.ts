@@ -4,12 +4,12 @@ import type { fieldApi } from "./api";
 import type { FieldDraft } from "./drafts";
 import { submitDraft, validUploadUrl } from "./submission";
 
-function fixture() {
+function fixture(pageCount = 2) {
   const draft: FieldDraft = {
     id: "b3700000-0000-4000-8000-000000000001",
     ownerId: "worker-a",
     createdAt: "2026-09-15T10:00:00Z",
-    pages: [0, 1].map((index) => ({
+    pages: Array.from({ length: pageCount }, (_, index) => ({
       id: `page-${index}`,
       blob: new Blob([`image-${index}`], { type: "image/jpeg" }),
       checksum: `${index}`.repeat(64),
@@ -57,6 +57,24 @@ function fixture() {
 }
 
 describe("worker web submission through the existing API", () => {
+  it.each([10, 11])(
+    "enforces the %i-page boundary before writing receipt photos",
+    async (count) => {
+      const f = fixture(count);
+      if (count === 10) {
+        await expect(submitDraft(f.draft, f.dependencies)).resolves.toEqual(f.acknowledgement);
+        expect(f.put).toHaveBeenCalledTimes(10);
+        expect(f.saved.at(-1)?.uploaded).toEqual(Array.from({ length: 10 }, (_, index) => index));
+        const confirmation = f.api.mock.calls.at(-1) as unknown as [string, RequestInit];
+        expect(JSON.parse(String(confirmation[1].body)).pages.at(-1).pageIndex).toBe(9);
+      } else {
+        await expect(submitDraft(f.draft, f.dependencies)).rejects.toThrow("Add between 1 and 10");
+        expect(f.put).not.toHaveBeenCalled();
+        expect(f.save).not.toHaveBeenCalled();
+      }
+    },
+  );
+
   it("sends the ordered page set and checksums, persisting the draft before remote writes", async () => {
     const f = fixture();
     f.api.mockImplementation(async (path) => {

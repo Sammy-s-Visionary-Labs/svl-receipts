@@ -1,3 +1,4 @@
+import { MAX_RECEIPT_PAGES } from "@svl/domain";
 import { createGeminiReceiptAdapter, GEMINI_RECEIPT_MODEL } from "@svl/integrations";
 import { authErrorResponse, requireAdmin } from "@/lib/auth/guards";
 import { HttpError, httpErrorResponse } from "@/lib/http";
@@ -58,7 +59,7 @@ async function classify(db: ReturnType<typeof createServiceRoleClient>, item: Cl
     if (
       error ||
       !data?.length ||
-      data.length > 5 ||
+      data.length > MAX_RECEIPT_PAGES ||
       data.some((page, index) => page.page_index !== index || !page.confirmed_at)
     )
       throw new Error("invalid_page_set");

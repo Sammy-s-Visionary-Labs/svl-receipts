@@ -24,6 +24,7 @@ const sqlFiles = [
   "receipt_material_types_applied.sql",
   "worker_access_applied.sql",
   "email_import_applied.sql",
+  "receipt_ten_pages_applied.sql",
 ].map((name) => join(root, "supabase", "tests", name));
 const url = process.env.SVL_APPLIED_DATABASE_URL;
 

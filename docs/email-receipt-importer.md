@@ -29,7 +29,9 @@ runs Housecall dispatch.
    mailbox and replaces only triggers for this script's importer function.
 5. Run `importReceiptEmails` once. Confirm Settings → Email receipts shows recent
    contact, then check the review inbox. Google emails the trigger owner about
-   failed script executions; Settings shows preparation failures and retry controls.
+   failed script executions; Settings shows connection health, pending imports,
+   preparation failures and retry controls. Successful imports appear in the
+   receipt queue and history rather than this Settings list.
 
 No Google password is stored by this app. The Google authorization and Apps Script
 properties remain in the receipt account. To stop intake, delete this project's
@@ -62,7 +64,7 @@ runs at 09:15 UTC. Ordinary confirmation immediately starts extraction work.
 ## Supported content and limits
 
 - PDF attachments become image pages for the existing OCR/review viewer. Maximum
-  five pages per PDF, matching the current receipt review limit. Locked, damaged,
+  ten pages per PDF, matching the shared receipt review limit. Locked, damaged,
   and longer PDFs are held visibly; no pages are silently dropped.
 - Common image attachments are decoded, oriented, and converted to JPEG. Small
   inline signature/tracking images are skipped; SVG and multi-frame image files
@@ -76,7 +78,7 @@ runs at 09:15 UTC. Ordinary confirmation immediately starts extraction work.
   retained when present alongside attachments. Managers resolve duplicate body/
   attachment copies in the same way as photographed/emailed duplicates.
 - Maximum raw email: 40 MiB; 20 receipt documents / 40 rendered pages per message;
-  body text: 30,000 characters / five rendered pages. Unsupported non-inline
+  body text: 30,000 characters / ten rendered pages. Unsupported non-inline
   attachments hold the entire message for attention.
 
 Original MIME files remain private and downloadable only through a manager-checked

@@ -34,7 +34,7 @@ not as a preview connected to the production database.
 ## Included
 
 - `/field`: overview, recent statuses, and resumable drafts on this device.
-- `/field/new`: camera and photo-library inputs, up to five pages, rotation/removal before sending, optional location, and explicit delivery confirmation.
+- `/field/new`: camera and photo-library inputs, up to ten pages, rotation/removal before sending, optional location, and explicit delivery confirmation.
 - `/field/receipts`: owner-only history, filters, pagination, and refresh.
 - `/field/receipts/[id]`: authoritative page list, private photos, office feedback, status, and retake guidance from the existing worker-detail API.
 - `/field/help`: capture guidance, draft behavior, and iPhone Home Screen instructions.
