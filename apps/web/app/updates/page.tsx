@@ -22,7 +22,7 @@ export default async function UpdatesPage() {
       <main id="main-content" className={`${layout.main} ${styles.main}`}>
         <header className={styles.heading}>
           <h1 className={layout.heading}>Updates</h1>
-          <p className={layout.subtitle}>What changed in the receipt app.</p>
+          <p className={layout.subtitle}>Latest changes to receipts, labor hours, and jobs.</p>
         </header>
         {releaseWeeks.map((week) => (
           <section
